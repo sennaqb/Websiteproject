@@ -1,0 +1,735 @@
+<title>Magic City Car Map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Extra+Condensed:wght@400;500;600;700;800;900&family=Saira:wght@400;500;600&display=swap">
+<style>
+/* Layout: a full-screen game map. The map fills the viewport; HUD pieces sit in the corners like a driving game: radar bottom-left, location readout and speed bottom-right, progress top-right, spot log on the right. */
+:root{
+  --night:#0a0c10;          /* page ground */
+  --panel:rgba(8,10,14,.84);/* HUD panels */
+  --ink:#f4f1e8;            /* primary text */
+  --mute:#9aa2aa;           /* secondary text */
+  --gold:#f2c230;           /* discovery / titles */
+  --pink:#ff3f8e;           /* Miami accent */
+  --gps:#b04dff;            /* GPS route and waypoint */
+  --green:#4fc35f;          /* completion bar */
+  --blue:#3c8ff0;           /* visited bar */
+  --line:rgba(244,241,232,.14);
+  --f-title:"Saira Extra Condensed","Arial Narrow",Impact,sans-serif;
+  --f-ui:"Saira","Segoe UI",system-ui,sans-serif;
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0;overflow:hidden;background:var(--night);color:var(--ink);font-family:var(--f-ui);-webkit-font-smoothing:antialiased;touch-action:none}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--gold);outline-offset:3px;border-radius:3px}
+#map{position:fixed;inset:0;width:100%;height:100%;display:block;cursor:crosshair}
+#map.dragging{cursor:grabbing}
+
+.panel{background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.title{font-family:var(--f-title);font-weight:900;text-transform:uppercase;letter-spacing:.01em;line-height:.9}
+.label{font-family:var(--f-title);font-weight:600;font-size:13px;letter-spacing:.16em;text-transform:uppercase;color:var(--mute)}
+.num{font-variant-numeric:tabular-nums}
+
+/* top bar */
+.logo{position:fixed;z-index:5;top:calc(env(safe-area-inset-top,0px) + 14px);left:16px;display:grid;line-height:.82;pointer-events:none;transform:skewX(-8deg)}
+.logo b{font-family:var(--f-title);font-weight:900;font-size:clamp(28px,4vw,42px);text-transform:uppercase;background:linear-gradient(100deg,var(--pink),#ff8a3d 60%,var(--gold));-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 2px 0 rgba(0,0,0,.6))}
+.logo span{font-family:var(--f-title);font-weight:700;font-size:clamp(14px,1.7vw,18px);letter-spacing:.32em;text-transform:uppercase;color:var(--ink);text-shadow:0 2px 0 rgba(0,0,0,.7)}
+.stats{position:fixed;z-index:5;top:calc(env(safe-area-inset-top,0px) + 14px);right:16px;display:grid;justify-items:end;gap:4px;pointer-events:none;text-shadow:0 2px 0 rgba(0,0,0,.75),0 0 12px rgba(0,0,0,.6)}
+.stats .count{font-family:var(--f-title);font-weight:800;font-size:clamp(28px,3.4vw,40px);line-height:1;letter-spacing:.02em}
+.stats .count em{font-style:normal;color:var(--gold)}
+.stars{display:flex;gap:3px}
+.stars i{width:22px;height:22px;background:rgba(255,255,255,.18);clip-path:polygon(50% 0,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);transition:background .4s}
+.stars i.on{background:var(--gold);filter:drop-shadow(0 0 6px rgba(242,194,48,.7))}
+.toolbar{position:fixed;z-index:5;top:calc(env(safe-area-inset-top,0px) + 96px);right:16px;display:flex;flex-direction:column;gap:6px}
+.tbtn{width:42px;height:42px;display:grid;place-items:center;border-radius:8px;font-family:var(--f-title);font-weight:800;font-size:18px}
+.tbtn:hover{border-color:var(--gold);color:var(--gold)}
+.tbtn[aria-pressed="true"]{color:var(--gold);border-color:var(--gold)}
+
+/* spot log */
+.log{position:fixed;z-index:5;top:calc(env(safe-area-inset-top,0px) + 96px);right:68px;width:280px;max-height:calc(100% - 360px);overflow:auto;border-radius:10px;padding:12px 12px 8px}
+.log h2{margin:0 0 8px;font-family:var(--f-title);font-weight:800;font-size:20px;letter-spacing:.06em;text-transform:uppercase}
+.log ol{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.log li button{width:100%;display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 6px;border-radius:6px;text-align:left}
+.log li button:hover{background:rgba(255,255,255,.06)}
+.log .dot{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-family:var(--f-title);font-weight:900;font-size:12px;color:#0a0c10;background:#5b636b}
+.log .nm{font-family:var(--f-title);font-weight:700;font-size:17px;line-height:1.05;text-transform:uppercase;letter-spacing:.02em;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.log .nm small{display:block;font-family:var(--f-ui);font-weight:400;font-size:11px;letter-spacing:.04em;text-transform:none;color:var(--mute)}
+.log .st{font-family:var(--f-title);font-weight:700;font-size:12px;letter-spacing:.1em;color:var(--mute)}
+.log .st.v{color:var(--blue)}
+.log .unk .nm{color:var(--mute)}
+.log .foot{margin:8px 2px 2px;font-size:11px;color:var(--mute);line-height:1.4}
+.log .reset{margin-top:6px;font-size:11px;color:var(--mute);text-decoration:underline;text-underline-offset:3px}
+
+/* radar */
+.radar{position:fixed;z-index:5;left:16px;bottom:calc(env(safe-area-inset-bottom,0px) + 16px);display:grid;gap:5px}
+.radar canvas{display:block;width:260px;height:170px;border-radius:6px;border:2px solid rgba(0,0,0,.7);box-shadow:0 6px 24px rgba(0,0,0,.5)}
+.bars{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.bar{height:7px;background:rgba(0,0,0,.6);border:1px solid rgba(0,0,0,.7);overflow:hidden}
+.bar i{display:block;height:100%;width:0;transition:width .6s}
+.bar.g i{background:var(--green)}
+.bar.b i{background:var(--blue)}
+
+/* location + speed */
+.where{position:fixed;z-index:5;right:16px;bottom:calc(env(safe-area-inset-bottom,0px) + 16px);display:grid;justify-items:end;gap:2px;text-align:right;pointer-events:none;text-shadow:0 2px 0 rgba(0,0,0,.8),0 0 14px rgba(0,0,0,.7)}
+.where .zone{font-family:var(--f-title);font-weight:800;font-size:clamp(24px,2.6vw,32px);text-transform:uppercase;letter-spacing:.03em;line-height:1;transition:opacity .4s}
+.where .street{font-family:var(--f-title);font-weight:600;font-size:16px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute);min-height:1.2em}
+.where .speed{font-family:var(--f-title);font-weight:900;font-size:46px;line-height:.9;margin-top:6px}
+.where .speed small{font-size:15px;letter-spacing:.14em;color:var(--mute);margin-left:4px}
+
+.hint{position:fixed;z-index:5;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 16px);padding:8px 14px;border-radius:99px;font-size:12px;color:var(--mute);white-space:nowrap;pointer-events:none}
+.hint kbd{font-family:var(--f-title);font-weight:700;font-size:13px;color:var(--ink);padding:1px 6px;border:1px solid var(--line);border-radius:4px;margin:0 2px}
+
+/* discovery banner */
+#banner{position:fixed;z-index:8;left:0;right:0;top:30%;display:grid;justify-items:center;gap:4px;padding:18px 16px 20px;pointer-events:none;background:linear-gradient(90deg,transparent,rgba(0,0,0,.72) 20%,rgba(0,0,0,.72) 80%,transparent);opacity:0;transform:scale(1.15)}
+#banner .k{font-family:var(--f-title);font-weight:700;font-size:16px;letter-spacing:.3em;text-transform:uppercase;color:var(--ink)}
+#banner .t{font-family:var(--f-title);font-weight:900;font-size:clamp(40px,7vw,86px);text-transform:uppercase;color:var(--gold);transform:skewX(-8deg);line-height:.9;text-align:center;-webkit-text-stroke:2px rgba(0,0,0,.85);paint-order:stroke fill;text-shadow:0 4px 0 rgba(0,0,0,.6)}
+#banner .s{font-family:var(--f-title);font-weight:600;font-size:18px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink);opacity:.85;text-align:center}
+#banner.show{animation:banner 3.2s cubic-bezier(.2,.8,.2,1) forwards}
+@keyframes banner{0%{opacity:0;transform:scale(1.2)}10%{opacity:1;transform:scale(1)}82%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(.98)}}
+
+/* toast */
+#toast{position:fixed;z-index:8;left:50%;top:calc(env(safe-area-inset-top,0px) + 18px);transform:translate(-50%,-140%);padding:10px 16px;border-radius:8px;font-family:var(--f-title);font-weight:700;font-size:17px;letter-spacing:.06em;text-transform:uppercase;transition:transform .45s cubic-bezier(.2,.8,.2,1);white-space:nowrap}
+#toast.show{transform:translate(-50%,0)}
+#toast b{color:var(--gold)}
+
+/* spot card */
+#card{position:fixed;z-index:7;top:calc(env(safe-area-inset-top,0px) + 92px);bottom:calc(env(safe-area-inset-bottom,0px) + 222px);left:16px;width:min(380px,calc(100% - 32px));border-radius:12px;display:flex;flex-direction:column;overflow:hidden;transform:translateX(calc(-100% - 40px));transition:transform .5s cubic-bezier(.2,.8,.2,1)}
+#card.open{transform:none}
+.c-head{position:relative;padding:22px 20px 18px;background:linear-gradient(135deg,color-mix(in srgb,var(--c,#f2c230) 38%,transparent),transparent 70%);border-bottom:1px solid var(--line)}
+.c-type{display:inline-flex;align-items:center;gap:8px;font-family:var(--f-title);font-weight:700;font-size:13px;letter-spacing:.18em;text-transform:uppercase;color:var(--c,#f2c230)}
+.c-type i{width:10px;height:10px;border-radius:50%;background:var(--c,#f2c230);box-shadow:0 0 10px var(--c,#f2c230)}
+.c-name{margin:8px 0 4px;font-family:var(--f-title);font-weight:900;font-size:40px;line-height:.9;text-transform:uppercase;text-wrap:balance}
+.c-area{font-size:13px;color:var(--mute)}
+.c-x{position:absolute;top:10px;right:10px;width:36px;height:36px;border-radius:50%;font-size:22px;line-height:1;color:var(--mute)}
+.c-x:hover{color:var(--ink);background:rgba(255,255,255,.08)}
+.c-body{padding:18px 20px;overflow:auto;display:grid;gap:16px;align-content:start;flex:1}
+.c-body p{margin:0;font-size:15px;line-height:1.55;max-width:60ch}
+.c-tags{display:flex;flex-wrap:wrap;gap:6px}
+.c-tags span{font-family:var(--f-title);font-weight:600;font-size:13px;letter-spacing:.06em;text-transform:uppercase;padding:4px 9px;border-radius:99px;border:1px solid var(--line)}
+.c-addr{display:grid;gap:4px;font-size:14px}
+.c-addr .label{font-size:11px}
+.c-addr .addr{user-select:all}
+.c-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:14px 20px 18px;border-top:1px solid var(--line)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 10px;border-radius:8px;font-family:var(--f-title);font-weight:800;font-size:16px;letter-spacing:.08em;text-transform:uppercase;border:1px solid var(--line);text-decoration:none;text-align:center}
+.btn:hover{border-color:var(--ink)}
+.btn.primary{background:var(--gold);color:#121212;border-color:var(--gold)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.primary[disabled]{background:transparent;color:var(--blue);border-color:var(--blue);cursor:default}
+.btn.wide{grid-column:1/-1}
+.c-note{font-size:11px;color:var(--mute);line-height:1.4}
+
+/* intro */
+#intro{position:fixed;inset:0;z-index:10;display:grid;place-items:center;padding:24px 16px;background:radial-gradient(ellipse at 50% 120%,rgba(255,63,142,.35),transparent 60%),radial-gradient(ellipse at 50% -20%,rgba(60,143,240,.25),transparent 55%),rgba(6,7,10,.86);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);overflow:auto}
+.i-box{width:min(560px,100%);display:grid;gap:22px;justify-items:start}
+.i-logo{display:grid;line-height:.8;transform:skewX(-8deg)}
+.i-logo b{font-family:var(--f-title);font-weight:900;font-size:clamp(64px,15vw,128px);text-transform:uppercase;background:linear-gradient(100deg,var(--pink),#ff8a3d 55%,var(--gold));-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 5px 0 rgba(0,0,0,.6))}
+.i-logo span{font-family:var(--f-title);font-weight:800;font-size:clamp(22px,4.6vw,36px);letter-spacing:.34em;text-transform:uppercase}
+.i-box p{margin:0;font-size:16px;line-height:1.55;color:var(--ink);max-width:48ch}
+.i-keys{display:grid;grid-template-columns:auto 1fr;gap:8px 16px;font-size:14px;color:var(--mute);align-items:center}
+.i-keys b{font-family:var(--f-title);font-weight:800;font-size:15px;letter-spacing:.06em;color:var(--ink);text-transform:uppercase}
+.i-start{padding:16px 28px;font-size:20px}
+
+@media (max-width:760px){
+  .log{right:16px;left:16px;width:auto;top:calc(env(safe-area-inset-top,0px) + 96px);max-height:calc(100% - 330px)}
+  .toolbar{top:calc(env(safe-area-inset-top,0px) + 92px)}
+  .radar canvas{width:150px;height:100px}
+  .hint{display:none}
+  .where .speed{font-size:34px}
+  .where .zone{font-size:22px}
+  #card{top:auto;bottom:calc(env(safe-area-inset-bottom,0px) + 10px);right:10px;left:10px;width:auto;max-height:68%;transform:translateY(calc(100% + 30px))}
+  .c-name{font-size:32px}
+}
+@media (prefers-reduced-motion:reduce){#banner.show{animation:none;opacity:1}#card,#toast{transition:none}}
+</style>
+
+<canvas id="map" aria-label="Map of Miami. Drive to discover car spots."></canvas>
+
+<div class="logo" aria-hidden="true"><b>Magic City</b><span>Car Map</span></div>
+
+<div class="stats" aria-live="polite">
+  <div class="count num"><em id="foundN">0</em> / <span id="totalN">10</span> <span class="label" style="font-size:14px">spots</span></div>
+  <div class="stars" id="stars" aria-label="Rep: 0 of 5 stars"><i></i><i></i><i></i><i></i><i></i></div>
+</div>
+
+<div class="toolbar">
+  <button class="tbtn panel" id="btnLog" type="button" aria-pressed="false" aria-controls="log" title="Spot log">≡</button>
+  <button class="tbtn panel" id="btnView" type="button" title="Toggle full map (M)">M</button>
+  <button class="tbtn panel" id="btnCenter" type="button" title="Recenter on car (C)">◎</button>
+  <button class="tbtn panel" id="btnZoomIn" type="button" title="Zoom in">+</button>
+  <button class="tbtn panel" id="btnZoomOut" type="button" title="Zoom out">−</button>
+  <button class="tbtn panel" id="btnSound" type="button" aria-pressed="true" title="Sound">♪</button>
+</div>
+
+<aside class="log panel" id="log" hidden aria-label="Spot log">
+  <h2>Spot log</h2>
+  <ol id="logList"></ol>
+  <p class="foot">Tap any spot to set GPS. Undiscovered spots show distance and direction from your car.</p>
+  <button class="reset" id="btnReset" type="button">Reset progress</button>
+  <div id="resetConfirm" hidden style="margin-top:6px;display:flex;gap:8px;align-items:center;font-size:12px">
+    <span>Clear all spots and the fog?</span>
+    <button class="btn" id="btnResetYes" type="button" style="padding:6px 10px;font-size:13px">Clear</button>
+    <button class="btn" id="btnResetNo" type="button" style="padding:6px 10px;font-size:13px">Keep</button>
+  </div>
+</aside>
+
+<div class="radar">
+  <canvas id="radar" width="520" height="340" aria-hidden="true"></canvas>
+  <div class="bars" aria-hidden="true"><div class="bar g"><i id="barFound"></i></div><div class="bar b"><i id="barVisited"></i></div></div>
+</div>
+
+<div class="where" aria-live="polite">
+  <div class="zone" id="zone">Downtown</div>
+  <div class="street" id="street"></div>
+  <div class="speed num"><span id="speed">0</span><small>mph</small></div>
+</div>
+
+<div class="hint panel"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> drive · <kbd>Shift</kbd> boost · click the map to set GPS · <kbd>E</kbd> check in · <kbd>M</kbd> full map</div>
+
+<div id="banner" aria-live="assertive"><div class="k" id="bK">Spot discovered</div><div class="t" id="bT"></div><div class="s" id="bS"></div></div>
+<div id="toast" class="panel" role="status"></div>
+
+<aside id="card" class="panel" aria-label="Spot details">
+  <div class="c-head">
+    <div class="c-type"><i></i><span id="cType"></span></div>
+    <h2 class="c-name" id="cName"></h2>
+    <div class="c-area" id="cArea"></div>
+    <button class="c-x" id="cClose" type="button" aria-label="Close">×</button>
+  </div>
+  <div class="c-body">
+    <p id="cText"></p>
+    <div class="c-tags" id="cTags"></div>
+    <div class="c-addr"><span class="label">Address</span><span class="addr" id="cAddr"></span></div>
+    <p class="c-note" id="cNote">Hours and events change. Check with the spot before you go.</p>
+  </div>
+  <div class="c-actions">
+    <button class="btn primary wide" id="cCheck" type="button">Check in</button>
+    <button class="btn" id="cGps" type="button">Set GPS</button>
+    <a class="btn" id="cDir" href="#" target="_blank" rel="noopener">Real directions</a>
+  </div>
+</aside>
+
+<div id="intro">
+  <div class="i-box">
+    <div class="i-logo"><b>Magic City</b><span>Car Map</span></div>
+    <p>Ten real spots for car people in Miami are hidden on this map. Drive around to find them. A spot appears when you get close, and you check in by parking there.</p>
+    <div class="i-keys">
+      <b>WASD / arrows</b><span>Drive. Shift to boost, Space to brake.</span>
+      <b>Click or tap</b><span>Set a GPS waypoint. Your car drives there by itself.</span>
+      <b>Drag · scroll · pinch</b><span>Move and zoom the map.</span>
+      <b>E</b><span>Check in at a spot you have found.</span>
+    </div>
+    <button class="btn primary i-start" id="start" type="button">Start driving</button>
+  </div>
+</div>
+
+<script>
+const MAPDATA = __MAP__;
+const BASE_SRC = "__BASE__";
+</script>
+<script>
+(() => {
+  /* ---------------- data ---------------- */
+  const D = MAPDATA, [LAT0, LAT1, LON0, LON1] = D.bbox, U = D.U, UH = D.UH;
+  const toU = (lat, lon) => [(lon - LON0) / (LON1 - LON0) * U, (LAT1 - lat) / (LAT1 - LAT0) * UH];
+  const TYPES = {
+    dealer: { label: 'Dealer & gallery', color: '#f2c230', glyph: 'car' },
+    meet:   { label: 'Meet', color: '#4fc35f', glyph: 'cup' },
+    drive:  { label: 'Driving road', color: '#3c8ff0', glyph: 'road' },
+    track:  { label: 'Race circuit', color: '#ff3f8e', glyph: 'flag' },
+    event:  { label: 'Annual event', color: '#ff8a3d', glyph: 'star' }
+  };
+  const SPOTS = [
+    { id: 'curated', name: 'CURATED', type: 'dealer', lat: 25.79742, lon: -80.19115, area: 'Edgewater',
+      text: 'Collector dealer for vintage and classic European supercars, mostly built from the 1970s through the early 2000s. They also handle restoration and host events, and their cars have won at concours like Pebble Beach and Amelia Island.',
+      tags: ['Classic supercars', 'Restoration', 'Concours winners'], addr: '2100 NE 2nd Ave, Miami, FL 33137' },
+    { id: 'waltgrace', name: 'Walt Grace Vintage', type: 'dealer', lat: 25.80121, lon: -80.20128, area: 'Wynwood',
+      text: 'A gallery that sells investment-grade cars alongside vintage guitars and watches, with a café inside. It is also an official Caterham dealer, so you can spec and take delivery of a Seven here.',
+      tags: ['Cars', 'Guitars', 'Watches', 'Café', 'Caterham'], addr: '300 NW 26th St, Miami, FL 33127' },
+    { id: 'prestige', name: 'Prestige Imports', type: 'dealer', lat: 25.9111, lon: -80.15738, area: 'North Miami Beach',
+      text: 'Family-run exotic dealer founded in 1977, next door to its own Lamborghini Miami store. The group has also run Pagani of Miami and Lotus of Miami.',
+      tags: ['Lamborghini', 'Pagani', 'Since 1977'], addr: '14800 Biscayne Blvd, North Miami Beach, FL 33181' },
+    { id: 'collection', name: 'The Collection', type: 'dealer', lat: 25.73405, lon: -80.25903, area: 'Coral Gables',
+      text: 'One of the big luxury dealerships in South Florida and an official Ferrari dealer. The same campus sells Porsche, McLaren, Aston Martin, Maserati and more.',
+      tags: ['Ferrari', 'McLaren', 'Porsche', 'Aston Martin'], addr: '200 Bird Rd, Coral Gables, FL 33146' },
+    { id: 'kbcc', name: 'Cars & Coffee Key Biscayne', type: 'meet', lat: 25.7085, lon: -80.1555, area: 'Crandon Park, Key Biscayne',
+      text: 'A monthly meet open to anyone who likes cars, from exotics to old beaters, with free coffee and doughnuts. Getting there means a run over the Rickenbacker Causeway.',
+      tags: ['Monthly', 'Free coffee', 'All cars welcome'], addr: 'Crandon Park, 6747 Crandon Blvd, Key Biscayne, FL 33149',
+      note: 'Dates move around. Check the organizers before you drive out.' },
+    { id: 'rickenbacker', name: 'Rickenbacker Causeway', type: 'drive', lat: 25.7468, lon: -80.1790, area: 'Brickell to Key Biscayne',
+      text: 'The causeway over Biscayne Bay from Brickell to Key Biscayne, with the downtown skyline behind you on the way out. It is a toll road and a busy cycling route, so drive with care.',
+      tags: ['Skyline views', 'Bay crossing', 'Toll'], addr: 'Rickenbacker Causeway, Miami, FL 33149' },
+    { id: 'ocean', name: 'Ocean Drive', type: 'drive', lat: 25.7795, lon: -80.1310, area: 'South Beach',
+      text: 'The Art Deco strip along Lummus Park, where exotics roll slowly past the neon at night. It is more about being seen than driving fast.',
+      tags: ['Art Deco', 'Night cruise', 'Neon'], addr: 'Ocean Dr, Miami Beach, FL 33139' },
+    { id: 'macarthur', name: 'MacArthur Causeway', type: 'drive', lat: 25.7790, lon: -80.1625, area: 'Downtown to South Beach',
+      text: 'The causeway from downtown to South Beach, running past the cruise port and the islands of Biscayne Bay. Try it at sunset heading west.',
+      tags: ['Sunset run', 'Cruise port', 'Bay views'], addr: 'MacArthur Causeway, Miami, FL' },
+    { id: 'autodrome', name: 'Miami International Autodrome', type: 'track', lat: 25.9579, lon: -80.2388, area: 'Miami Gardens',
+      text: 'The temporary street circuit built around Hard Rock Stadium for the Formula 1 Miami Grand Prix, which runs every spring.',
+      tags: ['Formula 1', 'Street circuit', 'Spring race'], addr: 'Hard Rock Stadium, 347 Don Shula Dr, Miami Gardens, FL 33056' },
+    { id: 'cavalcade', name: 'Motorcar Cavalcade', type: 'event', lat: 25.9601, lon: -80.13883, area: 'Aventura',
+      text: 'A luxury car event held at the JW Marriott Turnberry resort. It pairs collector and luxury cars with fine dining and entertainment.',
+      tags: ['Concours-style', 'Fine dining', 'Annual'], addr: 'JW Marriott Miami Turnberry, 19999 W Country Club Dr, Aventura, FL 33180' }
+  ].map(s => { const [x, y] = toU(s.lat, s.lon); return { ...s, x, y }; });
+  const AREAS = [
+    ['Downtown', 25.7743, -80.1937], ['Brickell', 25.7617, -80.1918], ['Wynwood', 25.8005, -80.1990], ['Edgewater', 25.8040, -80.1875],
+    ['Little Havana', 25.7656, -80.2195], ['Coral Gables', 25.7400, -80.2700], ['Coconut Grove', 25.7280, -80.2410], ['Miami Beach', 25.8130, -80.1290],
+    ['South Beach', 25.7826, -80.1341], ['North Miami', 25.8901, -80.1867], ['Aventura', 25.9565, -80.1450], ['Key Biscayne', 25.6930, -80.1620],
+    ['Miami Gardens', 25.9420, -80.2456], ['Hialeah', 25.8576, -80.2781], ['Little Haiti', 25.8300, -80.1950], ['Design District', 25.8130, -80.1930],
+    ['North Bay Village', 25.8460, -80.1540], ['Bal Harbour', 25.8918, -80.1270], ['Sunny Isles Beach', 25.9420, -80.1230], ['Miami Intl Airport', 25.7959, -80.2870],
+    ['Fisher Island', 25.7610, -80.1420], ['Allapattah', 25.8150, -80.2240], ['North Miami Beach', 25.9300, -80.1650], ['Virginia Key', 25.7400, -80.1550]
+  ].map(([n, la, lo]) => { const [x, y] = toU(la, lo); return { n, x, y }; });
+  const WATERS = [['Biscayne Bay', 25.795, -80.165], ['Atlantic Ocean', 25.840, -80.090], ['Biscayne Bay', 25.70, -80.215]].map(([n, la, lo]) => { const [x, y] = toU(la, lo); return { n, x, y }; });
+
+  /* ---------------- persistence ---------------- */
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem('mccm_' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem('mccm_' + k, JSON.stringify(v)); } catch (e) {} }
+  };
+  const found = new Set(store.get('found', [])), visited = new Set(store.get('visited', []));
+  const saveProgress = () => { store.set('found', [...found]); store.set('visited', [...visited]); };
+
+  /* ---------------- canvases ---------------- */
+  const cv = document.getElementById('map'), ctx = cv.getContext('2d');
+  const rc = document.getElementById('radar'), rx = rc.getContext('2d');
+  let W = innerWidth, H = innerHeight, DPR = Math.min(devicePixelRatio || 1, 2);
+  function resize() { W = innerWidth; H = innerHeight; DPR = Math.min(devicePixelRatio || 1, 2); cv.width = W * DPR; cv.height = H * DPR; }
+  resize(); addEventListener('resize', resize);
+
+  const base = new Image(); base.src = BASE_SRC;
+  // road geometry as Path2D in map units
+  const mkPath = list => { const p = new Path2D(); for (const l of list) { p.moveTo(l[1], l[2]); for (let i = 3; i < l.length; i += 2) p.lineTo(l[i], l[i + 1]); } return p; };
+  const P_FWY = mkPath(D.fwy), P_HWY = mkPath(D.hwy), P_RAMP = mkPath(D.ramp);
+
+  // road segments for "which street am I on"
+  const segGrid = new Map(), GS = 20;
+  [...D.fwy, ...D.hwy].forEach(l => { for (let i = 3; i < l.length - 1; i += 2) {
+    const s = [l[i - 2], l[i - 1], l[i], l[i + 1], D.names[l[0]]]; const k = ((s[0] + s[2]) / 2 / GS | 0) + ',' + ((s[1] + s[3]) / 2 / GS | 0);
+    if (!segGrid.has(k)) segGrid.set(k, []); segGrid.get(k).push(s); } });
+  function nearestStreet(x, y) {
+    let best = null, bd = 7; const gx = x / GS | 0, gy = y / GS | 0;
+    for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) for (const s of segGrid.get((gx + i) + ',' + (gy + j)) || []) {
+      const dx = s[2] - s[0], dy = s[3] - s[1], L = dx * dx + dy * dy || 1, t = Math.max(0, Math.min(1, ((x - s[0]) * dx + (y - s[1]) * dy) / L));
+      const d = Math.hypot(x - s[0] - t * dx, y - s[1] - t * dy); if (d < bd && s[4]) { bd = d; best = s[4]; } }
+    return best;
+  }
+
+  /* ---------------- drivable mask ---------------- */
+  let drivable = null; const MW = Math.ceil(U), MH = Math.ceil(UH);
+  function buildMask() {
+    const c = document.createElement('canvas'); c.width = MW; c.height = MH; const g = c.getContext('2d');
+    g.drawImage(base, 0, 0, U, UH); const px = g.getImageData(0, 0, MW, MH).data;
+    g.clearRect(0, 0, MW, MH); g.lineWidth = 4; g.lineCap = 'round'; g.strokeStyle = '#fff';
+    g.stroke(P_FWY); g.stroke(P_HWY); g.stroke(P_RAMP); const rd = g.getImageData(0, 0, MW, MH).data;
+    drivable = new Uint8Array(MW * MH);
+    for (let i = 0; i < MW * MH; i++) { const r = px[i * 4], b = px[i * 4 + 2]; drivable[i] = (!(b > r + 25 && b > 80) || rd[i * 4 + 3] > 40) ? 1 : 0; }
+    // coarse routing grid: 0 = blocked, 1 = highway/bridge, 2 = surface streets
+    GW = Math.ceil(MW / GC); GH = Math.ceil(MH / GC); gridCost = new Uint8Array(GW * GH);
+    for (let gy = 0; gy < GH; gy++) for (let gx = 0; gx < GW; gx++) {
+      let land = 0, road = 0;
+      for (let y = gy * GC; y < Math.min(MH, gy * GC + GC); y++) for (let x = gx * GC; x < Math.min(MW, gx * GC + GC); x++) {
+        const i = y * MW + x; if (rd[i * 4 + 3] > 40) road++; else if (drivable[i]) land++; }
+      gridCost[gy * GW + gx] = road ? 1 : land > GC * GC * .5 ? 2 : 0;
+    }
+  }
+  const canDrive = (x, y) => { if (!drivable) return true; if (x < 1 || y < 1 || x >= MW - 1 || y >= MH - 1) return false; return drivable[(y | 0) * MW + (x | 0)] === 1; };
+
+  /* ---------------- routing: A* over a coarse drivable grid ---------------- */
+  const GC = 4; let GW = 0, GH = 0, gridCost = null;
+  function simplify(pts, eps) {
+    if (pts.length < 3) return pts;
+    const [x1, y1] = pts[0], [x2, y2] = pts[pts.length - 1], dx = x2 - x1, dy = y2 - y1, L = Math.hypot(dx, dy) || 1e-9;
+    let idx = 0, dm = -1;
+    for (let i = 1; i < pts.length - 1; i++) { const d = Math.abs(dy * pts[i][0] - dx * pts[i][1] + x2 * y1 - y2 * x1) / L; if (d > dm) { dm = d; idx = i; } }
+    return dm > eps ? simplify(pts.slice(0, idx + 1), eps).slice(0, -1).concat(simplify(pts.slice(idx), eps)) : [pts[0], pts[pts.length - 1]];
+  }
+  function nearestOpen(gx, gy) {
+    for (let r = 0; r < 40; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+      if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue; const x = gx + dx, y = gy + dy;
+      if (x >= 0 && y >= 0 && x < GW && y < GH && gridCost[y * GW + x]) return y * GW + x; }
+    return -1;
+  }
+  function route(x0, y0, x1, y1) {
+    if (!gridCost) return [[x0, y0], [x1, y1]];
+    const s = nearestOpen(x0 / GC | 0, y0 / GC | 0), t = nearestOpen(x1 / GC | 0, y1 / GC | 0);
+    if (s < 0 || t < 0) return [[x0, y0], [x1, y1]];
+    const N = GW * GH, g = new Float32Array(N).fill(Infinity), prev = new Int32Array(N).fill(-1), closed = new Uint8Array(N);
+    const tx = t % GW, ty = t / GW | 0;
+    const heap = [], push = (f, i) => { heap.push([f, i]); let c = heap.length - 1; while (c > 0) { const p = (c - 1) >> 1; if (heap[p][0] <= heap[c][0]) break; [heap[p], heap[c]] = [heap[c], heap[p]]; c = p; } };
+    const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let c = 0; for (;;) { const l = c * 2 + 1, r = l + 1; let m = c; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === c) break; [heap[m], heap[c]] = [heap[c], heap[m]]; c = m; } } return top; };
+    g[s] = 0; push(0, s);
+    const NB = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, 1.414], [1, -1, 1.414], [-1, 1, 1.414], [-1, -1, 1.414]];
+    while (heap.length) {
+      const [, u] = pop(); if (closed[u]) continue; closed[u] = 1; if (u === t) break;
+      const ux = u % GW, uy = u / GW | 0;
+      for (const [dx, dy, w] of NB) {
+        const x = ux + dx, y = uy + dy; if (x < 0 || y < 0 || x >= GW || y >= GH) continue;
+        const v = y * GW + x, c = gridCost[v]; if (!c || closed[v]) continue;
+        const ng = g[u] + w * (c === 1 ? 1 : 1.9);
+        if (ng < g[v]) { g[v] = ng; prev[v] = u; push(ng + Math.hypot(tx - x, ty - y), v); }
+      }
+    }
+    if (prev[t] < 0 && s !== t) return [[x0, y0], [x1, y1]];
+    const cells = []; for (let u = t; u >= 0; u = prev[u]) { cells.push([(u % GW) * GC + GC / 2, (u / GW | 0) * GC + GC / 2]); if (u === s) break; }
+    cells.reverse();
+    return [[x0, y0], ...simplify(cells, 1.6), [x1, y1]];
+  }
+
+  /* ---------------- fog of war ---------------- */
+  const FS = .5, fog = document.createElement('canvas'); fog.width = Math.ceil(U * FS); fog.height = Math.ceil(UH * FS);
+  const fx = fog.getContext('2d'); let fogDirty = false;
+  function initFog() {
+    fx.fillStyle = '#05070f'; fx.fillRect(0, 0, fog.width, fog.height);
+    let saved = null; try { saved = localStorage.getItem('mccm_fog'); } catch (e) {}
+    if (saved) { const im = new Image(); im.onload = () => { fx.clearRect(0, 0, fog.width, fog.height); fx.drawImage(im, 0, 0); }; im.src = saved; }
+  }
+  function reveal(x, y, r) {
+    fx.save(); fx.globalCompositeOperation = 'destination-out';
+    const g = fx.createRadialGradient(x * FS, y * FS, 0, x * FS, y * FS, r * FS);
+    g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(.6, 'rgba(0,0,0,.9)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+    fx.fillStyle = g; fx.beginPath(); fx.arc(x * FS, y * FS, r * FS, 0, 6.2832); fx.fill(); fx.restore(); fogDirty = true;
+  }
+  setInterval(() => { if (fogDirty) { fogDirty = false; try { localStorage.setItem('mccm_fog', fog.toDataURL('image/png')); } catch (e) {} } }, 5000);
+
+  /* ---------------- car + camera ---------------- */
+  const start = toU(25.7743, -80.1905);
+  const car = { x: start[0], y: start[1], h: 0, v: 0 };
+  const savedCar = store.get('car', null); if (savedCar) Object.assign(car, savedCar, { v: 0 });
+  const fitZoom = () => Math.min(W / U, H / UH) * .95;
+  const cam = { x: car.x, y: car.y, z: 2.2, tz: 2.2, follow: true };
+  let overview = false, keys = {}, auto = null, waypoint = null, gpsPath = null, lastReroute = 0, shake = 0;
+  const FOLLOW_Z = () => W < 760 ? 2.1 : 2.6;
+
+  /* ---------------- sound ---------------- */
+  let AC = null, soundOn = store.get('sound', true);
+  const sbtn = document.getElementById('btnSound'); sbtn.setAttribute('aria-pressed', soundOn);
+  sbtn.onclick = () => { soundOn = !soundOn; sbtn.setAttribute('aria-pressed', soundOn); store.set('sound', soundOn); };
+  function tone(f, t0, dur, type = 'triangle', vol = .12) {
+    if (!soundOn) return; try { AC = AC || new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
+    const t = AC.currentTime + t0, o = AC.createOscillator(), g = AC.createGain(); o.type = type; o.frequency.setValueAtTime(f, t);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + .02); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+    o.connect(g).connect(AC.destination); o.start(t); o.stop(t + dur + .05);
+  }
+  const sfxFound = () => { [523, 659, 784, 1047].forEach((f, i) => tone(f, i * .09, .5)); tone(262, 0, .8, 'sine', .1); };
+  const sfxCheck = () => { tone(1318, 0, .25, 'square', .05); tone(1760, .08, .4, 'square', .05); };
+  const sfxWay = () => tone(880, 0, .15, 'sine', .08);
+
+  /* ---------------- UI ---------------- */
+  const $ = id => document.getElementById(id);
+  $('totalN').textContent = SPOTS.length;
+  function updateStats() {
+    $('foundN').textContent = found.size;
+    const stars = Math.round(visited.size / SPOTS.length * 5);
+    [...$('stars').children].forEach((s, i) => s.classList.toggle('on', i < stars));
+    $('stars').setAttribute('aria-label', `Rep: ${stars} of 5 stars`);
+    $('barFound').style.width = (found.size / SPOTS.length * 100) + '%';
+    $('barVisited').style.width = (visited.size / SPOTS.length * 100) + '%';
+    renderLog();
+  }
+  const dirName = (dx, dy) => ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round((Math.atan2(dx, -dy) * 180 / Math.PI + 360) % 360 / 45) % 8];
+  const km = d => (d * (LON1 - LON0) * 111.32 * Math.cos(25.83 * Math.PI / 180) / U);
+  function renderLog() {
+    const ol = $('logList'); ol.innerHTML = '';
+    SPOTS.slice().sort((a, b) => (found.has(b.id) - found.has(a.id))).forEach(s => {
+      const li = document.createElement('li'), f = found.has(s.id), t = TYPES[s.type];
+      const d = Math.hypot(s.x - car.x, s.y - car.y);
+      li.className = f ? '' : 'unk';
+      li.innerHTML = `<button type="button"><span class="dot" style="background:${f ? t.color : '#5b636b'}">${f ? '' : '?'}</span>
+        <span class="nm">${f ? s.name : 'Undiscovered'}<small>${f ? t.label + ' · ' + s.area : km(d).toFixed(1) + ' km ' + dirName(s.x - car.x, s.y - car.y)}</small></span>
+        <span class="st ${visited.has(s.id) ? 'v' : ''}">${visited.has(s.id) ? '✓ Visited' : f ? 'Found' : ''}</span></button>`;
+      li.firstChild.onclick = () => { setWaypoint(s.x, s.y); if (f) openCard(s); };
+      ol.appendChild(li);
+    });
+  }
+  let logBusy = false;
+  $('log').addEventListener('pointerenter', () => logBusy = true); $('log').addEventListener('pointerleave', () => logBusy = false);
+  $('log').addEventListener('focusin', () => logBusy = true); $('log').addEventListener('focusout', () => logBusy = false);
+  setInterval(() => { if (!$('log').hidden && !logBusy) renderLog(); }, 2000);
+
+  let toastT; function toast(html) { const t = $('toast'); t.innerHTML = html; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2600); }
+  function banner(k, t, s) { const b = $('banner'); $('bK').textContent = k; $('bT').textContent = t; $('bS').textContent = s; b.classList.remove('show'); void b.offsetWidth; b.classList.add('show'); }
+
+  let cardSpot = null;
+  function openCard(s) {
+    cardSpot = s; const t = TYPES[s.type], c = $('card');
+    c.style.setProperty('--c', t.color);
+    $('cType').textContent = t.label; $('cName').textContent = s.name; $('cArea').textContent = s.area;
+    $('cText').textContent = s.text; $('cAddr').textContent = s.addr;
+    $('cNote').textContent = s.note || 'Hours and events change. Check with the spot before you go.';
+    $('cTags').innerHTML = s.tags.map(x => `<span>${x}</span>`).join('');
+    $('cDir').href = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(s.addr);
+    updateCheckBtn(); c.classList.add('open');
+  }
+  function updateCheckBtn() {
+    if (!cardSpot) return; const b = $('cCheck'), v = visited.has(cardSpot.id), near = Math.hypot(cardSpot.x - car.x, cardSpot.y - car.y) < CHECK_R;
+    b.disabled = v; b.textContent = v ? '✓ Checked in' : near ? 'Check in (E)' : 'Drive here to check in';
+    b.style.opacity = (!v && !near) ? .55 : 1;
+  }
+  $('cClose').onclick = () => { $('card').classList.remove('open'); cardSpot = null; };
+  $('cGps').onclick = () => cardSpot && setWaypoint(cardSpot.x, cardSpot.y);
+  $('cCheck').onclick = () => cardSpot && tryCheckIn(cardSpot);
+
+  $('btnLog').onclick = () => { const l = $('log'); l.hidden = !l.hidden; $('btnLog').setAttribute('aria-pressed', !l.hidden); if (!l.hidden) renderLog(); };
+  $('btnView').onclick = () => toggleOverview();
+  $('btnCenter').onclick = () => { overview = false; cam.follow = true; cam.tz = FOLLOW_Z(); };
+  $('btnZoomIn').onclick = () => { cam.tz = Math.min(8, cam.tz * 1.4); };
+  $('btnZoomOut').onclick = () => { cam.tz = Math.max(fitZoom(), cam.tz / 1.4); };
+  $('btnReset').onclick = () => { $('resetConfirm').hidden = false; };
+  $('btnResetNo').onclick = () => { $('resetConfirm').hidden = true; };
+  $('btnResetYes').onclick = () => {
+    found.clear(); visited.clear(); saveProgress(); try { localStorage.removeItem('mccm_fog'); } catch (e) {}
+    fx.globalCompositeOperation = 'source-over'; fx.fillStyle = '#04050a'; fx.fillRect(0, 0, fog.width, fog.height); reveal(car.x, car.y, 70);
+    $('resetConfirm').hidden = true; updateStats(); toast('Progress cleared');
+  };
+  function toggleOverview() { overview = !overview; if (overview) { cam.follow = false; cam.tx = U / 2; cam.ty = UH / 2; cam.tz = fitZoom(); } else { cam.follow = true; cam.tz = FOLLOW_Z(); } }
+
+  /* ---------------- discovery + check-in ---------------- */
+  const FIND_R = 26, CHECK_R = 18; let parkT = 0;
+  function discover(s) {
+    found.add(s.id); saveProgress(); updateStats(); sfxFound();
+    banner('Spot discovered', s.name, TYPES[s.type].label + ' · ' + s.area); openCard(s);
+    pulses.push({ x: s.x, y: s.y, t: 0, c: TYPES[s.type].color });
+  }
+  function tryCheckIn(s) {
+    if (visited.has(s.id)) return;
+    if (Math.hypot(s.x - car.x, s.y - car.y) > CHECK_R) { toast('Get closer to <b>' + s.name + '</b> to check in'); return; }
+    visited.add(s.id); saveProgress(); updateStats(); sfxCheck(); updateCheckBtn();
+    toast('Checked in at <b>' + s.name + '</b> · +1 rep');
+    pulses.push({ x: s.x, y: s.y, t: 0, c: '#3c8ff0' });
+    if (visited.size === SPOTS.length) setTimeout(() => banner('Every spot visited', 'Magic City complete', '10 of 10 · 5 stars'), 900);
+  }
+  const pulses = [];
+
+  /* ---------------- waypoint + autopilot ---------------- */
+  function setWaypoint(x, y) {
+    waypoint = { x, y }; gpsPath = route(car.x, car.y, x, y); auto = { i: 1 }; cam.follow = true; overview = false; cam.tz = Math.max(cam.tz, FOLLOW_Z() * .8); sfxWay();
+  }
+
+  /* ---------------- input ---------------- */
+  const KEYMAP = { KeyW: 'up', ArrowUp: 'up', KeyS: 'down', ArrowDown: 'down', KeyA: 'left', ArrowLeft: 'left', KeyD: 'right', ArrowRight: 'right', ShiftLeft: 'boost', ShiftRight: 'boost', Space: 'brake' };
+  addEventListener('keydown', e => {
+    if (e.target.closest && e.target.closest('input,textarea')) return;
+    const k = KEYMAP[e.code]; if (k) { keys[k] = true; if (k !== 'boost') { auto = null; if (!overview) cam.follow = true; } e.preventDefault(); }
+    if (e.code === 'KeyM') toggleOverview();
+    if (e.code === 'KeyC') $('btnCenter').onclick();
+    if (e.code === 'KeyE') { const s = SPOTS.find(s => found.has(s.id) && Math.hypot(s.x - car.x, s.y - car.y) < CHECK_R); if (s) { tryCheckIn(s); openCard(s); } }
+    if (e.code === 'Escape') $('cClose').onclick();
+  });
+  addEventListener('keyup', e => { const k = KEYMAP[e.code]; if (k) keys[k] = false; });
+  addEventListener('blur', () => { keys = {}; });
+
+  const s2u = (sx, sy) => [(sx - W / 2) / cam.z + cam.x, (sy - H / 2) / cam.z + cam.y];
+  const pointers = new Map(); let dragStart = null, moved = false, pinch0 = null;
+  cv.addEventListener('pointerdown', e => { cv.setPointerCapture(e.pointerId); pointers.set(e.pointerId, [e.clientX, e.clientY]); dragStart = [e.clientX, e.clientY, cam.x, cam.y]; moved = false;
+    if (pointers.size === 2) { const [a, b] = [...pointers.values()]; pinch0 = [Math.hypot(a[0] - b[0], a[1] - b[1]), cam.z]; } });
+  cv.addEventListener('pointermove', e => {
+    if (!pointers.has(e.pointerId)) return; pointers.set(e.pointerId, [e.clientX, e.clientY]);
+    if (pointers.size === 2 && pinch0) { const [a, b] = [...pointers.values()]; cam.z = cam.tz = Math.max(fitZoom(), Math.min(8, pinch0[1] * Math.hypot(a[0] - b[0], a[1] - b[1]) / pinch0[0])); moved = true; return; }
+    const dx = e.clientX - dragStart[0], dy = e.clientY - dragStart[1];
+    if (Math.hypot(dx, dy) > 6) { moved = true; cam.follow = false; cv.classList.add('dragging'); cam.x = dragStart[2] - dx / cam.z; cam.y = dragStart[3] - dy / cam.z; cam.tx = cam.x; cam.ty = cam.y; }
+  });
+  const endPtr = e => {
+    if (!pointers.has(e.pointerId)) return; pointers.delete(e.pointerId); cv.classList.remove('dragging');
+    if (pointers.size < 2) pinch0 = null;
+    if (!moved && pointers.size === 0 && e.type === 'pointerup') {
+      const [ux, uy] = s2u(e.clientX, e.clientY);
+      const hit = SPOTS.find(s => found.has(s.id) && Math.hypot((s.x - ux) * cam.z, (s.y - uy) * cam.z) < 18);
+      if (hit) { openCard(hit); setWaypoint(hit.x, hit.y); } else if (ux > 0 && uy > 0 && ux < U && uy < UH) setWaypoint(ux, uy);
+    }
+  };
+  cv.addEventListener('pointerup', endPtr); cv.addEventListener('pointercancel', endPtr);
+  cv.addEventListener('wheel', e => {
+    e.preventDefault(); const [ux, uy] = s2u(e.clientX, e.clientY); const nz = Math.max(fitZoom(), Math.min(8, cam.z * Math.exp(-e.deltaY * .0015)));
+    cam.follow = false; cam.x = ux - (e.clientX - W / 2) / nz; cam.y = uy - (e.clientY - H / 2) / nz; cam.tx = cam.x; cam.ty = cam.y; cam.z = cam.tz = nz;
+  }, { passive: false });
+
+  /* ---------------- glyphs ---------------- */
+  function glyph(g, kind, x, y, r) {
+    g.save(); g.translate(x, y); g.fillStyle = '#0b0d10'; g.strokeStyle = '#0b0d10'; g.lineWidth = r * .18; g.lineJoin = 'round';
+    const s = r / 10;
+    if (kind === 'car') { g.beginPath(); g.moveTo(-7 * s, 2 * s); g.lineTo(-5.5 * s, -2.5 * s); g.lineTo(-2.5 * s, -4 * s); g.lineTo(3 * s, -4 * s); g.lineTo(5.5 * s, -1 * s); g.lineTo(7.5 * s, 0); g.lineTo(7.5 * s, 3 * s); g.lineTo(-7 * s, 3 * s); g.closePath(); g.fill();
+      g.fillStyle = 'currentColor'; g.beginPath(); g.arc(-4 * s, 3.5 * s, 1.8 * s, 0, 6.3); g.arc(4.2 * s, 3.5 * s, 1.8 * s, 0, 6.3); g.fillStyle = '#0b0d10'; g.fill(); }
+    else if (kind === 'cup') { g.beginPath(); g.moveTo(-5 * s, -4 * s); g.lineTo(4 * s, -4 * s); g.lineTo(3 * s, 5 * s); g.lineTo(-4 * s, 5 * s); g.closePath(); g.fill(); g.beginPath(); g.arc(5 * s, 0, 2.5 * s, -1.4, 1.4); g.stroke(); }
+    else if (kind === 'road') { g.beginPath(); g.moveTo(-2 * s, -6 * s); g.lineTo(-6 * s, 6 * s); g.moveTo(2 * s, -6 * s); g.lineTo(6 * s, 6 * s); g.stroke(); g.beginPath(); g.moveTo(0, -4 * s); g.lineTo(0, -1.5 * s); g.moveTo(0, 1 * s); g.lineTo(0, 4.5 * s); g.stroke(); }
+    else if (kind === 'flag') { g.beginPath(); g.moveTo(-5 * s, 6 * s); g.lineTo(-5 * s, -6 * s); g.stroke(); for (let i = 0; i < 3; i++) for (let j = 0; j < 4; j++) if ((i + j) % 2 === 0) g.fillRect(-4.5 * s + j * 2.6 * s, -6 * s + i * 2.6 * s, 2.6 * s, 2.6 * s); g.strokeRect(-4.5 * s, -6 * s, 10.4 * s, 7.8 * s); }
+    else if (kind === 'star') { g.beginPath(); for (let i = 0; i < 10; i++) { const a = i * Math.PI / 5 - Math.PI / 2, rr = (i % 2 ? 2.8 : 6.5) * s; g.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); } g.closePath(); g.fill(); }
+    g.restore();
+  }
+  function blip(g, s, x, y, r, t) {
+    const f = found.has(s.id), ty = TYPES[s.type];
+    if (!f) {
+      const p = (t * .8 + s.x * .01) % 1;
+      g.strokeStyle = `rgba(255,255,255,${.5 * (1 - p)})`; g.lineWidth = 1.5; g.beginPath(); g.arc(x, y, r + p * r * 2.2, 0, 6.2832); g.stroke();
+      g.fillStyle = 'rgba(20,22,26,.85)'; g.strokeStyle = 'rgba(255,255,255,.7)'; g.beginPath(); g.arc(x, y, r, 0, 6.2832); g.fill(); g.stroke();
+      g.fillStyle = '#fff'; g.font = `800 ${r * 1.3}px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('?', x, y + r * .06);
+      return;
+    }
+    g.shadowColor = ty.color; g.shadowBlur = 12; g.fillStyle = ty.color; g.beginPath(); g.arc(x, y, r, 0, 6.2832); g.fill(); g.shadowBlur = 0;
+    g.lineWidth = 2; g.strokeStyle = '#0b0d10'; g.stroke();
+    glyph(g, ty.glyph, x, y, r);
+    if (visited.has(s.id)) { g.fillStyle = '#3c8ff0'; g.beginPath(); g.arc(x + r * .8, y - r * .8, r * .45, 0, 6.2832); g.fill(); g.strokeStyle = '#fff'; g.lineWidth = 1.6; g.beginPath(); g.moveTo(x + r * .6, y - r * .8); g.lineTo(x + r * .75, y - r * .62); g.lineTo(x + r * 1.02, y - r * .98); g.stroke(); }
+  }
+  function playerArrow(g, x, y, h, r) {
+    g.save(); g.translate(x, y); g.rotate(h);
+    g.fillStyle = '#fff'; g.strokeStyle = '#0b0d10'; g.lineWidth = 2.5; g.lineJoin = 'round';
+    g.beginPath(); g.moveTo(0, -r); g.lineTo(r * .75, r * .8); g.lineTo(0, r * .35); g.lineTo(-r * .75, r * .8); g.closePath(); g.stroke(); g.fill(); g.restore();
+  }
+  function waypointPin(g, x, y, r) {
+    g.save(); g.translate(x, y); g.fillStyle = '#b04dff'; g.strokeStyle = '#0b0d10'; g.lineWidth = 2;
+    g.beginPath(); g.moveTo(0, 0); g.bezierCurveTo(-r, -r * 1.2, -r, -r * 2.4, 0, -r * 2.4); g.bezierCurveTo(r, -r * 2.4, r, -r * 1.2, 0, 0); g.fill(); g.stroke();
+    g.fillStyle = '#fff'; g.beginPath(); g.arc(0, -r * 1.65, r * .35, 0, 6.2832); g.fill(); g.restore();
+  }
+
+  /* ---------------- update ---------------- */
+  let lastZone = '', lastStreet = null, hudT = 0, lastReveal = [car.x, car.y], storeT = 0;
+  function update(dt, t) {
+    // manual driving
+    const acc = keys.up ? 1 : keys.down ? -1 : 0, steer = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
+    if (auto && gpsPath) {
+      const tgt = gpsPath[Math.min(auto.i, gpsPath.length - 1)], dx = tgt[0] - car.x, dy = tgt[1] - car.y, d = Math.hypot(dx, dy);
+      const vmax = 75; car.v += (Math.min(vmax, d * 6 + 20) - car.v) * Math.min(1, dt * 2.5);
+      const want = Math.atan2(dx, -dy); let da = ((want - car.h + Math.PI * 3) % (Math.PI * 2)) - Math.PI; car.h += da * Math.min(1, dt * 8);
+      const step = Math.min(d, car.v * dt); if (d > 1e-3) { car.x += dx / d * step; car.y += dy / d * step; }
+      if (d < 1.5) { auto.i++; if (auto.i >= gpsPath.length) { auto = null; car.v = 0; waypoint = null; gpsPath = null; toast('You have arrived'); } }
+    } else {
+      const vmax = keys.boost ? 100 : 62;
+      if (acc > 0) car.v += (vmax - car.v) * dt * 1.4; else if (acc < 0) car.v -= (car.v > 0 ? 90 : 25) * dt; else car.v *= Math.pow(.25, dt);
+      if (keys.brake) car.v *= Math.pow(.02, dt);
+      car.v = Math.max(-22, Math.min(vmax, car.v));
+      car.h += steer * dt * 2.6 * Math.min(1, Math.abs(car.v) / 25) * Math.sign(car.v || 1);
+      const nx = car.x + Math.sin(car.h) * car.v * dt, ny = car.y - Math.cos(car.h) * car.v * dt;
+      if (canDrive(nx, ny)) { car.x = nx; car.y = ny; } else if (Math.abs(car.v) > 5) { car.v *= -.3; shake = .25; } else car.v = 0;
+      if (waypoint && t - lastReroute > 1.2 && Math.abs(car.v) > 2) { lastReroute = t; gpsPath = route(car.x, car.y, waypoint.x, waypoint.y); }
+      if (waypoint && Math.hypot(waypoint.x - car.x, waypoint.y - car.y) < 10) { waypoint = null; gpsPath = null; toast('You have arrived'); }
+    }
+    car.x = Math.max(2, Math.min(U - 2, car.x)); car.y = Math.max(2, Math.min(UH - 2, car.y));
+    if (Math.hypot(car.x - lastReveal[0], car.y - lastReveal[1]) > 3) { reveal(car.x, car.y, 46); lastReveal = [car.x, car.y]; }
+
+    // discovery + parking check-in
+    for (const s of SPOTS) {
+      const d = Math.hypot(s.x - car.x, s.y - car.y);
+      if (!found.has(s.id) && d < FIND_R) discover(s);
+    }
+    const here = SPOTS.find(s => found.has(s.id) && !visited.has(s.id) && Math.hypot(s.x - car.x, s.y - car.y) < CHECK_R);
+    if (here && Math.abs(car.v) < 4) { parkT += dt; if (parkT > 1.2) { parkT = 0; tryCheckIn(here); } } else parkT = 0;
+
+    // camera
+    if (cam.follow) { cam.tx = car.x + Math.sin(car.h) * car.v * .35; cam.ty = car.y - Math.cos(car.h) * car.v * .35; }
+    if (cam.tx != null) { const k = Math.min(1, dt * (cam.follow ? 4 : 6)); cam.x += (cam.tx - cam.x) * k; cam.y += (cam.ty - cam.y) * k; }
+    const zt = cam.follow && !overview ? cam.tz * (1 - Math.min(.25, Math.abs(car.v) / 400)) : cam.tz;
+    cam.z += (zt - cam.z) * Math.min(1, dt * 4);
+    shake = Math.max(0, shake - dt);
+
+    // HUD
+    hudT += dt; if (hudT > .25) {
+      hudT = 0;
+      let zn = '', bd = 90; for (const a of AREAS) { const d = Math.hypot(a.x - car.x, a.y - car.y); if (d < bd) { bd = d; zn = a.n; } }
+      if (!canDrive(car.x, car.y)) zn = 'Biscayne Bay';
+      if (zn && zn !== lastZone) { lastZone = zn; const z = $('zone'); z.style.opacity = 0; setTimeout(() => { z.textContent = zn; z.style.opacity = 1; }, 200); }
+      const st = nearestStreet(car.x, car.y); if (st !== lastStreet) { lastStreet = st; $('street').textContent = st || ''; }
+      $('speed').textContent = Math.round(Math.abs(car.v) * 1.6);
+      updateCheckBtn();
+    }
+    storeT += dt; if (storeT > 3) { storeT = 0; store.set('car', { x: car.x, y: car.y, h: car.h }); }
+  }
+
+  /* ---------------- render ---------------- */
+  const FONT = getComputedStyle(document.documentElement).getPropertyValue('--f-title').trim();
+  function render(t) {
+    const z = cam.z, sx = (Math.random() - .5) * shake * 16, sy = (Math.random() - .5) * shake * 16;
+    const ox = W / 2 - cam.x * z + sx, oy = H / 2 - cam.y * z + sy;
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.fillStyle = '#07090d'; ctx.fillRect(0, 0, W, H);
+    ctx.setTransform(DPR * z, 0, 0, DPR * z, DPR * ox, DPR * oy);
+    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, U, UH); ctx.clip();
+    ctx.fillStyle = '#42637f'; ctx.fillRect(0, 0, U, UH);
+    ctx.imageSmoothingEnabled = true; if (base.complete) ctx.drawImage(base, 0, 0, U, UH);
+    // roads
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    const lw = px => px / z;
+    ctx.strokeStyle = '#121418'; ctx.lineWidth = lw(z > 2 ? 4 : 2.6); ctx.stroke(P_RAMP);
+    ctx.strokeStyle = '#6f777f'; ctx.lineWidth = lw(z > 2 ? 2.2 : 1.3); ctx.stroke(P_RAMP);
+    ctx.strokeStyle = '#121418'; ctx.lineWidth = lw(z > 2 ? 5.5 : 3.4); ctx.stroke(P_HWY);
+    ctx.strokeStyle = '#9aa1a8'; ctx.lineWidth = lw(z > 2 ? 3.2 : 1.9); ctx.stroke(P_HWY);
+    ctx.strokeStyle = '#121418'; ctx.lineWidth = lw(z > 2 ? 8 : 5); ctx.stroke(P_FWY);
+    ctx.strokeStyle = '#d9b45a'; ctx.lineWidth = lw(z > 2 ? 4.8 : 3); ctx.stroke(P_FWY);
+    // fog
+    ctx.globalAlpha = .62; ctx.drawImage(fog, 0, 0, U, UH); ctx.globalAlpha = 1;
+    ctx.restore(); ctx.strokeStyle = 'rgba(244,241,232,.25)'; ctx.lineWidth = 1.5 / z; ctx.strokeRect(0, 0, U, UH);
+    // GPS route
+    if (gpsPath) {
+      ctx.beginPath(); ctx.moveTo(car.x, car.y);
+      for (let i = auto ? auto.i : 1; i < gpsPath.length; i++) ctx.lineTo(gpsPath[i][0], gpsPath[i][1]);
+      ctx.strokeStyle = 'rgba(10,6,20,.85)'; ctx.lineWidth = lw(9); ctx.stroke();
+      ctx.strokeStyle = '#b04dff'; ctx.lineWidth = lw(5.5); ctx.stroke();
+    }
+    // screen-space layer
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    const S = (x, y) => [x * z + ox, y * z + oy];
+    // labels
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    if (z > .9) {
+      ctx.font = `700 ${Math.min(17, 9 + z * 2.4)}px ${FONT}`;
+      for (const a of AREAS) { const [x, y] = S(a.x, a.y); if (x < -80 || y < -20 || x > W + 80 || y > H + 20) continue;
+        ctx.save(); ctx.letterSpacing = '3px'; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.75)'; ctx.strokeText(a.n.toUpperCase(), x, y); ctx.fillStyle = 'rgba(244,241,232,.72)'; ctx.fillText(a.n.toUpperCase(), x, y); ctx.restore(); }
+    }
+    ctx.font = `italic 600 ${Math.min(22, 11 + z * 3)}px ${FONT}`;
+    for (const w of WATERS) { const [x, y] = S(w.x, w.y); ctx.save(); ctx.letterSpacing = '6px'; ctx.fillStyle = 'rgba(170,205,235,.55)'; ctx.fillText(w.n.toUpperCase(), x, y); ctx.restore(); }
+    // discovery pulses
+    for (let i = pulses.length - 1; i >= 0; i--) { const p = pulses[i]; p.t += 1 / 60; const [x, y] = S(p.x, p.y);
+      ctx.strokeStyle = p.c; ctx.globalAlpha = Math.max(0, 1 - p.t / 1.6); ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(x, y, 14 + p.t * 120, 0, 6.2832); ctx.stroke(); ctx.globalAlpha = 1; if (p.t > 1.6) pulses.splice(i, 1); }
+    // blips
+    const r = W < 760 ? 11 : 13;
+    for (const s of SPOTS) { const [x, y] = S(s.x, s.y); if (x < -30 || y < -30 || x > W + 30 || y > H + 30) continue; blip(ctx, s, x, y, r, t);
+      if (found.has(s.id) && z > 1.6) { ctx.font = `700 14px ${FONT}`; ctx.textAlign = 'left'; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.85)'; ctx.strokeText(s.name.toUpperCase(), x + r + 6, y); ctx.fillStyle = '#fff'; ctx.fillText(s.name.toUpperCase(), x + r + 6, y); ctx.textAlign = 'center'; } }
+    if (waypoint) { const [x, y] = S(waypoint.x, waypoint.y); waypointPin(ctx, x, y, 10); }
+    const [px, py] = S(car.x, car.y); playerArrow(ctx, px, py, car.h, W < 760 ? 10 : 12);
+  }
+
+  function renderRadar(t) {
+    const w = rc.width, h = rc.height, z = 4.2;
+    rx.setTransform(1, 0, 0, 1, 0, 0); rx.fillStyle = '#07090d'; rx.fillRect(0, 0, w, h);
+    rx.save(); rx.translate(w / 2, h * .62); rx.rotate(-car.h); rx.scale(z, z); rx.translate(-car.x, -car.y);
+    rx.beginPath(); rx.rect(0, 0, U, UH); rx.clip(); rx.fillStyle = '#42637f'; rx.fillRect(0, 0, U, UH);
+    if (base.complete) rx.drawImage(base, 0, 0, U, UH);
+    rx.lineCap = 'round'; rx.lineJoin = 'round';
+    rx.strokeStyle = '#7d858c'; rx.lineWidth = 2.4 / z; rx.stroke(P_HWY); rx.stroke(P_RAMP);
+    rx.strokeStyle = '#d9b45a'; rx.lineWidth = 4 / z; rx.stroke(P_FWY);
+    rx.globalAlpha = .55; rx.drawImage(fog, 0, 0, U, UH); rx.globalAlpha = 1;
+    if (gpsPath) { rx.beginPath(); rx.moveTo(car.x, car.y); for (let i = auto ? auto.i : 1; i < gpsPath.length; i++) rx.lineTo(gpsPath[i][0], gpsPath[i][1]); rx.strokeStyle = '#b04dff'; rx.lineWidth = 7 / z; rx.stroke(); }
+    rx.restore();
+    // blips clamped to the radar edge
+    const pos = (x, y) => { const dx = (x - car.x) * z, dy = (y - car.y) * z, c = Math.cos(-car.h), s = Math.sin(-car.h); return [w / 2 + dx * c - dy * s, h * .62 + dx * s + dy * c]; };
+    const clampE = ([x, y]) => [Math.max(16, Math.min(w - 16, x)), Math.max(16, Math.min(h - 16, y))];
+    for (const s of SPOTS) blip(rx, s, ...clampE(pos(s.x, s.y)), 12, t);
+    if (waypoint) { const [x, y] = clampE(pos(waypoint.x, waypoint.y)); waypointPin(rx, x, y + 10, 9); }
+    // north marker
+    const [nx, ny] = clampE(pos(car.x, car.y - 9999)); rx.fillStyle = 'rgba(0,0,0,.6)'; rx.beginPath(); rx.arc(nx, ny, 12, 0, 6.2832); rx.fill();
+    rx.fillStyle = '#fff'; rx.font = `800 16px ${FONT}`; rx.textAlign = 'center'; rx.textBaseline = 'middle'; rx.fillText('N', nx, ny + 1);
+    playerArrow(rx, w / 2, h * .62, 0, 13);
+    const vg = rx.createRadialGradient(w / 2, h / 2, h * .3, w / 2, h / 2, w * .62); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.45)'); rx.fillStyle = vg; rx.fillRect(0, 0, w, h);
+  }
+
+  /* ---------------- boot ---------------- */
+  let last = performance.now(), T = 0, running = false;
+  function frame(now) {
+    const dt = Math.min(.05, (now - last) / 1000); last = now; T += dt;
+    if (running) update(dt, T);
+    render(T); renderRadar(T);
+    requestAnimationFrame(frame);
+  }
+  initFog();
+  base.onload = () => { buildMask(); };
+  reveal(car.x, car.y, 70);
+  cam.x = car.x; cam.y = car.y; cam.tz = cam.z = FOLLOW_Z();
+  updateStats();
+  requestAnimationFrame(frame);
+  $('start').onclick = () => {
+    $('intro').hidden = true; running = true; tone(440, 0, .01, 'sine', .001);
+    toast(found.size ? `Welcome back · <b>${found.size}/${SPOTS.length}</b> found` : 'Find the <b>?</b> markers');
+    cv.focus && cv.setAttribute('tabindex', '-1');
+  };
+})();
+</script>
