@@ -92,8 +92,9 @@ a{color:inherit}
 #banner .k{font-family:var(--f-title);font-weight:700;font-size:16px;letter-spacing:.3em;text-transform:uppercase;color:var(--ink)}
 #banner .t{font-family:var(--f-title);font-weight:900;font-size:clamp(40px,7vw,86px);text-transform:uppercase;color:var(--gold);transform:skewX(-8deg);line-height:.9;text-align:center;-webkit-text-stroke:2px rgba(0,0,0,.85);paint-order:stroke fill;text-shadow:0 4px 0 rgba(0,0,0,.6)}
 #banner .s{font-family:var(--f-title);font-weight:600;font-size:18px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink);opacity:.85;text-align:center}
-#banner.show{animation:banner 3.2s cubic-bezier(.2,.8,.2,1) forwards}
-@keyframes banner{0%{opacity:0;transform:scale(1.2)}10%{opacity:1;transform:scale(1)}82%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(.98)}}
+#banner{transition:opacity .45s ease,transform .6s cubic-bezier(.2,.8,.2,1);visibility:hidden}
+#banner.show{opacity:1;transform:none;visibility:visible}
+#banner.out{transition:opacity .6s ease,transform .6s ease,visibility 0s .6s}
 
 /* toast */
 #toast{position:fixed;z-index:8;left:50%;top:calc(env(safe-area-inset-top,0px) + 18px);transform:translate(-50%,-140%);padding:10px 16px;border-radius:8px;font-family:var(--f-title);font-weight:700;font-size:17px;letter-spacing:.06em;text-transform:uppercase;transition:transform .45s cubic-bezier(.2,.8,.2,1);white-space:nowrap}
@@ -147,7 +148,7 @@ a{color:inherit}
   #card{top:auto;bottom:calc(env(safe-area-inset-bottom,0px) + 10px);right:10px;left:10px;width:auto;max-height:68%;transform:translateY(calc(100% + 30px))}
   .c-name{font-size:32px}
 }
-@media (prefers-reduced-motion:reduce){#banner.show{animation:none;opacity:1}#card,#toast{transition:none}}
+@media (prefers-reduced-motion:reduce){#banner,#banner.out,#card,#toast{transition:none}}
 </style>
 
 </head>
@@ -457,7 +458,13 @@ const BASE_SRC = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAACvAAAA3BAgMAAAAP
   setInterval(() => { if (!$('log').hidden && !logBusy) renderLog(); }, 2000);
 
   let toastT; function toast(html) { const t = $('toast'); t.innerHTML = html; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2600); }
-  function banner(k, t, s) { const b = $('banner'); $('bK').textContent = k; $('bT').textContent = t; $('bS').textContent = s; b.classList.remove('show'); void b.offsetWidth; b.classList.add('show'); }
+  // the page hides the banner on a timer, so it can never stick on screen
+  let bannerT;
+  function banner(k, t, s) {
+    const b = $('banner'); $('bK').textContent = k; $('bT').textContent = t; $('bS').textContent = s;
+    clearTimeout(bannerT); b.classList.remove('out'); b.classList.add('show');
+    bannerT = setTimeout(() => { b.classList.add('out'); b.classList.remove('show'); }, 2800);
+  }
 
   let cardSpot = null;
   function openCard(s) {
