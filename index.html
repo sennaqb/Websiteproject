@@ -24,10 +24,8 @@
   color-scheme:dark;
 }
 *,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
 html{background:var(--abyss)}
-html.lenis,html.lenis body{height:auto}
-.lenis.lenis-smooth{scroll-behavior:auto!important}
-.lenis.lenis-stopped{overflow:hidden}
 body{background:var(--abyss);color:var(--ink);font-family:var(--f-serif);font-size:clamp(17px,1.15vw,20px);line-height:1.55;overflow-x:hidden;-webkit-font-smoothing:antialiased}
 ::selection{background:var(--biolum);color:var(--abyss)}
 a{color:inherit}
@@ -98,6 +96,7 @@ html.cursor-hover .cursor{opacity:0}
 html.deep .cursor-ring{border-color:rgba(108,240,255,.6);box-shadow:0 0 30px rgba(108,240,255,.25),inset 0 0 20px rgba(108,240,255,.15)}
 
 /* ---------- content ---------- */
+#smooth-wrapper{z-index:3}
 main{position:relative;z-index:3;overflow-x:clip}
 .wrap{padding-inline:var(--gutter);padding-right:calc(var(--gutter) + clamp(0px,14vw,210px))}
 @media (max-width:900px){.wrap{padding-right:var(--gutter)}}
@@ -139,8 +138,43 @@ main{position:relative;z-index:3;overflow-x:clip}
 .facts dd{margin:0;font-family:var(--f-display);font-weight:400;font-size:clamp(28px,2.6vw,40px);line-height:1;font-variant-numeric:tabular-nums}
 .facts dd small{font-family:var(--f-mono);font-size:12px;color:var(--mist);margin-left:4px}
 .source{font-family:var(--f-mono);font-size:11px;letter-spacing:.06em;color:var(--mist);margin-top:18px!important}
-.w{display:inline-block;overflow:hidden;vertical-align:top;padding-bottom:.08em;margin-bottom:-.08em}
-.wi{display:inline-block}
+.split-mask{padding-bottom:.1em;margin-bottom:-.1em}
+.zone-title .tc{display:inline-block;will-change:transform}
+
+/* specimen: one glowing line drawing that morphs as you sink */
+.specimen{position:fixed;z-index:2;right:calc(var(--gutter) + clamp(0px,14vw,210px));top:54%;width:min(38vw,500px);transform:translateY(-50%);pointer-events:none;opacity:0;display:grid;gap:10px;justify-items:end}
+.specimen svg{width:100%;height:auto;overflow:visible;opacity:.62;filter:drop-shadow(0 0 6px rgba(108,240,255,.7)) drop-shadow(0 0 24px rgba(108,240,255,.35))}
+.specimen .body,.specimen .stalk{fill:none;stroke:var(--biolum);stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
+.specimen .lure{fill:var(--lure);filter:drop-shadow(0 0 10px var(--lure))}
+.spec-label{display:grid;gap:4px;text-align:right;font-family:var(--f-mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--mist)}
+.spec-label b{font-family:var(--f-display);font-weight:500;font-size:22px;letter-spacing:.04em;color:var(--ink)}
+@media (max-width:900px){.specimen{right:var(--gutter);width:78vw;top:auto;bottom:70px;transform:none}.specimen svg{opacity:.55}.spec-label{display:none}}
+
+/* trench cross-section */
+.trench{margin-top:clamp(56px,10vh,110px);overflow-x:auto}
+.trench svg{width:100%;min-width:560px;height:auto;display:block;overflow:visible}
+.trench .grid line{stroke:var(--hairline);stroke-width:1;stroke-dasharray:3 6}
+.trench .profile{fill:none;stroke:var(--lure);stroke-width:2;filter:drop-shadow(0 0 6px rgba(255,177,90,.6))}
+.trench .surface{fill:none;stroke:var(--biolum);stroke-width:1.2}
+.trench text{fill:var(--mist);font-family:var(--f-mono);font-size:11px;letter-spacing:.1em}
+.trench text.hl{fill:var(--lure)}
+.trench .pin{fill:var(--lure)}
+
+/* card zoom (Flip) */
+#overlay{position:fixed;inset:0;z-index:15;display:grid;place-items:center;padding:calc(env(safe-area-inset-top,0px) + 16px) 16px calc(env(safe-area-inset-bottom,0px) + 16px);background:rgba(1,4,9,.72);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+#overlay .close{position:absolute;top:calc(env(safe-area-inset-top,0px) + 18px);right:var(--gutter);z-index:2}
+.card-ph{flex:none}
+.card .more{display:none;position:relative}
+.card .open-hint{position:relative;margin-top:16px!important;font-family:var(--f-mono);font-size:11px!important;letter-spacing:.18em;text-transform:uppercase;color:var(--biolum)!important;opacity:.8!important}
+.card.open{width:min(100%,1100px);height:min(100%,760px);aspect-ratio:auto;padding:clamp(24px,4vw,56px);cursor:auto;transform:none!important;overflow-y:auto}
+.card.open h3{font-size:clamp(56px,8vw,120px)}
+.card.open .latin{font-size:22px}
+.card.open .more{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:24px;margin-top:28px;padding-top:24px;border-top:1px solid var(--hairline)}
+.card.open .more p{font-size:17px;max-width:46ch}
+.card.open .more dt{font-family:var(--f-mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--mist)}
+.card.open .more dd{margin:4px 0 14px;font-family:var(--f-display);font-size:28px}
+.card.open .open-hint{display:none}
+.card.open .orb{width:60%;right:-5%;top:-5%}
 
 .marquee{margin-top:clamp(60px,10vh,120px);border-block:1px solid var(--hairline);overflow:hidden;padding-block:18px;transform:rotate(-2deg);margin-inline:calc(var(--gutter) * -1.2)}
 .marquee-track{display:flex;width:max-content;animation:marq 38s linear infinite}
@@ -199,6 +233,7 @@ main{position:relative;z-index:3;overflow-x:clip}
 .colophon{position:relative;margin-top:clamp(70px,12vh,140px);font-family:var(--f-mono);font-size:11px;letter-spacing:.08em;color:var(--mist);max-width:70ch}
 
 @media (prefers-reduced-motion:reduce){
+  .specimen{display:none}
   .grain,.marquee-track,.card .orb,.card .dots i,.btn .arrow,.hint::before{animation:none!important}
 }
 </style>
@@ -241,13 +276,28 @@ main{position:relative;z-index:3;overflow-x:clip}
 </aside>
 <div class="hud-mini" aria-hidden="true"><span><b id="mDepth">0</b> m</span><span id="mPres">1.0 atm</span><span id="mZone">Surface</span></div>
 
+<div class="specimen" id="specimen" aria-hidden="true">
+  <svg viewBox="0 0 400 260">
+    <path class="stalk" id="specStalk" d="M150 62 C140 22 92 10 72 36"/>
+    <circle class="lure" id="specLure" cx="72" cy="40" r="5"/>
+    <path class="body" id="specBody" d="M58 132 C70 82 120 58 175 58 C235 58 272 84 292 116 L350 78 Q342 130 356 188 L292 152 C272 186 228 206 175 206 C128 206 96 192 80 172 L98 164 L84 156 L104 150 L88 143 L108 138 Z"/>
+    <path id="shDumbo" d="M200 40 C250 40 285 75 288 118 C310 95 345 92 355 110 C340 130 315 140 290 138 C292 160 300 185 320 210 C295 205 278 195 268 182 C262 205 248 222 236 230 C228 212 222 200 214 192 C208 210 202 222 200 232 C198 222 192 210 186 192 C178 200 172 212 164 230 C152 222 138 205 132 182 C122 195 105 205 80 210 C100 185 108 160 110 138 C85 140 60 130 45 110 C55 92 90 95 112 118 C115 75 150 40 200 40 Z" visibility="hidden"/>
+    <path id="shSnail" d="M50 130 C50 95 85 75 130 75 C175 75 205 90 240 110 C285 130 330 135 375 128 C340 145 300 150 255 155 C215 175 175 190 130 188 C85 186 50 165 50 130 Z" visibility="hidden"/>
+    <path id="shAmphi" d="M62 168 C70 104 128 62 200 58 C272 54 332 92 350 146 L336 154 L326 140 L318 160 L304 128 L294 150 L282 120 L270 144 L258 112 L246 138 L232 108 C200 96 150 104 120 128 C106 140 98 154 96 172 L84 186 L78 168 L66 186 Z" visibility="hidden"/>
+  </svg>
+  <div class="spec-label"><b id="specName">Black seadevil</b><span id="specLatin">Melanocetus johnsonii · 1,000–4,000 m</span></div>
+</div>
+
+<div id="overlay" hidden><button class="btn close" id="closeCard" type="button" data-cursor="Close">Close <span aria-hidden="true">×</span></button></div>
+
 <div class="cursor" aria-hidden="true"></div>
 <div class="cursor-ring" aria-hidden="true"><em id="cursorLabel"></em></div>
 
+<div id="smooth-wrapper"><div id="smooth-content">
 <main>
   <!-- SURFACE -->
   <section class="hero wrap" id="hero" data-depth="0">
-    <div class="coords">
+    <div class="coords" data-speed="0.7">
       <p class="eyebrow">Challenger Deep · Mariana Trench</p>
       <p class="eyebrow"><b>11°22′ N</b> &nbsp; <b>142°35′ E</b></p>
     </div>
@@ -264,7 +314,7 @@ main{position:relative;z-index:3;overflow-x:clip}
   <!-- EPIPELAGIC -->
   <section class="zone wrap" id="epi" data-depth="20" data-zone="Epipelagic">
     <div class="zone-head">
-      <p class="range">0<span class="dash">–</span>200<i>m</i></p>
+      <p class="range" data-speed="0.86">0<span class="dash">–</span>200<i>m</i></p>
       <div>
         <p class="eyebrow">Zone I · <b>Epipelagic</b></p>
         <h2 class="zone-title split">The sunlight zone</h2>
@@ -308,30 +358,35 @@ main{position:relative;z-index:3;overflow-x:clip}
     <div class="track-wrap" id="trackWrap">
       <div class="track" id="track">
         <div class="card intro"><p class="eyebrow">Residents</p><p>Five animals that live in the dusk. Drag your attention sideways.</p></div>
-        <article class="card" style="--c:#6cf0ff">
+        <article class="card" tabindex="0" role="button" aria-expanded="false" data-cursor="Open" style="--c:#6cf0ff">
           <div class="orb"></div><div class="dots"></div>
           <div class="meta"><span>300–1,500 m</span><span>Myctophidae</span></div>
-          <div><h3>Lanternfish</h3><p class="latin">Myctophidae</p><p>Rows of light organs along the belly. Possibly the most abundant vertebrate on Earth.</p></div>
+          <div><h3>Lanternfish</h3><p class="latin">Myctophidae</p><p>Rows of light organs along the belly. Possibly the most abundant vertebrate on Earth.</p><p class="open-hint">Open specimen file +</p></div>
+        <div class="more"><p>Myctophids make up a large share of the deep scattering layer, the band of animals that sonar operators once mistook for a false sea floor. Each species has its own photophore pattern, likely used to recognize one another in the dark.</p><dl><dt>Length</dt><dd>2–30 cm</dd><dt>Species</dt><dd>~250</dd><dt>Migrates nightly</dt><dd>Yes</dd></dl></div>
         </article>
-        <article class="card" style="--c:#7dffb0;--d:-1s">
+        <article class="card" tabindex="0" role="button" aria-expanded="false" data-cursor="Open" style="--c:#7dffb0;--d:-1s">
           <div class="orb"></div><div class="dots"></div>
           <div class="meta"><span>600–800 m</span><span>Opisthoproctidae</span></div>
-          <div><h3>Barreleye</h3><p class="latin">Macropinna microstoma</p><p>A transparent, fluid-filled head. Its green tubular eyes rotate to look up through it.</p></div>
+          <div><h3>Barreleye</h3><p class="latin">Macropinna microstoma</p><p>A transparent, fluid-filled head. Its green tubular eyes rotate to look up through it.</p><p class="open-hint">Open specimen file +</p></div>
+        <div class="more"><p>For decades, specimens hauled up in nets arrived with their soft domed heads destroyed. Only in 2008 did video from MBARI show the transparent shield intact and the eyes swiveling inside it.</p><dl><dt>Length</dt><dd>~15 cm</dd><dt>First filmed alive</dt><dd>2004</dd><dt>Eye color</dt><dd>Green</dd></dl></div>
         </article>
-        <article class="card" style="--c:#9fc4ff;--d:-2s">
+        <article class="card" tabindex="0" role="button" aria-expanded="false" data-cursor="Open" style="--c:#9fc4ff;--d:-2s">
           <div class="orb"></div><div class="dots"></div>
           <div class="meta"><span>200–1,500 m</span><span>Sternoptychidae</span></div>
-          <div><h3>Hatchetfish</h3><p class="latin">Argyropelecus</p><p>Mirror-silver flanks and downward lights. Seen from below, it simply disappears.</p></div>
+          <div><h3>Hatchetfish</h3><p class="latin">Argyropelecus</p><p>Mirror-silver flanks and downward lights. Seen from below, it simply disappears.</p><p class="open-hint">Open specimen file +</p></div>
+        <div class="more"><p>Its lights point straight down and are tuned to the color and brightness of the dim blue light above. Predators hunting from below see nothing where the fish should be.</p><dl><dt>Length</dt><dd>2–12 cm</dd><dt>Body</dt><dd>Laterally flat</dd><dt>Trick</dt><dd>Counter-illumination</dd></dl></div>
         </article>
-        <article class="card" style="--c:#ff6b7a;--d:-3s">
+        <article class="card" tabindex="0" role="button" aria-expanded="false" data-cursor="Open" style="--c:#ff6b7a;--d:-3s">
           <div class="orb"></div><div class="dots"></div>
           <div class="meta"><span>600–900 m</span><span>Vampyromorphida</span></div>
-          <div><h3>Vampire squid</h3><p class="latin">Vampyroteuthis infernalis</p><p>Neither squid nor octopus. When threatened it releases a cloud of glowing mucus instead of ink.</p></div>
+          <div><h3>Vampire squid</h3><p class="latin">Vampyroteuthis infernalis</p><p>Neither squid nor octopus. When threatened it releases a cloud of glowing mucus instead of ink.</p><p class="open-hint">Open specimen file +</p></div>
+        <div class="more"><p>It drifts in water with almost no oxygen, where few predators can follow. It eats marine snow, catching falling debris on sticky filaments rather than hunting.</p><dl><dt>Length</dt><dd>~30 cm</dd><dt>Order</dt><dd>Its own: Vampyromorphida</dd><dt>Diet</dt><dd>Marine snow</dd></dl></div>
         </article>
-        <article class="card" style="--c:#b49bff;--d:-1.6s">
+        <article class="card" tabindex="0" role="button" aria-expanded="false" data-cursor="Open" style="--c:#b49bff;--d:-1.6s">
           <div class="orb"></div><div class="dots"></div>
           <div class="meta"><span>700–1,000 m</span><span>Siphonophorae</span></div>
-          <div><h3>Giant siphonophore</h3><p class="latin">Praya dubia</p><p>A colony of cloned bodies strung together, reaching 40 meters. One of the longest animals alive.</p></div>
+          <div><h3>Giant siphonophore</h3><p class="latin">Praya dubia</p><p>A colony of cloned bodies strung together, reaching 40 meters. One of the longest animals alive.</p><p class="open-hint">Open specimen file +</p></div>
+        <div class="more"><p>What looks like one long animal is a colony of specialized units called zooids. Some swim, some feed, some reproduce, and none can survive alone.</p><dl><dt>Length</dt><dd>Up to 40 m</dd><dt>Built from</dt><dd>Cloned zooids</dd><dt>Body</dt><dd>Gelatinous</dd></dl></div>
         </article>
       </div>
     </div>
@@ -340,7 +395,7 @@ main{position:relative;z-index:3;overflow-x:clip}
   <!-- BATHYPELAGIC -->
   <section class="zone wrap dark" id="bathy" data-depth="1000" data-zone="Bathypelagic">
     <div class="zone-head">
-      <p class="range">1,000<span class="dash">–</span>4,000<i>m</i></p>
+      <p class="range" data-speed="0.86">1,000<span class="dash">–</span>4,000<i>m</i></p>
       <div>
         <p class="eyebrow">Zone III · <b>Bathypelagic</b></p>
         <h2 class="zone-title split">The midnight zone</h2>
@@ -348,7 +403,7 @@ main{position:relative;z-index:3;overflow-x:clip}
     </div>
     <div class="zone-body">
       <div class="stat">
-        <span class="n" id="statN">76%</span>
+        <span class="n" id="statN" data-speed="1.12">76%</span>
         <p>of animals in the deep water column make their own light.</p>
       </div>
       <div>
@@ -357,13 +412,13 @@ main{position:relative;z-index:3;overflow-x:clip}
         <p class="source">Martini &amp; Haddock, Scientific Reports, 2017. Monterey Bay, surface to 3,900 m.</p>
       </div>
     </div>
-    <p class="hint" id="hint">Move your light. Something is looking back.</p>
+    <p class="hint" id="hint" data-lag="0.5">Move your light. Something is looking back.</p>
   </section>
 
   <!-- ABYSSOPELAGIC -->
   <section class="zone wrap dark" id="abyss" data-depth="4000" data-zone="Abyssopelagic">
     <div class="zone-head">
-      <p class="range">4,000<span class="dash">–</span>6,000<i>m</i></p>
+      <p class="range" data-speed="0.86">4,000<span class="dash">–</span>6,000<i>m</i></p>
       <div>
         <p class="eyebrow">Zone IV · <b>Abyssopelagic</b></p>
         <h2 class="zone-title split">The abyss</h2>
@@ -384,7 +439,7 @@ main{position:relative;z-index:3;overflow-x:clip}
   <!-- HADAL -->
   <section class="zone wrap dark" id="hadal" data-depth="6000" data-zone="Hadalpelagic">
     <div class="zone-head">
-      <p class="range">6,000<span class="dash">–</span>10,935<i>m</i></p>
+      <p class="range" data-speed="0.86">6,000<span class="dash">–</span>10,935<i>m</i></p>
       <div>
         <p class="eyebrow">Zone V · <b>Hadalpelagic</b></p>
         <h2 class="zone-title split">The trenches</h2>
@@ -402,12 +457,26 @@ main{position:relative;z-index:3;overflow-x:clip}
         <li><b>10,935</b><span>Challenger Deep<small>Deepest known point on Earth</small></span></li>
       </ol>
     </div>
+    <figure class="trench" aria-label="Cross-section of the Mariana Trench">
+      <svg viewBox="0 0 800 320" id="trenchSvg">
+        <g class="grid">
+          <line x1="40" x2="800" y1="69" y2="69"/><line x1="40" x2="800" y1="118" y2="118"/><line x1="40" x2="800" y1="166" y2="166"/><line x1="40" x2="800" y1="215" y2="215"/><line x1="40" x2="800" y1="264" y2="264"/>
+        </g>
+        <text x="0" y="24">0 km</text><text x="0" y="73">2</text><text x="0" y="122">4</text><text x="0" y="170">6</text><text x="0" y="219">8</text><text x="0" y="268">10</text>
+        <path class="surface" d="M40 20 C140 16 240 24 340 20 C440 16 540 24 640 20 C700 18 760 22 800 20"/>
+        <path class="profile" id="trenchPath" d="M40 150 L200 152 C270 155 310 175 345 225 C368 262 386 286 400 288 C414 286 432 262 455 225 C490 175 540 150 610 147 L800 145"/>
+        <circle class="pin" cx="400" cy="288" r="4"/>
+        <text x="60" y="140">Pacific Plate →</text>
+        <text x="640" y="135">Mariana Plate</text>
+        <text class="hl" x="412" y="306">Challenger Deep · 10,935 m</text>
+      </svg>
+    </figure>
   </section>
 
   <!-- FLOOR -->
   <section class="floor wrap dark" id="floor" data-depth="10935" data-zone="Challenger Deep">
     <p class="eyebrow">You have arrived</p>
-    <p class="deep-num"><span id="floorN">10,935</span><small>m</small></p>
+    <p class="deep-num" data-lag="0.35"><span id="floorN">10,935</span><small>m</small></p>
     <h2>The bottom of the Challenger Deep. Everything on Earth is above you now.</h2>
     <dl class="facts">
       <div><dt>Pressure</dt><dd>1,071<small>atm</small></dd></div>
@@ -418,11 +487,17 @@ main{position:relative;z-index:3;overflow-x:clip}
     <p class="colophon">Depths, temperatures and pressures are approximate and vary by ocean and season. Click anywhere to send a sonar ping.</p>
   </section>
 </main>
+</div></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/lenis@1.1.13/dist/lenis.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/ScrollTrigger.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/ScrollSmoother.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/SplitText.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/ScrambleTextPlugin.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/MorphSVGPlugin.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/DrawSVGPlugin.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/Flip.min.js"></script>
 <script>
 (() => {
   const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -434,6 +509,21 @@ main{position:relative;z-index:3;overflow-x:clip}
   const lerp = (a, b, t) => a + (b - a) * t;
   const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
   const root = document.documentElement;
+  const SS = window.ScrollSmoother, Split = window.SplitText, FlipP = window.Flip;
+  const FX = !!(G && ST && !RM);
+  if (FX) G.registerPlugin(...[ST, SS, Split, window.ScrambleTextPlugin, window.MorphSVGPlugin, window.DrawSVGPlugin, FlipP].filter(Boolean));
+  const SCRAMBLE = FX && !!window.ScrambleTextPlugin;
+  const contentEl = $('#smooth-content');
+  let smoother = null;
+  // parallax offsets collide with the stacked one-column layout on phones
+  if (innerWidth < 900) $$('[data-speed],[data-lag]').forEach(el => { el.removeAttribute('data-speed'); el.removeAttribute('data-lag'); });
+  if (FX && SS) smoother = SS.create({ wrapper: '#smooth-wrapper', content: contentEl, smooth: 1.25, effects: true, smoothTouch: .1 });
+  // the scroll position the viewer actually sees (ScrollSmoother lags the native one)
+  const getScroll = () => smoother ? -G.getProperty(contentEl, 'y') : scrollY;
+  function docTop(el) {
+    const t = el.parentElement && el.parentElement.classList.contains('pin-spacer') ? el.parentElement : el;
+    let y = 0; for (let n = t; n && n !== contentEl; n = n.offsetParent) y += n.offsetTop; return y;
+  }
 
   const S = {
     W: innerWidth, H: innerHeight,
@@ -445,7 +535,7 @@ main{position:relative;z-index:3;overflow-x:clip}
   /* ---------------- depth model ---------------- */
   let anchors = [];
   function measure() {
-    anchors = $$('[data-depth]').map(el => ({ y: el.getBoundingClientRect().top + scrollY, d: +el.dataset.depth }));
+    anchors = $$('[data-depth]').map(el => ({ y: docTop(el), d: +el.dataset.depth }));
     layoutEyes();
   }
   function depthAt(y) {
@@ -475,7 +565,7 @@ main{position:relative;z-index:3;overflow-x:clip}
     const t = document.createElement('div'); t.className = 'tick'; t.style.top = (gauge(d) * 100) + '%';
     t.innerHTML = `<span>${d >= 1000 ? Math.round(d / 1000) + 'k' : d}</span>`; t.title = n; $('#gauge').appendChild(t);
   });
-  let lastHud = -1;
+  let lastHud = -1, lastZone = 'Surface';
   function updateHud(d) {
     const r = Math.round(d);
     if (r === lastHud) return; lastHud = r;
@@ -484,7 +574,11 @@ main{position:relative;z-index:3;overflow-x:clip}
     hud.p.textContent = ps; hud.mp.textContent = ps;
     hud.t.textContent = tempAt(d).toFixed(1) + ' °C';
     hud.l.textContent = lightAt(d);
-    hud.z.textContent = zs; hud.mz.textContent = zs;
+    if (zs !== lastZone) {
+      lastZone = zs; hud.mz.textContent = zs;
+      if (SCRAMBLE) G.to(hud.z, { duration: .9, scrambleText: { text: zs, chars: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', speed: .5 }, overwrite: true });
+      else hud.z.textContent = zs;
+    }
     const g = gauge(d) * 100; hud.fill.style.height = g + '%'; hud.mark.style.top = g + '%';
     root.classList.toggle('deep', d > 900);
   }
@@ -629,7 +723,7 @@ main{position:relative;z-index:3;overflow-x:clip}
   function layoutEyes() {
     eyes = [];
     $$('section.dark').forEach(sec => {
-      const top = sec.getBoundingClientRect().top + scrollY, h = sec.offsetHeight;
+      const top = docTop(sec), h = sec.offsetHeight;
       const n = Math.round(clamp(h / 70, 8, 22) * (S.W < 700 ? .6 : 1));
       for (let i = 0; i < n; i++) { const e = { top, h }; placeEye(e); e.alpha = 1; eyes.push(e); }
     });
@@ -648,7 +742,7 @@ main{position:relative;z-index:3;overflow-x:clip}
   function renderEyes(dt) {
     ex.clearRect(0, 0, S.W, S.H);
     if (S.depth < 700) return;
-    const sy = scrollY;
+    const sy = getScroll();
     for (const e of eyes) {
       const x = e.fx * S.W, y = e.y - sy;
       if (y < -40 || y > S.H + 40) continue;
@@ -787,7 +881,7 @@ main{position:relative;z-index:3;overflow-x:clip}
   addEventListener('pointermove', e => { S.mx = e.clientX; S.my = e.clientY; S.lastMove = S.t; }, { passive: true });
   addEventListener('pointerdown', e => {
     S.mx = e.clientX; S.my = e.clientY; S.lastMove = S.t;
-    if (e.target.closest('button,a')) return;
+    if (e.target.closest('button,a,.card,#overlay')) return;
     rings.push({ x: e.clientX, y: e.clientY, life: 1 });
     sparkBurst(e.clientX, e.clientY, 28);
     Snd.ping();
@@ -808,62 +902,124 @@ main{position:relative;z-index:3;overflow-x:clip}
     const dots = $('.dots', card);
     for (let i = 0; i < 9; i++) { const d = document.createElement('i'); d.style.left = (10 + Math.random() * 80) + '%'; d.style.top = (8 + Math.random() * 50) + '%'; d.style.animationDelay = (-Math.random() * 3) + 's'; dots.appendChild(d); }
     card.addEventListener('pointermove', e => {
+      if (card.classList.contains('open')) return;
       const r = card.getBoundingClientRect(), px = (e.clientX - r.left) / r.width, py = (e.clientY - r.top) / r.height;
       card.style.transform = `perspective(900px) rotateY(${(px - .5) * 14}deg) rotateX(${(.5 - py) * 12}deg) translateZ(10px)`;
       card.style.setProperty('--gx', px * 100 + '%'); card.style.setProperty('--gy', py * 100 + '%');
     });
-    card.addEventListener('pointerleave', () => { card.style.transform = ''; });
+    card.addEventListener('pointerleave', () => { if (!card.classList.contains('open')) card.style.transform = ''; });
   });
   else $$('.card:not(.intro) .dots').forEach(dots => { for (let i = 0; i < 7; i++) { const d = document.createElement('i'); d.style.left = (10 + Math.random() * 80) + '%'; d.style.top = (8 + Math.random() * 50) + '%'; dots.appendChild(d); } });
   if (!FINE) $('#hint').textContent = 'Touch the dark. Something is looking back.';
 
-  /* ---------------- smooth scroll ---------------- */
-  let lenis = null;
-  if (window.Lenis && !RM) {
-    lenis = new Lenis({ lerp: .085, wheelMultiplier: .9 });
-    lenis.on('scroll', e => { S.vel = e.velocity || 0; if (ST) ST.update(); });
-    if (G) { G.ticker.add(t => lenis.raf(t * 1000)); G.ticker.lagSmoothing(0); }
-    else { const raf = t => { lenis.raf(t); requestAnimationFrame(raf); }; requestAnimationFrame(raf); }
-  }
+  /* ---------------- navigation ---------------- */
   const goTo = (target, dur) => {
-    if (lenis) lenis.scrollTo(target, { duration: dur, easing: t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2 });
-    else (typeof target === 'number' ? scrollTo({ top: target, behavior: RM ? 'auto' : 'smooth' }) : $(target).scrollIntoView({ behavior: RM ? 'auto' : 'smooth' }));
+    if (smoother) {
+      const y = typeof target === 'number' ? target : smoother.offset(target, 'top top');
+      G.to(smoother, { scrollTop: y, duration: dur, ease: 'power3.inOut', overwrite: true });
+    } else if (typeof target === 'number') scrollTo({ top: target, behavior: RM ? 'auto' : 'smooth' });
+    else $(target).scrollIntoView({ behavior: RM ? 'auto' : 'smooth' });
   };
   $('#dive').addEventListener('click', () => goTo('#epi', 2.4));
   $('#ascend').addEventListener('click', () => goTo(0, 6));
   $('.brand').addEventListener('click', e => { e.preventDefault(); goTo(0, 4); });
 
+  /* ---------------- specimen cards: zoom open with Flip ---------------- */
+  const overlay = $('#overlay');
+  let openCard = null, ph = null;
+  function openSpecimen(card) {
+    if (openCard || !card) return;
+    const state = FlipP && FX ? FlipP.getState(card) : null;
+    ph = document.createElement('div'); ph.className = 'card-ph';
+    ph.style.width = card.offsetWidth + 'px'; ph.style.height = card.offsetHeight + 'px';
+    card.before(ph); card.style.transform = '';
+    overlay.hidden = false; overlay.appendChild(card);
+    card.classList.add('open'); card.setAttribute('aria-expanded', 'true');
+    openCard = card; root.classList.remove('cursor-hover');
+    if (smoother) smoother.paused(true);
+    if (state) {
+      FlipP.from(state, { duration: .9, ease: 'expo.inOut', absolute: true });
+      G.fromTo(overlay, { backgroundColor: 'rgba(1,4,9,0)' }, { backgroundColor: 'rgba(1,4,9,.72)', duration: .6 });
+      G.from($$('.more > *, .close', overlay), { opacity: 0, y: 24, duration: .8, ease: 'expo.out', stagger: .08, delay: .45 });
+    }
+    $('#closeCard').focus({ preventScroll: true });
+  }
+  function closeSpecimen() {
+    if (!openCard) return;
+    const card = openCard, state = FlipP && FX ? FlipP.getState(card) : null;
+    card.classList.remove('open'); card.setAttribute('aria-expanded', 'false');
+    ph.replaceWith(card); ph = null; openCard = null;
+    const done = () => { overlay.hidden = true; if (smoother) smoother.paused(false); card.focus({ preventScroll: true }); };
+    if (state) { FlipP.from(state, { duration: .8, ease: 'expo.inOut', absolute: true, zIndex: 16, onComplete: done }); G.to(overlay, { backgroundColor: 'rgba(1,4,9,0)', duration: .5 }); }
+    else done();
+  }
+  $$('.card:not(.intro)').forEach(card => {
+    card.addEventListener('click', () => { if (!card.classList.contains('open')) openSpecimen(card); });
+    card.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && !card.classList.contains('open')) { e.preventDefault(); openSpecimen(card); } });
+  });
+  $('#closeCard').addEventListener('click', e => { e.stopPropagation(); closeSpecimen(); });
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeSpecimen(); });
+  addEventListener('keydown', e => { if (e.key === 'Escape') closeSpecimen(); });
+
   /* ---------------- split text ---------------- */
-  function splitChars(el) { const t = el.textContent; el.innerHTML = [...t].map(c => `<span class="ch">${c}</span>`).join(''); return $$('.ch', el); }
-  function splitWords(el) { const words = el.textContent.trim().split(/\s+/); el.innerHTML = words.map(w => `<span class="w"><span class="wi">${w}</span></span>`).join(' '); return $$('.wi', el); }
+  function splitChars(el) {
+    if (Split) return Split.create(el, { type: 'chars', charsClass: 'ch', aria: 'none' }).chars;
+    el.innerHTML = [...el.textContent].map(c => `<span class="ch">${c}</span>`).join(''); return $$('.ch', el);
+  }
   const l1 = splitChars($('.hero .l1')), l2 = splitChars($('.hero .l2'));
 
   /* ---------------- GSAP choreography ---------------- */
-  if (G && ST && !RM) {
-    G.registerPlugin(ST);
+  if (FX) {
+    const rnd = (a, b) => a + Math.random() * (b - a);
     // hero letters sink at different rates as you leave the surface
     l2.forEach((c, i) => {
       G.to(c, { y: () => S.H * (.25 + ((i * 37) % 7) / 7 * .6), rotation: ((i * 53) % 11) - 5, opacity: .15, ease: 'none',
         scrollTrigger: { trigger: '#hero', start: 'top top', end: 'bottom top', scrub: .6 + (i % 3) * .4 } });
     });
-    G.to('.hero .l1, .coords', { y: -80, opacity: 0, ease: 'none', scrollTrigger: { trigger: '#hero', start: 'top top', end: '60% top', scrub: true } });
+    G.to('.hero .l1', { y: -80, opacity: 0, ease: 'none', scrollTrigger: { trigger: '#hero', start: 'top top', end: '60% top', scrub: true } });
 
-    $$('.split').forEach(el => {
-      const w = splitWords(el);
-      G.from(w, { yPercent: 115, rotate: 4, duration: 1.1, ease: 'expo.out', stagger: .025, scrollTrigger: { trigger: el, start: 'top 88%' } });
+    if (Split) {
+      // body copy: words rise out of masked lines
+      $$('p.split').forEach(el => Split.create(el, {
+        type: 'lines,words', mask: 'lines', linesClass: 'split-mask', autoSplit: true,
+        onSplit: self => G.from(self.words, { yPercent: 115, rotate: 4, duration: 1.1, ease: 'expo.out', stagger: .02, scrollTrigger: { trigger: el, start: 'top 88%' } })
+      }));
+      // zone titles: scattered letters reassemble
+      $$('h2.split').forEach(el => Split.create(el, {
+        type: 'words,chars', charsClass: 'tc', autoSplit: true,
+        onSplit: self => G.from(self.chars, {
+          x: () => rnd(-160, 160), y: () => rnd(-120, 120), rotation: () => rnd(-80, 80), scale: () => rnd(.2, 2), opacity: 0, filter: 'blur(10px)',
+          duration: 1.6, ease: 'expo.out', stagger: { each: .025, from: 'random' }, scrollTrigger: { trigger: el, start: 'top 85%' } })
+      }));
+      // the floor headline explodes inward from across the screen
+      Split.create('.floor h2', { type: 'words,chars', autoSplit: true,
+        onSplit: self => G.from(self.chars, {
+          x: () => rnd(-S.W * .6, S.W * .6), y: () => rnd(-S.H * .5, S.H * .5), rotation: () => rnd(-180, 180), opacity: 0, scale: () => rnd(0, 3),
+          duration: 2.2, ease: 'expo.out', stagger: { amount: .6, from: 'random' }, scrollTrigger: { trigger: '.floor h2', start: 'top 80%' } }) });
+    }
+    if (SCRAMBLE) $$('.zone .eyebrow b').forEach(b => {
+      const txt = b.textContent;
+      ST.create({ trigger: b, start: 'top 90%', once: true, onEnter: () => G.to(b, { duration: 1.4, scrambleText: { text: txt, chars: '01<>/·—', revealDelay: .3, speed: .4 } }) });
     });
-    $$('.range').forEach(el => {
-      G.from(el, { opacity: 0, y: 60, filter: 'blur(14px)', duration: 1.4, ease: 'expo.out', scrollTrigger: { trigger: el, start: 'top 85%' } });
-      G.to(el, { y: -70, ease: 'none', scrollTrigger: { trigger: el, start: 'top bottom', end: 'bottom top', scrub: true } });
-    });
+    $$('.range').forEach(el => G.from(el, { opacity: 0, letterSpacing: '.2em', filter: 'blur(14px)', duration: 1.6, ease: 'expo.out', scrollTrigger: { trigger: el, start: 'top 88%' } }));
     $$('.facts > div, .log li').forEach(el => G.from(el, { opacity: 0, y: 30, duration: 1, ease: 'expo.out', scrollTrigger: { trigger: el, start: 'top 92%' } }));
 
     // horizontal creature track, pinned
     const wrapEl = $('#trackWrap'), track = $('#track');
     wrapEl.classList.add('pinned');
     const dist = () => Math.max(0, track.scrollWidth - S.W);
-    G.to(track, { x: () => -dist(), ease: 'none',
+    const trackTween = G.to(track, { x: () => -dist(), ease: 'none',
       scrollTrigger: { trigger: wrapEl, start: 'center center', end: () => '+=' + dist(), pin: '#meso', pinSpacing: true, scrub: 1, invalidateOnRefresh: true } });
+    // card outlines draw themselves as each card slides in
+    if (window.DrawSVGPlugin) $$('.card:not(.intro)').forEach(card => {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('class', 'edge'); svg.setAttribute('preserveAspectRatio', 'none'); svg.setAttribute('viewBox', '0 0 100 100');
+      svg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible';
+      svg.innerHTML = '<rect x="0" y="0" width="100" height="100" rx="1" fill="none" stroke="var(--c)" stroke-width="1.2" vector-effect="non-scaling-stroke"/>';
+      card.appendChild(svg);
+      G.fromTo(svg.firstChild, { drawSVG: '0% 0%' }, { drawSVG: '0% 100%', duration: 1.8, ease: 'power2.inOut',
+        scrollTrigger: { trigger: card, containerAnimation: trackTween, start: 'left 85%' } });
+    });
 
     // 76% counter
     const stat = $('#statN'), sv = { v: 0 };
@@ -872,6 +1028,45 @@ main{position:relative;z-index:3;overflow-x:clip}
 
     // the word PRESSURE gets crushed as you sink through the abyss
     G.fromTo('#crush', { scaleY: 1, scaleX: 1 }, { scaleY: .12, scaleX: 1.08, ease: 'none', scrollTrigger: { trigger: '#abyss', start: 'top 60%', end: 'bottom 40%', scrub: true } });
+
+    // trench cross-section draws itself as you descend the hadal zone
+    if (window.DrawSVGPlugin) {
+      G.fromTo('#trenchPath, .trench .surface', { drawSVG: '0%' }, { drawSVG: '100%', ease: 'none', scrollTrigger: { trigger: '.trench', start: 'top 85%', end: 'bottom 45%', scrub: true } });
+      G.from('.trench .grid line', { drawSVG: '0%', duration: 1.4, ease: 'power2.out', stagger: .1, scrollTrigger: { trigger: '.trench', start: 'top 85%' } });
+      G.from('.trench text, .trench .pin', { opacity: 0, duration: .8, stagger: .05, scrollTrigger: { trigger: '.trench', start: 'top 70%' } });
+    }
+
+    // specimen: draws itself in the midnight zone, then morphs creature to creature on the way down
+    if (window.MorphSVGPlugin && window.DrawSVGPlugin) {
+      const spec = $('#specimen'), name = $('#specName'), latin = $('#specLatin');
+      const SPECIES = [
+        ['#bathy', 'Black seadevil', 'Melanocetus johnsonii · 1,000–4,000 m'],
+        ['#abyss', 'Dumbo octopus', 'Grimpoteuthis · 3,000–7,000 m'],
+        ['#hadal', 'Hadal snailfish', 'Pseudoliparis swirei · 6,000–8,000 m'],
+        ['#floor', 'Giant amphipod', 'Hirondellea gigas · the trench floor']
+      ];
+      const label = (n, l) => {
+        if (SCRAMBLE) { G.to(name, { duration: 1, scrambleText: { text: n, chars: 'upperCase', speed: .6 }, overwrite: true }); G.to(latin, { duration: 1.2, scrambleText: { text: l, chars: 'lowerCase', speed: .5 }, overwrite: true }); }
+        else { name.textContent = n; latin.textContent = l; }
+      };
+      G.set('#specBody, #specStalk', { drawSVG: '0%' }); G.set('#specLure', { scale: 0, transformOrigin: '50% 50%' });
+      ST.create({ trigger: '#bathy', start: 'top 55%', end: 'max', onToggle: self => G.to(spec, { opacity: self.isActive ? 1 : 0, duration: .8, overwrite: 'auto' }) });
+      ST.create({ trigger: '#bathy', start: 'top 55%', once: true, onEnter: () => {
+        G.timeline().to('#specBody', { drawSVG: '100%', duration: 2.4, ease: 'power2.inOut' })
+          .to('#specStalk', { drawSVG: '100%', duration: 1, ease: 'power2.out' }, '-=.8')
+          .to('#specLure', { scale: 1, duration: .6, ease: 'back.out(3)' }, '-=.2')
+          .set('#specBody', { clearProps: 'strokeDasharray,strokeDashoffset' });
+      } });
+      G.to('#specLure', { attr: { r: 8 }, duration: .9, repeat: -1, yoyo: true, ease: 'sine.inOut' });
+      const shapes = ['#shDumbo', '#shSnail', '#shAmphi'];
+      shapes.forEach((sh, i) => {
+        const next = SPECIES[i + 1];
+        const tl = G.timeline({ scrollTrigger: { trigger: next[0], start: 'top 80%', end: 'top 30%', scrub: 1,
+            onEnter: () => label(next[1], next[2]), onLeaveBack: () => label(SPECIES[i][1], SPECIES[i][2]) } })
+          .to('#specBody', { morphSVG: { shape: sh, type: 'rotational' }, ease: 'none' }, 0);
+        if (i === 0) tl.to('#specStalk, #specLure', { opacity: 0, ease: 'none', duration: .4 }, 0);
+      });
+    }
 
     // floor counter
     const fn = $('#floorN'), fv = { v: 6000 };
@@ -884,13 +1079,13 @@ main{position:relative;z-index:3;overflow-x:clip}
   const loader = $('#loader'), ldNum = $('#ldNum'), ldBar = $('#ldBar');
   function intro() {
     const hero = $('#hero');
-    if (!G || RM) { loader.remove(); hero.classList.add('settled'); return; }
+    if (!FX) { loader.remove(); hero.classList.add('settled'); return; }
     const tl = G.timeline({ onComplete: () => { loader.remove(); hero.classList.add('settled'); } });
     tl.to(ldNum, { yPercent: -110, duration: .6, ease: 'power3.in' })
       .to(loader, { clipPath: 'inset(0 0 100% 0)', duration: 1.2, ease: 'expo.inOut' }, '-=.1')
       .from(l1, { yPercent: 110, duration: 1, ease: 'expo.out', stagger: .06 }, '-=.6')
       .from(l2, { yPercent: 110, duration: 1.4, ease: 'expo.out', stagger: .055 }, '-=.9')
-      .from('.hero-foot > *, .coords, .topbar, .hud, .hud-mini', { opacity: 0, y: 20, duration: 1, ease: 'expo.out', stagger: .08 }, '-=1');
+      .from('.hero-foot > *, .topbar, .hud, .hud-mini', { opacity: 0, y: 20, duration: 1, ease: 'expo.out', stagger: .08 }, '-=1');
   }
   const minWait = new Promise(r => setTimeout(r, RM ? 0 : 1500));
   const fonts = document.fonts ? Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 2500))]) : Promise.resolve();
@@ -907,13 +1102,13 @@ main{position:relative;z-index:3;overflow-x:clip}
   let last = performance.now();
   function frame(now) {
     const dt = Math.min(.05, (now - last) / 1000); last = now; S.t += dt;
-    S.scroll = scrollY;
-    if (!lenis) S.vel *= .9;
+    S.scroll = getScroll();
+    if (smoother) S.vel = smoother.getVelocity() / 60; else S.vel *= .9;
     // idle: let the light drift on its own so the dark stays alive
     let tx = S.mx, ty = S.my;
     if (S.t - S.lastMove > 3.5) { tx = S.W * (.5 + .32 * Math.sin(S.t * .37)); ty = S.H * (.55 + .25 * Math.sin(S.t * .53 + 1)); }
     S.lx = lerp(S.lx, tx, .09); S.ly = lerp(S.ly, ty, .09);
-    const target = depthAt(scrollY + S.H * .5);
+    const target = depthAt(S.scroll + S.H * .5);
     S.depth = lerp(S.depth, target, .12);
     if (Math.abs(S.depth - target) < .3) S.depth = target;
     updateHud(S.depth); updateVeil(); Snd.depth(S.depth);
@@ -924,7 +1119,7 @@ main{position:relative;z-index:3;overflow-x:clip}
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
-  addEventListener('scroll', () => { if (!lenis) { const y = scrollY; S.vel = lerp(S.vel, y - (S._ly ?? y), .5); S._ly = y; } }, { passive: true });
+  addEventListener('scroll', () => { if (!smoother) { const y = scrollY; S.vel = lerp(S.vel, y - (S._ly ?? y), .5); S._ly = y; } }, { passive: true });
 
   let rT;
   addEventListener('resize', () => {
