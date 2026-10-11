@@ -229,6 +229,7 @@ a{color:inherit}
 <script>
 const MAPDATA = __MAP__;
 const BASE_SRC = "__BASE__";
+const ROADS_SRC = "__ROADS__";
 </script>
 <script>
 (() => {
@@ -318,28 +319,29 @@ const BASE_SRC = "__BASE__";
     return best;
   }
 
-  /* ---------------- drivable mask ---------------- */
-  let drivable = null; const MW = Math.ceil(U), MH = Math.ceil(UH);
-  function buildMask() {
+  /* ---------------- street network (1 px per map unit) ---------------- */
+  // road[i]: 0 = no road, 1 = surface street, 2 = highway / ramp / bridge
+  const MW = Math.ceil(U), MH = Math.ceil(UH); let road = null;
+  const roadsImg = new Image(); roadsImg.src = ROADS_SRC;
+  function buildRoads() {
     const c = document.createElement('canvas'); c.width = MW; c.height = MH; const g = c.getContext('2d');
-    g.drawImage(base, 0, 0, U, UH); const px = g.getImageData(0, 0, MW, MH).data;
-    g.clearRect(0, 0, MW, MH); g.lineWidth = 4; g.lineCap = 'round'; g.strokeStyle = '#fff';
-    g.stroke(P_FWY); g.stroke(P_HWY); g.stroke(P_RAMP); const rd = g.getImageData(0, 0, MW, MH).data;
-    drivable = new Uint8Array(MW * MH);
-    for (let i = 0; i < MW * MH; i++) { const r = px[i * 4], b = px[i * 4 + 2]; drivable[i] = (!(b > r + 25 && b > 80) || rd[i * 4 + 3] > 40) ? 1 : 0; }
-    // coarse routing grid: 0 = blocked, 1 = highway/bridge, 2 = surface streets
-    GW = Math.ceil(MW / GC); GH = Math.ceil(MH / GC); gridCost = new Uint8Array(GW * GH);
-    for (let gy = 0; gy < GH; gy++) for (let gx = 0; gx < GW; gx++) {
-      let land = 0, road = 0;
-      for (let y = gy * GC; y < Math.min(MH, gy * GC + GC); y++) for (let x = gx * GC; x < Math.min(MW, gx * GC + GC); x++) {
-        const i = y * MW + x; if (rd[i * 4 + 3] > 40) road++; else if (drivable[i]) land++; }
-      gridCost[gy * GW + gx] = road ? 1 : land > GC * GC * .5 ? 2 : 0;
-    }
+    g.imageSmoothingEnabled = false; g.drawImage(roadsImg, 0, 0); const px = g.getImageData(0, 0, MW, MH).data;
+    road = new Uint8Array(MW * MH);
+    for (let i = 0; i < MW * MH; i++) { const v = px[i * 4]; road[i] = v > 190 ? 2 : v > 60 ? 1 : 0; }
+    snapCar();
   }
-  const canDrive = (x, y) => { if (!drivable) return true; if (x < 1 || y < 1 || x >= MW - 1 || y >= MH - 1) return false; return drivable[(y | 0) * MW + (x | 0)] === 1; };
+  const onRoad = (x, y) => { if (!road) return true; x = x | 0; y = y | 0; return x > 0 && y > 0 && x < MW - 1 && y < MH - 1 && road[y * MW + x] > 0; };
+  function nearestRoad(x, y, maxR = 60) {
+    if (!road) return [x, y];
+    const cx = x | 0, cy = y | 0;
+    for (let r = 0; r <= maxR; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+      if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+      if (onRoad(cx + dx, cy + dy)) return [cx + dx + .5, cy + dy + .5]; }
+    return [x, y];
+  }
 
-  /* ---------------- routing: A* over a coarse drivable grid ---------------- */
-  const GC = 4; let GW = 0, GH = 0, gridCost = null;
+  /* ---------------- routing: A* along streets ---------------- */
+  let G = null, PREV = null, STAMP = null, CLOSED = null, stampN = 0;
   function simplify(pts, eps) {
     if (pts.length < 3) return pts;
     const [x1, y1] = pts[0], [x2, y2] = pts[pts.length - 1], dx = x2 - x1, dy = y2 - y1, L = Math.hypot(dx, dy) || 1e-9;
@@ -347,36 +349,47 @@ const BASE_SRC = "__BASE__";
     for (let i = 1; i < pts.length - 1; i++) { const d = Math.abs(dy * pts[i][0] - dx * pts[i][1] + x2 * y1 - y2 * x1) / L; if (d > dm) { dm = d; idx = i; } }
     return dm > eps ? simplify(pts.slice(0, idx + 1), eps).slice(0, -1).concat(simplify(pts.slice(idx), eps)) : [pts[0], pts[pts.length - 1]];
   }
-  function nearestOpen(gx, gy) {
-    for (let r = 0; r < 40; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
-      if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue; const x = gx + dx, y = gy + dy;
-      if (x >= 0 && y >= 0 && x < GW && y < GH && gridCost[y * GW + x]) return y * GW + x; }
-    return -1;
-  }
   function route(x0, y0, x1, y1) {
-    if (!gridCost) return [[x0, y0], [x1, y1]];
-    const s = nearestOpen(x0 / GC | 0, y0 / GC | 0), t = nearestOpen(x1 / GC | 0, y1 / GC | 0);
-    if (s < 0 || t < 0) return [[x0, y0], [x1, y1]];
-    const N = GW * GH, g = new Float32Array(N).fill(Infinity), prev = new Int32Array(N).fill(-1), closed = new Uint8Array(N);
-    const tx = t % GW, ty = t / GW | 0;
-    const heap = [], push = (f, i) => { heap.push([f, i]); let c = heap.length - 1; while (c > 0) { const p = (c - 1) >> 1; if (heap[p][0] <= heap[c][0]) break; [heap[p], heap[c]] = [heap[c], heap[p]]; c = p; } };
-    const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let c = 0; for (;;) { const l = c * 2 + 1, r = l + 1; let m = c; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === c) break; [heap[m], heap[c]] = [heap[c], heap[m]]; c = m; } } return top; };
-    g[s] = 0; push(0, s);
-    const NB = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, 1.414], [1, -1, 1.414], [-1, 1, 1.414], [-1, -1, 1.414]];
-    while (heap.length) {
-      const [, u] = pop(); if (closed[u]) continue; closed[u] = 1; if (u === t) break;
-      const ux = u % GW, uy = u / GW | 0;
-      for (const [dx, dy, w] of NB) {
-        const x = ux + dx, y = uy + dy; if (x < 0 || y < 0 || x >= GW || y >= GH) continue;
-        const v = y * GW + x, c = gridCost[v]; if (!c || closed[v]) continue;
-        const ng = g[u] + w * (c === 1 ? 1 : 1.9);
-        if (ng < g[v]) { g[v] = ng; prev[v] = u; push(ng + Math.hypot(tx - x, ty - y), v); }
+    if (!road) return [[x0, y0], [x1, y1]];
+    const N = MW * MH;
+    if (!G) { G = new Float32Array(N); PREV = new Int32Array(N); STAMP = new Uint32Array(N); CLOSED = new Uint32Array(N); }
+    stampN++;
+    const [sx, sy] = nearestRoad(x0, y0), [ex, ey] = nearestRoad(x1, y1);
+    const s = (sy | 0) * MW + (sx | 0), t = (ey | 0) * MW + (ex | 0), tx = ex | 0, ty = ey | 0;
+    // binary heap of [f, index] in two parallel typed arrays
+    let hf = new Float32Array(1 << 16), hi = new Int32Array(1 << 16), hn = 0;
+    const push = (f, i) => {
+      if (hn >= hf.length) { const nf = new Float32Array(hf.length * 2), ni = new Int32Array(hf.length * 2); nf.set(hf); ni.set(hi); hf = nf; hi = ni; }
+      let c = hn++; hf[c] = f; hi[c] = i;
+      while (c > 0) { const p = (c - 1) >> 1; if (hf[p] <= hf[c]) break; const tf = hf[p], ti = hi[p]; hf[p] = hf[c]; hi[p] = hi[c]; hf[c] = tf; hi[c] = ti; c = p; }
+    };
+    const pop = () => {
+      const top = hi[0]; hn--; hf[0] = hf[hn]; hi[0] = hi[hn]; let c = 0;
+      for (;;) { const l = 2 * c + 1, r = l + 1; let m = c; if (l < hn && hf[l] < hf[m]) m = l; if (r < hn && hf[r] < hf[m]) m = r; if (m === c) break;
+        const tf = hf[m], ti = hi[m]; hf[m] = hf[c]; hi[m] = hi[c]; hf[c] = tf; hi[c] = ti; c = m; }
+      return top;
+    };
+    STAMP[s] = stampN; G[s] = 0; PREV[s] = -1; push(0, s);
+    const OFF = [1, -1, MW, -MW, MW + 1, MW - 1, -MW + 1, -MW - 1], WT = [1, 1, 1, 1, 1.414, 1.414, 1.414, 1.414];
+    let found = false, iter = 0;
+    while (hn) {
+      const u = pop(); if (CLOSED[u] === stampN) continue; CLOSED[u] = stampN;
+      if (u === t) { found = true; break; }
+      if (++iter > 900000) break;
+      const gu = G[u];
+      for (let k = 0; k < 8; k++) {
+        const v = u + OFF[k], rv = road[v]; if (!rv || CLOSED[v] === stampN) continue;
+        const ng = gu + WT[k] * (rv === 2 ? .8 : 1.15);
+        if (STAMP[v] !== stampN || ng < G[v]) {
+          STAMP[v] = stampN; G[v] = ng; PREV[v] = u;
+          const vx = v % MW, vy = (v / MW) | 0; push(ng + Math.hypot(tx - vx, ty - vy) * .8, v);
+        }
       }
     }
-    if (prev[t] < 0 && s !== t) return [[x0, y0], [x1, y1]];
-    const cells = []; for (let u = t; u >= 0; u = prev[u]) { cells.push([(u % GW) * GC + GC / 2, (u / GW | 0) * GC + GC / 2]); if (u === s) break; }
+    if (!found) return [[x0, y0], [x1, y1]];
+    const cells = []; for (let u = t; u !== -1; u = PREV[u]) cells.push([(u % MW) + .5, ((u / MW) | 0) + .5]);
     cells.reverse();
-    return [[x0, y0], ...simplify(cells, 1.6), [x1, y1]];
+    return [[x0, y0], ...simplify(cells, .7)];
   }
 
   /* ---------------- fog of war ---------------- */
@@ -399,6 +412,7 @@ const BASE_SRC = "__BASE__";
   const start = toU(25.7743, -80.1905);
   const car = { x: start[0], y: start[1], h: 0, v: 0 };
   const savedCar = store.get('car', null); if (savedCar) Object.assign(car, savedCar, { v: 0 });
+  function snapCar() { const [x, y] = nearestRoad(car.x, car.y); car.x = x; car.y = y; }
   const fitZoom = () => Math.min(W / U, H / UH) * .95;
   const cam = { x: car.x, y: car.y, z: 2.2, tz: 2.2, follow: true };
   let overview = false, keys = {}, auto = null, waypoint = null, gpsPath = null, lastReroute = 0, shake = 0;
@@ -512,7 +526,7 @@ const BASE_SRC = "__BASE__";
 
   /* ---------------- waypoint + autopilot ---------------- */
   function setWaypoint(x, y) {
-    waypoint = { x, y }; gpsPath = route(car.x, car.y, x, y); auto = { i: 1 }; cam.follow = true; overview = false; cam.tz = Math.max(cam.tz, FOLLOW_Z() * .8); sfxWay();
+    [x, y] = nearestRoad(x, y); waypoint = { x, y }; gpsPath = route(car.x, car.y, x, y); auto = { i: 1 }; cam.follow = true; overview = false; cam.tz = Math.max(cam.tz, FOLLOW_Z() * .8); sfxWay();
   }
 
   /* ---------------- input ---------------- */
@@ -608,7 +622,17 @@ const BASE_SRC = "__BASE__";
       car.v = Math.max(-22, Math.min(vmax, car.v));
       car.h += steer * dt * 2.6 * Math.min(1, Math.abs(car.v) / 25) * Math.sign(car.v || 1);
       const nx = car.x + Math.sin(car.h) * car.v * dt, ny = car.y - Math.cos(car.h) * car.v * dt;
-      if (canDrive(nx, ny)) { car.x = nx; car.y = ny; } else if (Math.abs(car.v) > 5) { car.v *= -.3; shake = .25; } else car.v = 0;
+      if (onRoad(nx, ny)) { car.x = nx; car.y = ny; }
+      else {
+        // lane keeping: look a little to each side for the street and slide onto it
+        const px = Math.cos(car.h), py = Math.sin(car.h); let moved = false;
+        for (const o of [1, -1, 2, -2, 3, -3]) {
+          const qx = nx + px * o, qy = ny + py * o;
+          if (onRoad(qx, qy)) { const want = Math.atan2(qx - car.x, -(qy - car.y)); let da = ((want - car.h + Math.PI * 3) % (Math.PI * 2)) - Math.PI; if (car.v < 0) da = 0;
+            car.h += da * Math.min(1, dt * 10); car.x = qx; car.y = qy; car.v *= Math.pow(.6, dt); moved = true; break; }
+        }
+        if (!moved) { if (Math.abs(car.v) > 8) { car.v *= -.25; shake = .2; } else car.v = 0; }
+      }
       if (waypoint && t - lastReroute > 1.2 && Math.abs(car.v) > 2) { lastReroute = t; gpsPath = route(car.x, car.y, waypoint.x, waypoint.y); }
       if (waypoint && Math.hypot(waypoint.x - car.x, waypoint.y - car.y) < 10) { waypoint = null; gpsPath = null; toast('You have arrived'); }
     }
@@ -634,7 +658,6 @@ const BASE_SRC = "__BASE__";
     hudT += dt; if (hudT > .25) {
       hudT = 0;
       let zn = '', bd = 90; for (const a of AREAS) { const d = Math.hypot(a.x - car.x, a.y - car.y); if (d < bd) { bd = d; zn = a.n; } }
-      if (!canDrive(car.x, car.y)) zn = 'Biscayne Bay';
       if (zn && zn !== lastZone) { lastZone = zn; const z = $('zone'); z.style.opacity = 0; setTimeout(() => { z.textContent = zn; z.style.opacity = 1; }, 200); }
       const st = nearestStreet(car.x, car.y); if (st !== lastStreet) { lastStreet = st; $('street').textContent = st || ''; }
       $('speed').textContent = Math.round(Math.abs(car.v) * 1.6);
@@ -728,7 +751,7 @@ const BASE_SRC = "__BASE__";
     requestAnimationFrame(frame);
   }
   initFog();
-  base.onload = () => { buildMask(); };
+  if (roadsImg.complete) buildRoads(); else roadsImg.onload = buildRoads;
   reveal(car.x, car.y, 70);
   cam.x = car.x; cam.y = car.y; cam.tz = cam.z = FOLLOW_Z();
   updateStats();

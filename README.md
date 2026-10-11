@@ -21,7 +21,7 @@ What's in it:
 
 A separate page: a driving-game-style map of Miami where ten real car-enthusiast spots (CURATED, Walt Grace Vintage, Prestige Imports, The Collection, Cars & Coffee Key Biscayne, the Miami F1 circuit and more) stay hidden until you drive close.
 
-- Drive with WASD or arrow keys (Shift boost, Space brake), or click or tap anywhere to set a GPS waypoint. The car autopilots there along streets and causeways.
+- Drive with WASD or arrow keys (Shift boost, Space brake), or click or tap anywhere to set a GPS waypoint. The car autopilots there along the real street grid, highways and causeways, and manual driving stays on the streets too.
 - Spots show as `?` markers until you get close. Then a discovery banner plays and the spot's card opens. Park there (or press E) to check in.
 - Fog of war clears where you have driven. A rotating radar sits bottom-left, with zone, street and speed readouts bottom-right and a spot log with distances.
 - Progress (found, visited, fog, car position) is saved in the browser.
@@ -31,5 +31,6 @@ Map data: US Census TIGER/Line 2023 (public domain) water, coastline and roads, 
 ```
 python3 map-build/water.py <tiger_dir> <out>/mask.png
 python3 map-build/base.py  <tiger_dir> <out>
+python3 map-build/roadmask.py <tiger_dir> <out>
 python3 map-build/assemble.py <out>
 ```
