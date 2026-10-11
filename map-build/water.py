@@ -1,10 +1,11 @@
 import shapefile, math, sys
 from PIL import Image, ImageDraw
 D = sys.argv[1]
-LAT0, LAT1, LON0, LON1 = 25.675, 25.975, -80.325, -80.06
-k = math.cos(math.radians(25.83))
-W = 2800; H = int(W * (LAT1-LAT0) / ((LON1-LON0)*k))
-def P(lon, lat): return ((lon-LON0)/(LON1-LON0)*W, (LAT1-lat)/(LAT1-LAT0)*H)
+sys.path.insert(0, __import__('os').path.dirname(__file__))
+from config import LAT0, LAT1, LON0, LON1, U, UH, P as CP
+S = 1.5
+W, H = round(U * S), round(UH * S)
+def P(lon, lat): return CP(lon, lat, S)
 img = Image.new('L', (W, H), 0); d = ImageDraw.Draw(img)
 n=0
 for c in ['12086','12011']:

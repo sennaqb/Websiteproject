@@ -3,11 +3,9 @@ Pixel values: 0 = no road, 128 = surface street, 255 = highway, ramp or bridge."
 import shapefile, math, sys
 from PIL import Image, ImageDraw
 D, OUT = sys.argv[1], sys.argv[2]
-LAT0, LAT1, LON0, LON1 = 25.675, 25.975, -80.325, -80.06
-k = math.cos(math.radians(25.83))
-U = 1400; UH = U * (LAT1-LAT0) / ((LON1-LON0)*k)
+sys.path.insert(0, __import__('os').path.dirname(__file__))
+from config import LAT0, LAT1, LON0, LON1, U, UH, P
 W, H = math.ceil(U), math.ceil(UH)
-def P(lon, lat): return ((lon-LON0)/(LON1-LON0)*U, (LAT1-lat)/(LAT1-LAT0)*UH)
 img = Image.new('L', (W, H), 0); d = ImageDraw.Draw(img)
 local, major = [], []
 for c in ['12086', '12011']:

@@ -4,7 +4,7 @@ Pipeline (Census TIGER/Line 2023 data, public domain):
   python3 water.py  <tiger_dir> <out>/mask.png
   python3 base.py   <tiger_dir> <out>
   python3 roadmask.py <tiger_dir> <out>
-  python3 fade.py   <cb_2023_us_county_500k.zip> <out>
+  python3 fade.py   <out>
   python3 assemble.py <out> [artifact_out.html]
 """
 import base64, sys, pathlib

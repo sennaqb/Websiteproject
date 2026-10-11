@@ -1,12 +1,10 @@
 import shapefile, math, sys, json
 from PIL import Image, ImageDraw
 D, OUT = sys.argv[1], sys.argv[2]
-LAT0, LAT1, LON0, LON1 = 25.675, 25.975, -80.325, -80.06
-k = math.cos(math.radians(25.83))
-U = 1400; UH = U * (LAT1-LAT0) / ((LON1-LON0)*k)      # map units
-S = 2.0                                                 # raster scale
-W, H = int(U*S), int(UH*S)
-def P(lon, lat): return ((lon-LON0)/(LON1-LON0)*U, (LAT1-lat)/(LAT1-LAT0)*UH)
+sys.path.insert(0, __import__('os').path.dirname(__file__))
+from config import LAT0, LAT1, LON0, LON1, U, UH, k, P
+S = 1.5                                                 # raster pixels per map unit
+W, H = round(U*S), round(UH*S)
 LAND, WATER, STREET = (243,245,249), (176,199,236), (214,220,230)
 mask = Image.open(f'{OUT}/mask.png').resize((W, H), Image.NEAREST)
 img = Image.new('RGB', (W, H), LAND)
@@ -40,6 +38,6 @@ for c in ['12086', '12011']:
             d.line([(x*S, y*S) for x, y in pts], fill=STREET, width=1)
 img = img.quantize(colors=8, method=Image.Quantize.MEDIANCUT)
 img.save(f'{OUT}/base.png', optimize=True)
-json.dump({'U': U, 'UH': round(UH, 2), 'bbox': [LAT0, LAT1, LON0, LON1], 'k': k,
+json.dump({'U': round(U, 2), 'UH': round(UH, 2), 'bbox': [LAT0, LAT1, LON0, LON1], 'k': k,
            'fwy': hw['S1100'], 'hwy': hw['S1200'], 'ramp': hw['S1630'], 'names': names}, open(f'{OUT}/roads.json', 'w'), separators=(',', ':'))
 print(W, H, {m: len(v) for m, v in hw.items()})

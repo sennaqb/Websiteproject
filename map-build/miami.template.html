@@ -318,7 +318,11 @@ const FADE_SRC = "__FADE__";
     ['South Beach', 25.7826, -80.1341], ['North Miami', 25.8901, -80.1867], ['Aventura', 25.9565, -80.1450], ['Key Biscayne', 25.6930, -80.1620],
     ['Miami Gardens', 25.9420, -80.2456], ['Hialeah', 25.8576, -80.2781], ['Little Haiti', 25.8300, -80.1950], ['Design District', 25.8130, -80.1930],
     ['North Bay Village', 25.8460, -80.1540], ['Bal Harbour', 25.8918, -80.1270], ['Sunny Isles Beach', 25.9420, -80.1230], ['Miami Intl Airport', 25.7959, -80.2870],
-    ['Fisher Island', 25.7610, -80.1420], ['Allapattah', 25.8150, -80.2240], ['North Miami Beach', 25.9300, -80.1650], ['Virginia Key', 25.7400, -80.1550]
+    ['Fisher Island', 25.7610, -80.1420], ['Allapattah', 25.8150, -80.2240], ['North Miami Beach', 25.9300, -80.1650], ['Virginia Key', 25.7400, -80.1550],
+    ['Doral', 25.8195, -80.3553], ['Kendall', 25.6793, -80.3173], ['Miami Lakes', 25.9087, -80.3087], ['Hallandale Beach', 25.9812, -80.1484],
+    ['Westchester', 25.7548, -80.3270], ['Sweetwater', 25.7634, -80.3731], ['Pinecrest', 25.6670, -80.3081], ['South Miami', 25.7076, -80.2934],
+    ['Opa-locka', 25.9023, -80.2503], ['Golden Beach', 25.9651, -80.1217], ['Hollywood', 26.0112, -80.1495], ['Miami Springs', 25.8223, -80.2895],
+    ['Palmetto Bay', 25.6215, -80.3248], ['Cutler Bay', 25.5808, -80.3468], ['Hialeah Gardens', 25.8651, -80.3245]
   ].map(([n, la, lo]) => { const [x, y] = toU(la, lo); return { n, x, y }; });
   const WATERS = [['Biscayne Bay', 25.795, -80.165], ['Atlantic Ocean', 25.840, -80.090], ['Biscayne Bay', 25.70, -80.215]].map(([n, la, lo]) => { const [x, y] = toU(la, lo); return { n, x, y }; });
 
@@ -366,7 +370,7 @@ const FADE_SRC = "__FADE__";
     g.imageSmoothingEnabled = false; g.drawImage(roadsImg, 0, 0); const px = g.getImageData(0, 0, MW, MH).data;
     road = new Uint8Array(MW * MH);
     for (let i = 0; i < MW * MH; i++) { const v = px[i * 4]; road[i] = v > 190 ? 2 : v > 60 ? 1 : 0; }
-    snapCar();
+    buildRouteGrid(); snapCar();
   }
   const onRoad = (x, y) => { if (!road) return true; x = x | 0; y = y | 0; return x > 0 && y > 0 && x < MW - 1 && y < MH - 1 && road[y * MW + x] > 0; };
   function nearestRoad(x, y, maxR = 60) {
@@ -379,7 +383,11 @@ const FADE_SRC = "__FADE__";
   }
 
   /* ---------------- routing: A* along streets ---------------- */
-  let G = null, PREV = null, STAMP = null, CLOSED = null, stampN = 0;
+  let G = null, PREV = null, STAMP = null, CLOSED = null, stampN = 0, RG = null, RW = 0, RH = 0; const RS = 2;
+  function buildRouteGrid() {
+    RW = Math.ceil(MW / RS); RH = Math.ceil(MH / RS); RG = new Uint8Array(RW * RH);
+    for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) { const v = road[y * MW + x]; if (v) { const i = ((y / RS) | 0) * RW + ((x / RS) | 0); if (v > RG[i]) RG[i] = v; } }
+  }
   function simplify(pts, eps) {
     if (pts.length < 3) return pts;
     const [x1, y1] = pts[0], [x2, y2] = pts[pts.length - 1], dx = x2 - x1, dy = y2 - y1, L = Math.hypot(dx, dy) || 1e-9;
@@ -389,11 +397,11 @@ const FADE_SRC = "__FADE__";
   }
   function route(x0, y0, x1, y1) {
     if (!road) return [[x0, y0], [x1, y1]];
-    const N = MW * MH;
+    const N = RW * RH;
     if (!G) { G = new Float32Array(N); PREV = new Int32Array(N); STAMP = new Uint32Array(N); CLOSED = new Uint32Array(N); }
     stampN++;
     const [sx, sy] = nearestRoad(x0, y0), [ex, ey] = nearestRoad(x1, y1);
-    const s = (sy | 0) * MW + (sx | 0), t = (ey | 0) * MW + (ex | 0), tx = ex | 0, ty = ey | 0;
+    const s = ((sy / RS) | 0) * RW + ((sx / RS) | 0), t = ((ey / RS) | 0) * RW + ((ex / RS) | 0), tx = (ex / RS) | 0, ty = (ey / RS) | 0;
     // binary heap of [f, index] in two parallel typed arrays
     let hf = new Float32Array(1 << 16), hi = new Int32Array(1 << 16), hn = 0;
     const push = (f, i) => {
@@ -408,7 +416,7 @@ const FADE_SRC = "__FADE__";
       return top;
     };
     STAMP[s] = stampN; G[s] = 0; PREV[s] = -1; push(0, s);
-    const OFF = [1, -1, MW, -MW, MW + 1, MW - 1, -MW + 1, -MW - 1], WT = [1, 1, 1, 1, 1.414, 1.414, 1.414, 1.414];
+    const OFF = [1, -1, RW, -RW, RW + 1, RW - 1, -RW + 1, -RW - 1], WT = [1, 1, 1, 1, 1.414, 1.414, 1.414, 1.414];
     let found = false, iter = 0;
     while (hn) {
       const u = pop(); if (CLOSED[u] === stampN) continue; CLOSED[u] = stampN;
@@ -416,18 +424,18 @@ const FADE_SRC = "__FADE__";
       if (++iter > 900000) break;
       const gu = G[u];
       for (let k = 0; k < 8; k++) {
-        const v = u + OFF[k], rv = road[v]; if (!rv || CLOSED[v] === stampN) continue;
+        const v = u + OFF[k]; if (v < 0 || v >= N) continue; const rv = RG[v]; if (!rv || CLOSED[v] === stampN) continue;
         const ng = gu + WT[k] * (rv === 2 ? .8 : 1.15);
         if (STAMP[v] !== stampN || ng < G[v]) {
           STAMP[v] = stampN; G[v] = ng; PREV[v] = u;
-          const vx = v % MW, vy = (v / MW) | 0; push(ng + Math.hypot(tx - vx, ty - vy) * .8, v);
+          const vx = v % RW, vy = (v / RW) | 0; push(ng + Math.hypot(tx - vx, ty - vy) * .8, v);
         }
       }
     }
     if (!found) return [[x0, y0], [x1, y1]];
-    const cells = []; for (let u = t; u !== -1; u = PREV[u]) cells.push([(u % MW) + .5, ((u / MW) | 0) + .5]);
+    const cells = []; for (let u = t; u !== -1; u = PREV[u]) cells.push([(u % RW) * RS + RS / 2, ((u / RW) | 0) * RS + RS / 2]);
     cells.reverse();
-    return [[x0, y0], ...simplify(cells, .7)];
+    return [[x0, y0], ...simplify(cells, .9), [ex, ey]];
   }
 
   /* ---------------- fog of war ---------------- */
@@ -435,7 +443,7 @@ const FADE_SRC = "__FADE__";
   const fx = fog.getContext('2d'); let fogDirty = false;
   function initFog() {
     fx.fillStyle = '#ffffff'; fx.fillRect(0, 0, fog.width, fog.height);
-    let saved = null; try { saved = localStorage.getItem('mccm_fog'); } catch (e) {}
+    let saved = null; try { saved = localStorage.getItem('mccm_fog2'); } catch (e) {}
     if (saved) { const im = new Image(); im.onload = () => { fx.clearRect(0, 0, fog.width, fog.height); fx.drawImage(im, 0, 0); }; im.src = saved; }
   }
   function reveal(x, y, r) {
@@ -444,14 +452,14 @@ const FADE_SRC = "__FADE__";
     g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(.6, 'rgba(0,0,0,.9)'); g.addColorStop(1, 'rgba(0,0,0,0)');
     fx.fillStyle = g; fx.beginPath(); fx.arc(x * FS, y * FS, r * FS, 0, 6.2832); fx.fill(); fx.restore(); fogDirty = true;
   }
-  setInterval(() => { if (fogDirty) { fogDirty = false; try { localStorage.setItem('mccm_fog', fog.toDataURL('image/png')); } catch (e) {} } }, 5000);
+  setInterval(() => { if (fogDirty) { fogDirty = false; try { localStorage.setItem('mccm_fog2', fog.toDataURL('image/png')); } catch (e) {} } }, 5000);
 
   /* ---------------- car + camera ---------------- */
   const start = toU(25.7743, -80.1905);
   const car = { x: start[0], y: start[1], h: 0, v: 0 };
-  const savedCar = store.get('car', null); if (savedCar) Object.assign(car, savedCar, { v: 0 });
+  const savedCar = store.get('car2', null); if (savedCar) Object.assign(car, savedCar, { v: 0 });
   function snapCar() { const [x, y] = nearestRoad(car.x, car.y); car.x = x; car.y = y; }
-  const fitZoom = () => Math.min(W / U, H / UH) * .95;
+  const fitZoom = () => Math.min(W / (BOUND.x1 - BOUND.x0), H / (BOUND.y1 - BOUND.y0)) * .95;
   const cam = { x: car.x, y: car.y, z: 2.2, tz: 2.2, follow: true };
   let overview = false, auto = null, waypoint = null, gpsPath = null, shake = 0;
   const FOLLOW_Z = () => W < 760 ? 2.1 : 2.6;
@@ -537,16 +545,16 @@ const FADE_SRC = "__FADE__";
   $('btnLog').onclick = () => { const l = $('log'); l.hidden = !l.hidden; $('btnLog').setAttribute('aria-pressed', !l.hidden); if (!l.hidden) renderLog(); };
   $('btnView').onclick = () => toggleOverview();
   $('btnCenter').onclick = () => { overview = false; cam.follow = true; cam.tz = FOLLOW_Z(); };
-  $('btnZoomIn').onclick = () => { cam.tz = Math.min(8, cam.tz * 1.4); };
+  $('btnZoomIn').onclick = () => { cam.tz = Math.min(6, cam.tz * 1.4); };
   $('btnZoomOut').onclick = () => { cam.tz = Math.max(fitZoom(), cam.tz / 1.4); };
   $('btnReset').onclick = () => { $('resetConfirm').hidden = false; };
   $('btnResetNo').onclick = () => { $('resetConfirm').hidden = true; };
   $('btnResetYes').onclick = () => {
-    found.clear(); visited.clear(); saveProgress(); try { localStorage.removeItem('mccm_fog'); } catch (e) {}
+    found.clear(); visited.clear(); saveProgress(); try { localStorage.removeItem('mccm_fog2'); } catch (e) {}
     fx.globalCompositeOperation = 'source-over'; fx.fillStyle = '#ffffff'; fx.fillRect(0, 0, fog.width, fog.height); reveal(car.x, car.y, 70);
     $('resetConfirm').hidden = true; updateStats(); toast('Progress cleared');
   };
-  function toggleOverview() { overview = !overview; if (overview) { cam.follow = false; cam.tx = U / 2; cam.ty = UH / 2; cam.tz = fitZoom(); } else { cam.follow = true; cam.tz = FOLLOW_Z(); } }
+  function toggleOverview() { overview = !overview; if (overview) { cam.follow = false; cam.tx = (BOUND.x0 + BOUND.x1) / 2; cam.ty = (BOUND.y0 + BOUND.y1) / 2; cam.tz = fitZoom(); } else { cam.follow = true; cam.tz = FOLLOW_Z(); } }
 
   /* ---------------- discovery + check-in ---------------- */
   const FIND_R = 26, CHECK_R = 18; let parkT = 0;
@@ -581,7 +589,8 @@ const FADE_SRC = "__FADE__";
 
   /* ---------------- elastic camera bounds (Miami-Dade) ---------------- */
   // the camera centre may wander a little past the county, then springs back
-  const BOUND = { x0: 0, y0: toU(25.962, 0)[1], x1: U, y1: UH };
+  const [bx0, by0] = toU(25.995, -80.38), [bx1, by1] = toU(25.655, -80.07);
+  const BOUND = { x0: bx0, y0: by0, x1: bx1, y1: by1 };
   // where the camera centre may rest at the current zoom: the county should fill the screen,
   // with a sliver of the faded edge allowed; if the view is wider than the county, centre it
   function rest(z = cam.z) {
@@ -602,7 +611,7 @@ const FADE_SRC = "__FADE__";
     if (pointers.size === 2) { const [a, b] = [...pointers.values()]; pinch0 = [Math.hypot(a[0] - b[0], a[1] - b[1]), cam.z]; } });
   cv.addEventListener('pointermove', e => {
     if (!pointers.has(e.pointerId)) return; pointers.set(e.pointerId, [e.clientX, e.clientY]);
-    if (pointers.size === 2 && pinch0) { const [a, b] = [...pointers.values()]; cam.z = cam.tz = Math.max(fitZoom(), Math.min(8, pinch0[1] * Math.hypot(a[0] - b[0], a[1] - b[1]) / pinch0[0])); moved = true; return; }
+    if (pointers.size === 2 && pinch0) { const [a, b] = [...pointers.values()]; cam.z = cam.tz = Math.max(fitZoom(), Math.min(6, pinch0[1] * Math.hypot(a[0] - b[0], a[1] - b[1]) / pinch0[0])); moved = true; return; }
     const dx = e.clientX - dragStart[0], dy = e.clientY - dragStart[1];
     if (Math.hypot(dx, dy) > 6) {
       moved = true; dragging = true; cam.follow = false; overview = false; cv.classList.add('dragging');
@@ -624,7 +633,7 @@ const FADE_SRC = "__FADE__";
   };
   cv.addEventListener('pointerup', endPtr); cv.addEventListener('pointercancel', endPtr);
   cv.addEventListener('wheel', e => {
-    e.preventDefault(); const [ux, uy] = s2u(e.clientX, e.clientY); const nz = Math.max(fitZoom(), Math.min(8, cam.z * Math.exp(-e.deltaY * .0015)));
+    e.preventDefault(); const [ux, uy] = s2u(e.clientX, e.clientY); const nz = Math.max(fitZoom(), Math.min(6, cam.z * Math.exp(-e.deltaY * .0015)));
     cam.follow = false; overview = false; cam.z = cam.tz = nz;
     const [x0, x1, y0, y1] = rest(nz);
     cam.x = elastic(ux - (e.clientX - W / 2) / nz, x0, x1, W * .18 / nz); cam.y = elastic(uy - (e.clientY - H / 2) / nz, y0, y1, H * .18 / nz);
@@ -717,7 +726,7 @@ const FADE_SRC = "__FADE__";
       $('speed').textContent = Math.round(Math.abs(car.v) * 1.6);
       updateCheckBtn();
     }
-    storeT += dt; if (storeT > 3) { storeT = 0; store.set('car', { x: car.x, y: car.y, h: car.h }); }
+    storeT += dt; if (storeT > 3) { storeT = 0; store.set('car2', { x: car.x, y: car.y, h: car.h }); }
   }
 
   /* ---------------- render ---------------- */

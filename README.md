@@ -22,17 +22,19 @@ What's in it:
 A separate page: a driving-game-style map of Miami in The Miami Car Club's palette, where 16 real spots stay hidden until you drive close: specialty dealers (CURATED, Walt Grace Vintage, Prestige Imports, The Collection, Speedart Motorsports), body shops (Braman Collision Center, AutoBodyLab), mechanics (MasterClass Automotive, Leader Service, MBC NAPA Auto Care), plus meets, driving roads, the F1 circuit and an annual show.
 
 - Click or tap anywhere to set a GPS waypoint. The car drives there along the real street grid, highways and causeways.
-- Everything outside Miami-Dade fades out instead of ending in a hard box. Panning past the county rubber-bands and springs smoothly back.
+- The map covers a wide area (Hollywood to Cutler Bay, the coast to the Everglades edge) and only fades out at its far edges, with no hard box. Panning past the spot-dense core rubber-bands and springs smoothly back.
 - Spots show as `?` markers until you get close. Then a discovery banner plays and the spot's card opens. Park there (or press E) to check in.
 - Fog of war clears where you have driven. A rotating radar sits bottom-left, with zone, street and speed readouts bottom-right and a spot log with distances.
 - Progress (found, visited, fog, car position) is saved in the browser.
 
 Map data: US Census TIGER/Line 2023 (public domain) water, coastline and roads, rendered by the scripts in `map-build/`:
 
+The extent and scale live in `map-build/config.py`.
+
 ```
 python3 map-build/water.py <tiger_dir> <out>/mask.png
 python3 map-build/base.py  <tiger_dir> <out>
 python3 map-build/roadmask.py <tiger_dir> <out>
-python3 map-build/fade.py <cb_2023_us_county_500k.zip> <out>
+python3 map-build/fade.py <out>
 python3 map-build/assemble.py <out>
 ```
