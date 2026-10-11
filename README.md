@@ -19,7 +19,7 @@ What's in it:
 
 # Magic City Car Map (`miami.html`)
 
-A separate page: a driving-game-style map of Miami where ten real car-enthusiast spots (CURATED, Walt Grace Vintage, Prestige Imports, The Collection, Cars & Coffee Key Biscayne, the Miami F1 circuit and more) stay hidden until you drive close.
+A separate page: a driving-game-style map of Miami in The Miami Car Club's palette, where 16 real spots stay hidden until you drive close: specialty dealers (CURATED, Walt Grace Vintage, Prestige Imports, The Collection, Speedart Motorsports), body shops (Braman Collision Center, AutoBodyLab), mechanics (MasterClass Automotive, Leader Service, MBC NAPA Auto Care), plus meets, driving roads, the F1 circuit and an annual show.
 
 - Drive with WASD or arrow keys (Shift boost, Space brake), or click or tap anywhere to set a GPS waypoint. The car autopilots there along the real street grid, highways and causeways, and manual driving stays on the streets too.
 - Spots show as `?` markers until you get close. Then a discovery banner plays and the spot's card opens. Park there (or press E) to check in.

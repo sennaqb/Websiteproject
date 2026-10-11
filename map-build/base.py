@@ -7,7 +7,7 @@ U = 1400; UH = U * (LAT1-LAT0) / ((LON1-LON0)*k)      # map units
 S = 2.0                                                 # raster scale
 W, H = int(U*S), int(UH*S)
 def P(lon, lat): return ((lon-LON0)/(LON1-LON0)*U, (LAT1-lat)/(LAT1-LAT0)*UH)
-LAND, WATER, STREET = (38,41,45), (66,99,128), (58,63,69)
+LAND, WATER, STREET = (243,245,249), (176,199,236), (214,220,230)
 mask = Image.open(f'{OUT}/mask.png').resize((W, H), Image.NEAREST)
 img = Image.new('RGB', (W, H), LAND)
 img.paste(Image.new('RGB', (W, H), WATER), (0, 0), mask)
