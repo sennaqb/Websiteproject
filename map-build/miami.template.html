@@ -202,7 +202,7 @@ a{color:inherit}
   <div class="speed num"><span id="speed">0</span><small>mph</small></div>
 </div>
 
-<div class="hint panel"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> drive · <kbd>Shift</kbd> boost · click the map to set GPS · <kbd>E</kbd> check in · <kbd>M</kbd> full map</div>
+<div class="hint panel">Click the map to drive there · drag to look around · <kbd>E</kbd> check in · <kbd>M</kbd> full map</div>
 
 <div id="banner" aria-live="assertive"><div class="k" id="bK">Spot discovered</div><div class="t" id="bT"></div><div class="s" id="bS"></div></div>
 <div id="toast" class="panel" role="status"></div>
@@ -231,10 +231,9 @@ a{color:inherit}
   <div class="i-box">
     <p class="i-eyebrow">Magic City Car Map</p>
     <h1>Find it.<br>Drive it.<br><span>Check in.</span></h1>
-    <p><span id="introN">16</span> real places for car people in Miami are hidden on this map: specialty dealers, body shops, mechanics, meets and the best roads. Drive around to find them. A spot appears when you get close, and you check in by parking there.</p>
+    <p><span id="introN">16</span> real places for car people in Miami are hidden on this map: specialty dealers, body shops, mechanics, meets and the best roads. Tap anywhere and your car drives there along the streets. A spot appears when you get close, and you check in by parking there.</p>
     <div class="i-keys">
-      <b>WASD / arrows</b><span>Drive. Shift to boost, Space to brake.</span>
-      <b>Click or tap</b><span>Set a GPS waypoint. Your car drives there by itself.</span>
+      <b>Click or tap</b><span>Set a GPS waypoint. Your car drives there along the streets.</span>
       <b>Drag · scroll · pinch</b><span>Move and zoom the map.</span>
       <b>E</b><span>Check in at a spot you have found.</span>
     </div>
@@ -246,6 +245,7 @@ a{color:inherit}
 const MAPDATA = __MAP__;
 const BASE_SRC = "__BASE__";
 const ROADS_SRC = "__ROADS__";
+const FADE_SRC = "__FADE__";
 </script>
 <script>
 (() => {
@@ -338,6 +338,8 @@ const ROADS_SRC = "__ROADS__";
   resize(); addEventListener('resize', resize);
 
   const base = new Image(); base.src = BASE_SRC;
+  // fades out everything outside Miami-Dade and softens the map edges
+  const fade = new Image(); fade.src = FADE_SRC;
   // road geometry as Path2D in map units
   const mkPath = list => { const p = new Path2D(); for (const l of list) { p.moveTo(l[1], l[2]); for (let i = 3; i < l.length; i += 2) p.lineTo(l[i], l[i + 1]); } return p; };
   const P_FWY = mkPath(D.fwy), P_HWY = mkPath(D.hwy), P_RAMP = mkPath(D.ramp);
@@ -451,7 +453,7 @@ const ROADS_SRC = "__ROADS__";
   function snapCar() { const [x, y] = nearestRoad(car.x, car.y); car.x = x; car.y = y; }
   const fitZoom = () => Math.min(W / U, H / UH) * .95;
   const cam = { x: car.x, y: car.y, z: 2.2, tz: 2.2, follow: true };
-  let overview = false, keys = {}, auto = null, waypoint = null, gpsPath = null, lastReroute = 0, shake = 0;
+  let overview = false, auto = null, waypoint = null, gpsPath = null, shake = 0;
   const FOLLOW_Z = () => W < 760 ? 2.1 : 2.6;
 
   /* ---------------- sound ---------------- */
@@ -569,17 +571,30 @@ const ROADS_SRC = "__ROADS__";
   }
 
   /* ---------------- input ---------------- */
-  const KEYMAP = { KeyW: 'up', ArrowUp: 'up', KeyS: 'down', ArrowDown: 'down', KeyA: 'left', ArrowLeft: 'left', KeyD: 'right', ArrowRight: 'right', ShiftLeft: 'boost', ShiftRight: 'boost', Space: 'brake' };
   addEventListener('keydown', e => {
     if (e.target.closest && e.target.closest('input,textarea')) return;
-    const k = KEYMAP[e.code]; if (k) { keys[k] = true; if (k !== 'boost') { auto = null; if (!overview) cam.follow = true; } e.preventDefault(); }
     if (e.code === 'KeyM') toggleOverview();
     if (e.code === 'KeyC') $('btnCenter').onclick();
     if (e.code === 'KeyE') { const s = SPOTS.find(s => found.has(s.id) && Math.hypot(s.x - car.x, s.y - car.y) < CHECK_R); if (s) { tryCheckIn(s); openCard(s); } }
     if (e.code === 'Escape') $('cClose').onclick();
   });
-  addEventListener('keyup', e => { const k = KEYMAP[e.code]; if (k) keys[k] = false; });
-  addEventListener('blur', () => { keys = {}; });
+
+  /* ---------------- elastic camera bounds (Miami-Dade) ---------------- */
+  // the camera centre may wander a little past the county, then springs back
+  const BOUND = { x0: 0, y0: toU(25.962, 0)[1], x1: U, y1: UH };
+  // where the camera centre may rest at the current zoom: the county should fill the screen,
+  // with a sliver of the faded edge allowed; if the view is wider than the county, centre it
+  function rest(z = cam.z) {
+    const hw = W / 2 / z * .8, hh = H / 2 / z * .8;
+    let x0 = BOUND.x0 + hw, x1 = BOUND.x1 - hw, y0 = BOUND.y0 + hh, y1 = BOUND.y1 - hh;
+    if (x0 > x1) x0 = x1 = (BOUND.x0 + BOUND.x1) / 2; if (y0 > y1) y0 = y1 = (BOUND.y0 + BOUND.y1) / 2;
+    return [x0, x1, y0, y1];
+  }
+  const rubber = (over, dim) => (1 - 1 / (over / dim + 1)) * dim;           // iOS-style resistance, never past dim
+  function elastic(v, lo, hi, dim) { return v < lo ? lo - rubber(lo - v, dim) : v > hi ? hi + rubber(v - hi, dim) : v; }
+  const clampR = (x, y, z) => { const [x0, x1, y0, y1] = rest(z); return [Math.max(x0, Math.min(x1, x)), Math.max(y0, Math.min(y1, y))]; };
+  const clampB = (x, y) => [Math.max(BOUND.x0 + 4, Math.min(BOUND.x1 - 4, x)), Math.max(BOUND.y0 + 4, Math.min(BOUND.y1 - 4, y))];
+  let dragging = false;
 
   const s2u = (sx, sy) => [(sx - W / 2) / cam.z + cam.x, (sy - H / 2) / cam.z + cam.y];
   const pointers = new Map(); let dragStart = null, moved = false, pinch0 = null;
@@ -589,21 +604,31 @@ const ROADS_SRC = "__ROADS__";
     if (!pointers.has(e.pointerId)) return; pointers.set(e.pointerId, [e.clientX, e.clientY]);
     if (pointers.size === 2 && pinch0) { const [a, b] = [...pointers.values()]; cam.z = cam.tz = Math.max(fitZoom(), Math.min(8, pinch0[1] * Math.hypot(a[0] - b[0], a[1] - b[1]) / pinch0[0])); moved = true; return; }
     const dx = e.clientX - dragStart[0], dy = e.clientY - dragStart[1];
-    if (Math.hypot(dx, dy) > 6) { moved = true; cam.follow = false; cv.classList.add('dragging'); cam.x = dragStart[2] - dx / cam.z; cam.y = dragStart[3] - dy / cam.z; cam.tx = cam.x; cam.ty = cam.y; }
+    if (Math.hypot(dx, dy) > 6) {
+      moved = true; dragging = true; cam.follow = false; overview = false; cv.classList.add('dragging');
+      const [x0, x1, y0, y1] = rest();
+      cam.x = elastic(dragStart[2] - dx / cam.z, x0, x1, W * .18 / cam.z);
+      cam.y = elastic(dragStart[3] - dy / cam.z, y0, y1, H * .18 / cam.z);
+      cam.tx = cam.x; cam.ty = cam.y; cam.vx = cam.vy = 0;
+    }
   });
   const endPtr = e => {
     if (!pointers.has(e.pointerId)) return; pointers.delete(e.pointerId); cv.classList.remove('dragging');
+    if (pointers.size === 0) { dragging = false; [cam.tx, cam.ty] = clampR(cam.x, cam.y); }
     if (pointers.size < 2) pinch0 = null;
     if (!moved && pointers.size === 0 && e.type === 'pointerup') {
       const [ux, uy] = s2u(e.clientX, e.clientY);
       const hit = SPOTS.find(s => found.has(s.id) && s._sx != null && Math.hypot(s._sx - e.clientX, s._sy - e.clientY) < 18);
-      if (hit) { openCard(hit); setWaypoint(hit.x, hit.y); } else if (ux > 0 && uy > 0 && ux < U && uy < UH) setWaypoint(ux, uy);
+      if (hit) { openCard(hit); setWaypoint(hit.x, hit.y); } else setWaypoint(...clampB(ux, uy));
     }
   };
   cv.addEventListener('pointerup', endPtr); cv.addEventListener('pointercancel', endPtr);
   cv.addEventListener('wheel', e => {
     e.preventDefault(); const [ux, uy] = s2u(e.clientX, e.clientY); const nz = Math.max(fitZoom(), Math.min(8, cam.z * Math.exp(-e.deltaY * .0015)));
-    cam.follow = false; cam.x = ux - (e.clientX - W / 2) / nz; cam.y = uy - (e.clientY - H / 2) / nz; cam.tx = cam.x; cam.ty = cam.y; cam.z = cam.tz = nz;
+    cam.follow = false; overview = false; cam.z = cam.tz = nz;
+    const [x0, x1, y0, y1] = rest(nz);
+    cam.x = elastic(ux - (e.clientX - W / 2) / nz, x0, x1, W * .18 / nz); cam.y = elastic(uy - (e.clientY - H / 2) / nz, y0, y1, H * .18 / nz);
+    [cam.tx, cam.ty] = clampR(cam.x, cam.y, nz);
   }, { passive: false });
 
   /* ---------------- glyphs ---------------- */
@@ -652,35 +677,13 @@ const ROADS_SRC = "__ROADS__";
   /* ---------------- update ---------------- */
   let lastZone = '', lastStreet = null, hudT = 0, lastReveal = [car.x, car.y], storeT = 0;
   function update(dt, t) {
-    // manual driving
-    const acc = keys.up ? 1 : keys.down ? -1 : 0, steer = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
     if (auto && gpsPath) {
       const tgt = gpsPath[Math.min(auto.i, gpsPath.length - 1)], dx = tgt[0] - car.x, dy = tgt[1] - car.y, d = Math.hypot(dx, dy);
       const vmax = 75; car.v += (Math.min(vmax, d * 6 + 20) - car.v) * Math.min(1, dt * 2.5);
       const want = Math.atan2(dx, -dy); let da = ((want - car.h + Math.PI * 3) % (Math.PI * 2)) - Math.PI; car.h += da * Math.min(1, dt * 8);
       const step = Math.min(d, car.v * dt); if (d > 1e-3) { car.x += dx / d * step; car.y += dy / d * step; }
       if (d < 1.5) { auto.i++; if (auto.i >= gpsPath.length) { auto = null; car.v = 0; waypoint = null; gpsPath = null; toast('You have arrived'); } }
-    } else {
-      const vmax = keys.boost ? 100 : 62;
-      if (acc > 0) car.v += (vmax - car.v) * dt * 1.4; else if (acc < 0) car.v -= (car.v > 0 ? 90 : 25) * dt; else car.v *= Math.pow(.25, dt);
-      if (keys.brake) car.v *= Math.pow(.02, dt);
-      car.v = Math.max(-22, Math.min(vmax, car.v));
-      car.h += steer * dt * 2.6 * Math.min(1, Math.abs(car.v) / 25) * Math.sign(car.v || 1);
-      const nx = car.x + Math.sin(car.h) * car.v * dt, ny = car.y - Math.cos(car.h) * car.v * dt;
-      if (onRoad(nx, ny)) { car.x = nx; car.y = ny; }
-      else {
-        // lane keeping: look a little to each side for the street and slide onto it
-        const px = Math.cos(car.h), py = Math.sin(car.h); let moved = false;
-        for (const o of [1, -1, 2, -2, 3, -3]) {
-          const qx = nx + px * o, qy = ny + py * o;
-          if (onRoad(qx, qy)) { const want = Math.atan2(qx - car.x, -(qy - car.y)); let da = ((want - car.h + Math.PI * 3) % (Math.PI * 2)) - Math.PI; if (car.v < 0) da = 0;
-            car.h += da * Math.min(1, dt * 10); car.x = qx; car.y = qy; car.v *= Math.pow(.6, dt); moved = true; break; }
-        }
-        if (!moved) { if (Math.abs(car.v) > 8) { car.v *= -.25; shake = .2; } else car.v = 0; }
-      }
-      if (waypoint && t - lastReroute > 1.2 && Math.abs(car.v) > 2) { lastReroute = t; gpsPath = route(car.x, car.y, waypoint.x, waypoint.y); }
-      if (waypoint && Math.hypot(waypoint.x - car.x, waypoint.y - car.y) < 10) { waypoint = null; gpsPath = null; toast('You have arrived'); }
-    }
+    } else car.v *= Math.pow(.02, dt);
     car.x = Math.max(2, Math.min(U - 2, car.x)); car.y = Math.max(2, Math.min(UH - 2, car.y));
     if (Math.hypot(car.x - lastReveal[0], car.y - lastReveal[1]) > 3) { reveal(car.x, car.y, 46); lastReveal = [car.x, car.y]; }
 
@@ -694,7 +697,13 @@ const ROADS_SRC = "__ROADS__";
 
     // camera
     if (cam.follow) { cam.tx = car.x + Math.sin(car.h) * car.v * .35; cam.ty = car.y - Math.cos(car.h) * car.v * .35; }
-    if (cam.tx != null) { const k = Math.min(1, dt * (cam.follow ? 4 : 6)); cam.x += (cam.tx - cam.x) * k; cam.y += (cam.ty - cam.y) * k; }
+    // critically damped spring toward the target: smooth follow, smooth snap-back from the edges
+    if (cam.tx != null && !dragging) {
+      if (!cam.follow) [cam.tx, cam.ty] = clampR(cam.tx, cam.ty, cam.tz);
+      const w = cam.follow ? 5 : 7, kx = cam.tx - cam.x, ky = cam.ty - cam.y;
+      cam.vx = (cam.vx || 0) + (kx * w * w - 2 * w * (cam.vx || 0)) * dt; cam.vy = (cam.vy || 0) + (ky * w * w - 2 * w * (cam.vy || 0)) * dt;
+      cam.x += cam.vx * dt; cam.y += cam.vy * dt;
+    }
     const zt = cam.follow && !overview ? cam.tz * (1 - Math.min(.25, Math.abs(car.v) / 400)) : cam.tz;
     cam.z += (zt - cam.z) * Math.min(1, dt * 4);
     shake = Math.max(0, shake - dt);
@@ -732,7 +741,9 @@ const ROADS_SRC = "__ROADS__";
     ctx.strokeStyle = '#8b9bb8'; ctx.lineWidth = lw(z > 2 ? 4.8 : 3); ctx.stroke(P_FWY);
     // fog
     ctx.globalAlpha = .45; ctx.drawImage(fog, 0, 0, U, UH); ctx.globalAlpha = 1;
-    ctx.restore(); ctx.strokeStyle = 'rgba(63,80,109,.25)'; ctx.lineWidth = 1.5 / z; ctx.strokeRect(0, 0, U, UH);
+    ctx.restore();
+    // drawn past the clip edge so no anti-aliased seam is left at the frame
+    if (fade.complete) ctx.drawImage(fade, -3, -3, U + 6, UH + 6);
     // GPS route
     if (gpsPath) {
       ctx.beginPath(); ctx.moveTo(car.x, car.y);
@@ -781,6 +792,9 @@ const ROADS_SRC = "__ROADS__";
     rx.strokeStyle = '#8b9bb8'; rx.lineWidth = 4.5 / z; rx.stroke(P_FWY);
     rx.globalAlpha = .5; rx.drawImage(fog, 0, 0, U, UH); rx.globalAlpha = 1;
     if (gpsPath) { rx.beginPath(); rx.moveTo(car.x, car.y); for (let i = auto ? auto.i : 1; i < gpsPath.length; i++) rx.lineTo(gpsPath[i][0], gpsPath[i][1]); rx.strokeStyle = '#ff62e9'; rx.lineWidth = 7 / z; rx.stroke(); }
+    rx.restore();
+    rx.save(); rx.translate(w / 2, h * .62); rx.rotate(-car.h); rx.scale(z, z); rx.translate(-car.x, -car.y);
+    if (fade.complete) rx.drawImage(fade, -3, -3, U + 6, UH + 6);
     rx.restore();
     // blips clamped to the radar edge
     const pos = (x, y) => { const dx = (x - car.x) * z, dy = (y - car.y) * z, c = Math.cos(-car.h), s = Math.sin(-car.h); return [w / 2 + dx * c - dy * s, h * .62 + dx * s + dy * c]; };

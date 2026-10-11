@@ -21,7 +21,8 @@ What's in it:
 
 A separate page: a driving-game-style map of Miami in The Miami Car Club's palette, where 16 real spots stay hidden until you drive close: specialty dealers (CURATED, Walt Grace Vintage, Prestige Imports, The Collection, Speedart Motorsports), body shops (Braman Collision Center, AutoBodyLab), mechanics (MasterClass Automotive, Leader Service, MBC NAPA Auto Care), plus meets, driving roads, the F1 circuit and an annual show.
 
-- Drive with WASD or arrow keys (Shift boost, Space brake), or click or tap anywhere to set a GPS waypoint. The car autopilots there along the real street grid, highways and causeways, and manual driving stays on the streets too.
+- Click or tap anywhere to set a GPS waypoint. The car drives there along the real street grid, highways and causeways.
+- Everything outside Miami-Dade fades out instead of ending in a hard box. Panning past the county rubber-bands and springs smoothly back.
 - Spots show as `?` markers until you get close. Then a discovery banner plays and the spot's card opens. Park there (or press E) to check in.
 - Fog of war clears where you have driven. A rotating radar sits bottom-left, with zone, street and speed readouts bottom-right and a spot log with distances.
 - Progress (found, visited, fog, car position) is saved in the browser.
@@ -32,5 +33,6 @@ Map data: US Census TIGER/Line 2023 (public domain) water, coastline and roads, 
 python3 map-build/water.py <tiger_dir> <out>/mask.png
 python3 map-build/base.py  <tiger_dir> <out>
 python3 map-build/roadmask.py <tiger_dir> <out>
+python3 map-build/fade.py <cb_2023_us_county_500k.zip> <out>
 python3 map-build/assemble.py <out>
 ```
