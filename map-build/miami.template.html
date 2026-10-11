@@ -472,7 +472,8 @@ const OUTER_SRC = "__OUTER__";
   const car = { x: start[0], y: start[1], h: 0, v: 0 };
   const savedCar = store.get('car2', null); if (savedCar) Object.assign(car, savedCar, { v: 0 });
   function snapCar() { const [x, y] = nearestRoad(car.x, car.y); car.x = x; car.y = y; }
-  const minZoom = () => Math.min(W / D.outer[2], H / D.outer[3]) * 1.1;   // far enough to see the whole faded ring
+  // furthest zoom-out: about 3,800 map units (~73 km) tall, the framing picked from a screenshot
+  const minZoom = () => Math.max(H / 3830, W / 6400);
   const fitZoom = () => Math.min(W / (BOUND.x1 - BOUND.x0), H / (BOUND.y1 - BOUND.y0)) * .95;
   const cam = { x: car.x, y: car.y, z: 2.2, tz: 2.2, follow: true };
   let overview = false, auto = null, waypoint = null, gpsPath = null, shake = 0;
