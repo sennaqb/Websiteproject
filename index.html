@@ -86,11 +86,12 @@ const MODELS=[
 const BODIES=["any","sedan","suv","truck","coupe"];
 // mult = share of market value they will pay at most; pat = negotiation rounds before they walk; addon = base chance to buy back-end products
 const TYPES={
-  haggler:{mult:1.25,pat:5,addon:.5,intro:"I've shopped around, and I won't pay sticker."},
+  haggler:{mult:1.15,pat:5,addon:.5,intro:"I've shopped around, and I won't pay sticker."},
   researcher:{mult:1.1,pat:4,addon:.3,intro:"I've already checked the market value on this."},
-  fan:{mult:1.4,pat:5,addon:.7,intro:"I've always wanted one of these!"},
+  fan:{mult:1.45,pat:5,addon:.7,intro:"I've always wanted one of these!"},
   budget:{mult:1.2,pat:4,addon:.25,intro:"I have a hard budget, so let's keep it simple."},
-  rusher:{mult:1.3,pat:3,addon:.55,intro:"I'm in a hurry, so give me your best price."}
+  tirekicker:{mult:.72,pat:6,addon:.05,intro:"Just looking, honestly. My buddy's selling one for like eight hundred bucks."},
+  rusher:{mult:1.32,pat:3,addon:.55,intro:"I'm in a hurry, so give me your best price."}
 };
 const GOAL=40000, SAVE="dealerTycoonV1";
 const TABS=["Auction","Lot","Upgrades"];
@@ -166,10 +167,10 @@ function wholesale(id){
 }
 function openDay(){
   S.phase="open";S.cust=[];
-  const n=ri(5,8)+S.ad*2+Math.floor(S.rep/15);
+  const n=ri(7,11)+S.ad*2+Math.floor(S.rep/15);
   for(let i=0;i<n;i++){
     const body=pick(["any","any","any","sedan","suv","truck","coupe"]), budget=Math.round(rnd(1500,9000)/100)*100;
-    S.cust.push({id:i,name:pick(["Alex","Sam","Jordan","Pat","Chris","Dana","Lee","Morgan","Taylor","Casey"]),body,budget,type:pick(["haggler","haggler","researcher","fan","budget","rusher"]),done:false,msg:""});
+    S.cust.push({id:i,name:pick(["Alex","Sam","Jordan","Pat","Chris","Dana","Lee","Morgan","Taylor","Casey"]),body,budget,type:pick(["haggler","haggler","researcher","fan","budget","rusher","rusher","tirekicker","tirekicker"]),done:false,msg:""});
   }
   matchCustomers();render();
 }
@@ -185,7 +186,7 @@ function matchCustomers(){
     if(u.reserve===undefined||u.carFor!==u.car){
       u.carFor=u.car;
       u.reserve=Math.round(Math.min(u.budget*1.05,mv*TYPES[u.type].mult*(1+S.rep/600)*rnd(.97,1.03))/50)*50;
-      u.offer=Math.round(u.reserve*.85/50)*50;
+      u.offer=Math.round(u.reserve*.7/50)*50;
     }
     if(opts[0].price>mv*1.8){u.done=true;u.car=null;u.msg=`Laughed at the price of ${label(opts[0])}.`}
   });
@@ -319,15 +320,16 @@ const RAPPORT={
   researcher:["I've done my homework, but thanks.","Fine. Let's keep it factual."],
   fan:["I've wanted one of these since I was a kid!","This would be perfect for me. Really."],
   budget:["Thanks. I just need something reliable in budget.","Appreciate that. My number is tight."],
-  rusher:["Sure, sure, but I'm short on time.","Thanks! Let's move this along."]
+  rusher:["Sure, sure, but I'm short on time.","Thanks! Let's move this along."],
+  tirekicker:["Yeah, nice place. Just looking though.","Uh huh. Cool."]
 };
-const URGENCY={haggler:.02,researcher:0,fan:.04,budget:.01,rusher:.05};
+const URGENCY={haggler:.02,researcher:0,fan:.04,budget:.01,rusher:.05,tirekicker:0};
 
 function openTalk(uid,opts={}){
   const u=S.cust.find(x=>x.id==uid),c=S.inv.find(x=>x.id==u.car);if(!c)return;
   const ty=TYPES[u.type];
   T={uid,car:c,lines:[],pat:Math.max(1,Math.round(ty.pat*(opts.patFrac||1))),maxPat:ty.pat,rapport:0,used:{},rounds:0,hands:!!SR,listening:false,over:false,
-     counter:0,lastAsk:0,agreed:0,addons:[],asked:{},declines:0,err:"",summary:""};
+     counter:0,lastAsk:0,agreed:0,addons:[],asked:{},declines:0,err:"",summary:"",stated:!!opts.intro};
   say(opts.intro?`${opts.intro} ${ty.intro}`:`Hi, I'm ${u.name}. ${ty.intro} I'm looking at that ${label(c)}. What's your price?`);
 }
 function closeTalk(){
@@ -372,7 +374,9 @@ function tire(u,n,msg){T.pat-=n;if(T.pat<=0){walk(u,msg);return true}return fals
 function handleSay(s){
   if(!T||T.over)return;
   T.lines.push({who:"p",text:s});T.err="";
+  if(window.G3&&G3.on())G3.elapse(7);
   const u=S.cust.find(x=>x.id==T.uid),c=T.car,t=s.toLowerCase(),f=u.type=="researcher"?.5:1;
+  if(/nice day|thanks for (coming|stopping|your time)|take care|good luck|wish you|no hard feelings|not going to work|can't make that work|shake your hand|appreciate you coming/.test(t))return release(u);
   for(const k in ADDONS)if(ADDONS[k].re.test(t))return pitch(u,k);
   if(T.agreed){
     if(parseMoney(t))return say(`We agreed on ${$f(T.agreed)}. Let's do the paperwork.`);
@@ -422,10 +426,18 @@ function handleSay(s){
   if(/\b(hi|hello|hey|morning|afternoon)\b/.test(t))return say("Hi there! So, what's your price on this one?");
   say("Sorry, what price are you asking?");
 }
+function release(u){
+  if(T.agreed)return finalize(u);
+  const c=T.car,hopeless=u.reserve<=c.cost*1.05;
+  u.polite=true;u.hopeless=hopeless;T.over=true;u.done=true;u.msg="Walked away.";
+  T.summary=hopeless?`<b>👍 Good call.</b> They topped out around ${$f(u.reserve)} on a car you paid ${$f(c.cost)} for. No more time wasted.`
+    :`<b>🤝 Sent on their way.</b> That one was winnable: their limit was ${$f(u.reserve)}, so you could have grossed ${$f(u.reserve-c.cost)}.`;
+  say(pick(["Alright, thanks anyway. Have a good one.","No problem. Appreciate your time.","Sure, thanks. Maybe I'll come back."]));render();
+}
 function offerPrice(u,price){
   T.lastAsk=price;
   if(price<=u.reserve)return agree(u,price);
-  if(price>u.reserve*1.3)return walk(u,"That's way out of my range. I'm out.");
+  if(price>u.reserve*1.3&&u.reserve>T.car.cost*1.05)return walk(u,"That's way out of my range. I'm out.");
   T.rounds++;
   if(tire(u,1,"We're too far apart. I'll look elsewhere."))return;
   const step=Math.min(1,T.rounds/Math.max(2,T.maxPat-1));
@@ -470,6 +482,8 @@ function renderTalk(){
   const pat="●".repeat(Math.max(0,T.pat))+"○".repeat(Math.max(0,T.maxPat-T.pat));
   $("talk").innerHTML=`<div class=modal><div class="card talk"><h3>🗣️ ${u.name} — ${label(c)}</h3>
   <div class=dim>Your cost ${$f(c.cost)} · ask ${$f(c.price)} · patience ${pat} · rapport ${"♥".repeat(T.rapport)||"–"}</div>
+  ${(()=>{const best=T.counter||(T.stated?u.offer:0);return best&&!T.agreed?`<div class=dim>Their best so far: ${$f(best)} ${best<c.cost?"<span class=bad>(under your cost)</span>":""}</div>`:""})()}
+  ${window.G3&&G3.waiting?`<div class=bad>${G3.waiting()}</div>`:""}
   ${T.agreed?`<div class=good>Agreed ${$f(T.agreed)} · front ${$f(T.agreed-c.cost)} · back-end ${$f(back)}</div>`:""}
   <div class=tlog id=tlog>${T.lines.map(l=>`<div class="${l.who}"><b>${l.who=="c"?u.name:"You"}:</b> ${esc(l.text)}</div>`).join("")}</div>
   ${T.err?`<div class=bad>${T.err}</div>`:""}
@@ -478,7 +492,7 @@ function renderTalk(){
   ${SR?`<button class=go onclick="listen()" ${T.listening?"disabled":""}>${T.listening?"🎙️ Listening…":"🎤 Speak"}</button> <label class=dim><input type=checkbox ${T.hands?"checked":""} onchange="T.hands=this.checked"> Hands-free</label>`:`<div class=dim>Voice input needs Chrome or Edge. Type instead.</div>`}
   <div style="margin-top:8px"><input id=tin type=text placeholder="Or type what you'd say…" onkeydown="if(event.key=='Enter')sendTyped()"> <button class=b onclick="sendTyped()">Send</button></div>
   ${T.agreed?`<button class=b onclick="handleSay('warranty')">Warranty ${$f(ADDONS.warranty.price)}</button><button class=b onclick="handleSay('gap')">GAP ${$f(ADDONS.gap.price)}</button><button class=b onclick="handleSay('accessories')">Accessories ${$f(ADDONS.acc.price)}</button><button class=b onclick="handleSay('finalize')">Finalize ▸</button>`
-    :`<button class=b onclick="handleSay('meet in the middle')">Meet in the middle</button>`}
+    :`<button class=b onclick="handleSay('meet in the middle')">Meet in the middle</button><button class=b onclick="handleSay('thanks for coming, have a nice day')">🤝 Have a nice day</button>`}
   <button class=b onclick="closeTalk()">Step away</button>`}
   </div></div>`;
   const lg=$("tlog");if(lg)lg.scrollTop=lg.scrollHeight;

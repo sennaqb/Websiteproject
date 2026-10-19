@@ -4,9 +4,9 @@
 (function(){
 const SHIFT_SECONDS=270, OPEN_MIN=540, CLOSE_MIN=1080, LANE_Z=0, ROW_Z=8, STAND_Z=4.6, SLOT_DX=3.2;
 const SALES=[
-  {name:"Dale",shirt:0x8a7a3a,cave:.5,skill:.08},
-  {name:"Tony",shirt:0x8a2a2a,cave:.2,skill:.25},
-  {name:"Brenda",shirt:0x2f6d8a,cave:.3,skill:.18}
+  {name:"Dale",shirt:0x8a7a3a,cave:.5,skill:.2},
+  {name:"Tony",shirt:0x8a2a2a,cave:.2,skill:.45},
+  {name:"Brenda",shirt:0x2f6d8a,cave:.3,skill:.3}
 ];
 const SKIN=[0xf1c9a5,0xd9a273,0x9c6b43,0x6b4426];
 const COL=[0x7a2020,0x20406a,0x555a52,0xb0b0a0,0x2f5a3a,0x6a5a20,0x3a2a4a,0x8a8a8a,0x1a1a1a,0xa04a20];
@@ -204,7 +204,7 @@ function start(){
   buildWorld();
   cam=new THREE.PerspectiveCamera(72,1,.05,120);
   G.px=0;G.pz=-17;G.yaw=Math.PI;G.pitch=0;G.t=0;G.ended=false;G.talk=null;G.acc=0;
-  G.stats={p0:S.profit,front0:S.front,back0:S.back,sp:0,spGross:0,mgr:0,mgrGross:0,lost:0,comm:0,cave:0,timeouts:0};
+  G.stats={p0:S.profit,front0:S.front,back0:S.back,sp:0,spGross:0,mgr:0,mgrGross:0,lost:0,comm:0,cave:0,timeouts:0,released:0,wasted:0};
   SALES.forEach((d,i)=>{
     const home=P(-6+i*6,-18.6),m=person(d.shirt,0x2a2a35,SKIN[i%4],0x2a1a10,0x202020);m.position.set(home.x,0,home.z);m.rotation.y=0;
     const tag=sprite(d.name,"#fff","rgba(0,0,0,.55)");tag.position.y=2.15;m.add(tag);
@@ -221,7 +221,7 @@ function start(){
   return true;
 }
 function intro(){return `<h2>Shift starts</h2><p>You're the <b>manager</b>. Your salespeople are ${SALES.map(s=>s.name).join(", ")}. They cave on price or stall.</p>
-<p>When a pair shows <b style="color:#ff5050">T.O.!</b>, run over and press <b>E</b> to take over the deal, then talk (mic) or type.</p>
+<p>Some deals close themselves. When a pair shows <b style="color:#ff5050">T.O.!</b> run over and press <b>E</b> before they walk.</p><p>Some customers are a waste of time. Spot them, shake hands, say <b>"have a nice day"</b>. Every line you speak costs the lot seconds.</p>
 <p class=dim>WASD move · Shift sprint · mouse look · E take over · Esc pause</p><button class=go onclick="G3.resume()">Click to start</button>`}
 
 // ---------- simulation ----------
@@ -254,21 +254,38 @@ function spSale(c,price,why){
   say3(`${sp.def.name} ${why=="cave"?"caved and sold":"sold"} the ${label(car)} for ${$f(price)} — ${front<0?"lost ":""}${$f(Math.abs(front))} gross`,front>=300?"#9f9":front>=0?"#fd8":"#f88");
   syncCars();finishLeave(c,true);
 }
+// easy: would pay near asking. hopeless: their limit is at or under your cost. medium: everything else.
+function tier(c){
+  const car=carOf(c),u=c.u;if(!car||u.reserve===undefined)return"medium";
+  if(u.reserve>=car.price*.97)return"easy";
+  if(u.reserve<=car.cost*1.05)return"hopeless";
+  return"medium";
+}
+function customerWalks(c,msg,rep){
+  const t=tier(c);c.u.done=true;c.u.msg="Walked away.";
+  if(t=="hopeless"){G.stats.wasted++;say3(`${c.u.name} drifted off. No loss, they were never buying.`,"#bbb")}
+  else{G.stats.lost++;S.rep=Math.max(0,S.rep-rep);say3(msg,"#f88")}
+  finishLeave(c,false);
+}
+function stall(c){
+  const sp=c.sp;c.state="stuck";c.pat=c.patMax;sp.armsUp=true;sp.state="stuck";
+  c.to=sprite("T.O.!","#fff","#c01818",1.1,.32);c.to.position.y=2.6;c.mesh.add(c.to);
+  say3(`${sp.def.name} needs a T.O. on the ${label(carOf(c))}!`,"#ff7070");
+}
 function resolveWork(c){
-  const sp=c.sp,u=c.u,d=sp.def,r=Math.random();
-  if(r<d.cave){spSale(c,Math.max(100,u.offer),"cave");return}
-  if(r<d.cave+d.skill){spSale(c,Math.round((u.offer+(u.reserve-u.offer)*.6)/50)*50,"skill");return}
-  if(Math.random()<.85){
-    c.state="stuck";c.pat=c.patMax;sp.armsUp=true;sp.state="stuck";
-    c.to=sprite("T.O.!","#fff","#c01818",1.1,.32);c.to.position.y=2.6;c.mesh.add(c.to);
-    say3(`${sp.def.name} needs a T.O. on the ${label(carOf(c))}!`,"#ff7070");
-  }else{
-    say3(`${sp.def.name} blew it. ${u.name} walked.`,"#f88");G.stats.lost++;S.rep=Math.max(0,S.rep-.5);u.done=true;u.msg="Walked away.";finishLeave(c,false);
-  }
+  const sp=c.sp,u=c.u,d=sp.def,t=tier(c),car=carOf(c),r=Math.random();
+  if(t=="easy"){
+    if(r<.85){spSale(c,Math.min(Math.round(u.reserve/50)*50,Math.round(car.price*rnd(.94,1)/50)*50),"easy");return}
+  }else if(t=="medium"){
+    if(r<d.skill){spSale(c,Math.round((u.offer+(u.reserve-u.offer)*.6)/50)*50,"skill");return}
+    if(r<d.skill+d.cave*.5){spSale(c,Math.max(100,u.offer),"cave");return}
+  }else if(r<d.cave*.6){spSale(c,Math.max(100,u.offer),"cave");return}
+  if(Math.random()<.8)stall(c);
+  else customerWalks(c,`${sp.def.name} lost ${u.name}. They walked.`,.5);
 }
 function step(dt){
   if(!G.on||G.ended)return;
-  G.t+=dt;
+  G.t+=dt;if(G.t>=SHIFT_SECONDS&&G.talk)G.t=SHIFT_SECONDS;
   // player
   const sp=(G.keys.ShiftLeft||G.keys.ShiftRight)?5.2:3.0;
   let fx=0,fz=0;
@@ -302,7 +319,7 @@ function step(dt){
         const s=nearestIdleSales(c);
         if(s&&!c.sp){c.sp=s;s.cust=c;s.state="go";s.speed=2.4;s.path=routeSalesOut(c.slot,1)}
         if(c.sp&&c.sp.state=="go"&&!c.sp.path.length){c.state="working";c.sp.state="work";c.work=rnd(12,20);}
-        if(c.timer>25&&!c.sp){say3(`${c.u.name} left — nobody helped them.`,"#f88");G.stats.lost++;c.u.done=true;c.u.msg="Walked away.";finishLeave(c,false)}
+        if(c.timer>25&&!c.sp)customerWalks(c,`${c.u.name} left. Nobody helped them.`,.5);
         break}
       case"working":
         c.work-=dt;
@@ -312,8 +329,8 @@ function step(dt){
         c.pat-=dt;
         if(c.pat<=0){
           G.stats.timeouts++;
-          if(Math.random()<.5)spSale(c,Math.max(100,c.u.offer),"cave");
-          else{say3(`${c.u.name} got tired of waiting and left.`,"#f88");G.stats.lost++;S.rep=Math.max(0,S.rep-1);c.u.done=true;c.u.msg="Walked away.";finishLeave(c,false)}
+          if(tier(c)!="hopeless"&&Math.random()<.5)spSale(c,Math.max(100,c.u.offer),"cave");
+          else customerWalks(c,`${c.u.name} got tired of waiting and walked.`,1);
         }
         break;
       case"leave":if(arrived){c.state="gone";scene.remove(c.mesh)}break;
@@ -326,7 +343,7 @@ function step(dt){
     if(s.state=="work"||s.state=="stuck"){/* face customer */const c=s.cust;if(c&&c.mesh){s.mesh.rotation.y=Math.atan2(c.mesh.position.x-s.mesh.position.x,c.mesh.position.z-s.mesh.position.z)}}
     if(s.state=="work")s.armsUp=false;
   });
-  if(G.t>=SHIFT_SECONDS)endShift();
+  if(G.t>=SHIFT_SECONDS&&!G.talk)endShift();
 }
 function move(dx,dz){
   const r=.35;
@@ -352,7 +369,7 @@ function pairNear(){
 }
 function takeover(c){
   const car=carOf(c);if(!car||G.talk)return;
-  G.talk={c,prev:c.state,wasStuck:c.state=="stuck"};
+  G.keys={};G.talk={c,prev:c.state,wasStuck:c.state=="stuck"};
   const frac=c.state=="stuck"?Math.max(.4,c.pat/c.patMax):1;
   c.state="talk";if(c.to)c.mesh.remove(c.to),c.to=null;
   if(document.pointerLockElement)document.exitPointerLock();
@@ -367,10 +384,24 @@ function talkClosed(){
     G.stats.mgr++;
     say3(`You closed ${u.name}${t.wasStuck?" (saved the deal)":""}.`,"#9f9");
     syncCars();finishLeave(c,true);
-  }else if(over){G.stats.lost++;say3(`${u.name} walked on you.`,"#f88");finishLeave(c,false)}
+  }else if(over&&u.polite){
+    if(u.hopeless){G.stats.released++;say3(`You sent ${u.name} home with a handshake. Time saved.`,"#9cf")}
+    else{G.stats.lost++;say3(`You let ${u.name} go. That one was winnable.`,"#fd8")}
+    finishLeave(c,true);
+  }else if(over){
+    if(tier(c)=="hopeless"){G.stats.wasted++;say3(`${u.name} walked. No loss.`,"#bbb")}else{G.stats.lost++;say3(`${u.name} walked on you.`,"#f88")}
+    finishLeave(c,false);
+  }
   else{c.state="stuck";c.pat=Math.max(8,(c.pat||c.patMax)*.6);if(c.sp){c.sp.armsUp=true}
     if(!c.to){c.to=sprite("T.O.!","#fff","#c01818",1.1,.32);c.to.position.y=2.6;c.mesh.add(c.to)}}
+  if(G.t>=SHIFT_SECONDS){endShift();return}
   $$("pause").style.display="flex";$$("pausetxt").innerHTML=`<h2>Paused</h2><p>Back on the lot.</p><button class=go onclick="G3.resume()">Resume</button>`;
+}
+// every exchange in a negotiation costs lot time: other stuck customers keep losing patience
+function elapse(sec){if(!G.on||G.ended)return;for(let i=0;i<Math.round(sec/.25);i++)step(.25)}
+function waiting(){
+  const w=G.cust.filter(c=>c.state=="stuck");
+  return w.length?"⏱ Waiting on you: "+w.map(c=>`${c.sp?c.sp.def.name+" / ":""}${c.u.name} ${Math.ceil(c.pat)}s`).join(", "):"";
 }
 function resume(){
   $$("pause").style.display="none";
@@ -383,11 +414,12 @@ function endShift(){
   if(G.ended)return;G.ended=true;
   if(document.pointerLockElement)document.exitPointerLock();
   const st=G.stats,front=S.front-st.front0,back=S.back-st.back0,gross=S.profit-st.p0;
-  G.cust.forEach(c=>{if(["working","stuck","browse","enter","talk"].includes(c.state))st.lost++});
+  G.cust.forEach(c=>{if(["working","stuck","browse","enter"].includes(c.state)){if(tier(c)=="hopeless")st.wasted++;else st.lost++}});
   const deals=st.sp+st.mgr;
   $$("pause").style.display="flex";
   $$("pausetxt").innerHTML=`<h2>Close of business</h2>
-   <p>Deals: <b>${deals}</b> (you ${st.mgr}, salespeople ${st.sp}${st.cave?`, ${st.cave} caved`:""}) · lost: <b>${st.lost}</b></p>
+   <p>Deals: <b>${deals}</b> (you ${st.mgr}, salespeople ${st.sp}${st.cave?`, ${st.cave} caved`:""}) · winnable deals lost: <b>${st.lost}</b></p>
+   <p>Time-wasters you sent home politely: <b>${st.released}</b> · drifted off on their own: ${st.wasted}</p>
    <p>Front gross <b>${$f(front)}</b> · back-end <b>${$f(back)}</b> · commissions paid <b>${$f(st.comm)}</b></p>
    <p style="font-size:20px">Net gross today: <b class="${gross>=0?"good":"bad"}">${$f(gross)}</b></p>
    <button class=go onclick="G3.finish()">Count the money ▸</button>`;
@@ -450,5 +482,5 @@ document.addEventListener("pointerlockchange",()=>{
 document.addEventListener("pointerlockerror",()=>{G.drag=true});
 addEventListener("resize",resize);
 
-window.G3={start,step,draw,hud,takeover,talkClosed,resume,finish,endShift,state:G,syncCars,carSlot};
+window.G3={on:()=>G.on&&!G.ended,elapse,waiting,start,step,draw,hud,takeover,talkClosed,resume,finish,endShift,state:G,syncCars,carSlot};
 })();
