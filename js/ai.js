@@ -6,6 +6,11 @@ const MODEL="claude-haiku-5-5", KEY="bobsApiKey", FLAG="bobsAI";
 // Gemini models to try in order; a model this key can't use (404) falls through to the next.
 const GEMINI=["gemini-3.5-flash-lite","gemini-3.1-flash-lite","gemini-flash-lite-latest","gemini-2.5-flash-lite"];
 let gemIdx=0,gemAuth=0;
+// Gemini customers are unhinged: loosest filters for swearing and roasts, still no slurs or sexual content.
+const GEM_SAFETY=[["HARASSMENT","BLOCK_NONE"],["DANGEROUS_CONTENT","BLOCK_NONE"],["HATE_SPEECH","BLOCK_ONLY_HIGH"],["SEXUALLY_EXPLICIT","BLOCK_ONLY_HIGH"]]
+  .map(([c,t])=>({category:"HARM_CATEGORY_"+c,threshold:t}));
+const UNHINGED=`Style: you are an unhinged, foul-mouthed South Park style character. Swear freely, roast the manager (Miguel, whose face is on every poster in the building), go on absurd tangents, overshare weird personal details, be dramatic and petty. Stay in character no matter what. No slurs, nothing sexual.`;
+const unhinged=()=>AI.mode==="key"&&AI.provider()==="gemini";
 // Ways to send a Google key; if one is refused as invalid, try the next before giving up.
 const GEM_AUTH=[
   (u,k)=>[u,{"x-goog-api-key":k}],
@@ -95,7 +100,7 @@ async function callGemini(prompt,signal){
     const r=await fetch(url,{
       method:"POST",signal,
       headers:Object.assign({"content-type":"application/json"},auth),
-      body:JSON.stringify({contents:[{role:"user",parts:[{text:prompt}]}],generationConfig:{maxOutputTokens:1024,temperature:.9}})
+      body:JSON.stringify({contents:[{role:"user",parts:[{text:prompt}]}],safetySettings:GEM_SAFETY,generationConfig:{maxOutputTokens:1024,temperature:1.1}})
     });
     if(r.status===404&&gemIdx<GEMINI.length-1){gemIdx++;continue}
     if(!r.ok){
@@ -161,7 +166,7 @@ AI.classify=function({T,u,said}){
   const prompt=`You parse speech for a car-lot negotiation game. A used-car manager just spoke to a customer. Classify what the MANAGER said into 1 to 3 intents, in the order said.
 Car: ${label(c)}, ${c.miles} miles, condition ${c.cond}%. The manager's asking price is $${c.price}. Customer's latest counter: ${T.counter?"$"+T.counter:"none yet"}. Price already agreed: ${T.agreed?"$"+T.agreed:"no"}.
 Intent objects:
-${INTENTS}
+${INTENTS}${unhinged()?"\nFor a chat reply, the customer's voice: "+UNHINGED:""}
 Manager said: ${JSON.stringify(said)}
 Reply with JSON only, like {"intents":[...]}.`;
   return guard(call(prompt,5000).then(text=>{
@@ -175,7 +180,7 @@ Reply with JSON only, like {"intents":[...]}.`;
       else if(I.type==="ask"){if(["miles","year","condition"].includes(I.topic))out.push({type:"ask",topic:I.topic})}
       else if(I.type==="addon"){if(["warranty","gap","acc","finance"].includes(I.which))out.push({type:"addon",which:I.which})}
       else if(I.type==="chat"){
-        const r=String(I.reply||"").trim().slice(0,200);
+        const r=String(I.reply||"").trim().slice(0,unhinged()?280:200);
         if(r&&!/\$|\d{3,}|\bdeal\b|i'll take it/i.test(r))out.push({type:"chat",reply:r})
         else out.push({type:"unclear"});
       }
@@ -188,14 +193,14 @@ Reply with JSON only, like {"intents":[...]}.`;
 AI.voice=function({u,T,text,said}){
   const ty=TYPES[u.type],c=T.car;
   const prompt=`You are ${u.name}, ${ty.who}. You are at a run-down used car lot, talking to the manager about a ${label(c)} (${c.miles} miles, ${c.note}). You came in ${u.need}.
-Rewrite your reply below as natural spoken dialogue, one or two short sentences, in your own voice.
+Rewrite your reply below as natural spoken dialogue, one or two short sentences, in your own voice.${unhinged()?"\n"+UNHINGED:""}
 Rules: keep every dollar amount exactly as written. Keep the meaning and the decision exactly the same. Never reveal a maximum price. No quotation marks, no stage directions.
 The manager just said: ${JSON.stringify(said||"")}
 Your reply: ${JSON.stringify(text)}
 Rewritten reply:`;
   return guard(call(prompt,4000).then(out=>{
     out=String(out||"").trim().replace(/^["'\s]+|["'\s]+$/g,"").replace(/\s*\n+\s*/g," ");
-    if(!out||out.length>240)return null;
+    if(!out||out.length>(unhinged()?320:240))return null;
     const nums=(text.match(/\d[\d,]{2,}/g)||[]).map(n=>n.replace(/,/g,""));
     const have=(out.match(/\d[\d,]{2,}/g)||[]).map(n=>n.replace(/,/g,""));
     if(nums.some(n=>!have.includes(n))||have.some(n=>!nums.includes(n)))return null;
