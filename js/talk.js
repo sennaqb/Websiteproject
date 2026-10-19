@@ -62,9 +62,10 @@ function speak(text){
   try{
     speechSynthesis.cancel();
     const cu=S.cust.find(x=>x.id==T.uid),ut=new SpeechSynthesisUtterance(text);
-    const vs=speechSynthesis.getVoices().filter(v=>/^en/i.test(v.lang));
-    if(vs.length)ut.voice=vs[cu.id%vs.length];
-    ut.pitch=.8+(cu.id%5)*.15;ut.rate=1.02;
+    const all=speechSynthesis.getVoices().filter(v=>/^en/i.test(v.lang));
+    const good=all.filter(v=>/natural|online|neural|google|premium|enhanced/i.test(v.name)),vs=good.length>=2?good:all;
+    if(vs.length)ut.voice=vs[(cu.id*7+cu.name.length)%vs.length];
+    ut.pitch=.92+(cu.id%4)*.06;ut.rate=1.04;
     ut.onend=()=>{if(T&&T.hands&&!T.over&&!T.busy)listen()};
     speechSynthesis.speak(ut);
   }catch(e){}
@@ -179,7 +180,7 @@ function runIntent(u,I){
       return say("Great! What price are you thinking?");
     case"refuse":
       if(tire(u,1,"We're too far apart. I'll look elsewhere."))return;
-      return say(`My offer stands at ${$f(T.counter||u.offer)}.`);
+      return say(`${pick(["My offer stands at","I'm still at","Look, I'm at"])} ${$f(T.counter||u.offer)}.`);
     case"greet":return say("Hi there! So, what's your price on this one?");
     case"chat":return say(I.reply||"Sorry, what price are you asking?");
     default:return say("Sorry, what price are you asking?");
@@ -206,11 +207,12 @@ function offerPrice(u,price){
   if(tire(u,1,"We're too far apart. I'll look elsewhere."))return;
   const step=Math.min(1,T.rounds/Math.max(2,T.maxPat-1));
   T.counter=Math.max(T.counter,Math.round((u.offer+(u.reserve-u.offer)*step)/50)*50);
-  say(`${price>u.reserve*1.1?"That's steep.":"Getting closer."} I can do ${$f(T.counter)}.`);
+  const far=price>u.reserve*1.1;
+  say(`${pick(far?["That's steep.","Come on, really?","No way.","That's a lot for this thing."]:["Getting closer.","Hmm. Almost.","We're not far off.","Okay, now we're talking."])} ${pick(["I can do","Best I can do is","I'd go","How about"])} ${$f(T.counter)}.`);
 }
 function agree(u,p){
   T.agreed=p;
-  say(`Alright, ${$f(p)} works for me. Anything else before we do the paperwork?`);
+  say(`${pick(["Alright,","Okay,","Fine,","You know what,"])} ${$f(p)} works for me. ${pick(["Anything else before we do the paperwork?","What's next?","Let's get this done."])}`);
 }
 function finance(u){
   if(T.agreed)return pitch(u,"finance");
