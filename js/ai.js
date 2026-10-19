@@ -5,7 +5,13 @@
 const MODEL="claude-haiku-5-5", KEY="bobsApiKey", FLAG="bobsAI";
 // Gemini models to try in order; a model this key can't use (404) falls through to the next.
 const GEMINI=["gemini-3.5-flash-lite","gemini-3.1-flash-lite","gemini-flash-lite-latest","gemini-2.5-flash-lite"];
-let gemIdx=0;
+let gemIdx=0,gemAuth=0;
+// Ways to send a Google key; if one is refused as invalid, try the next before giving up.
+const GEM_AUTH=[
+  (u,k)=>[u,{"x-goog-api-key":k}],
+  (u,k)=>[u+"?key="+encodeURIComponent(k),{}],
+  (u,k)=>[u,{"authorization":"Bearer "+k}]
+];
 const AI={mode:"rules",enabled:false,fails:0,note:"",sample:null};
 const store={
   get(k){try{return localStorage.getItem(k)}catch(e){return null}},
@@ -83,14 +89,25 @@ function geminiProblem(st,m){
   return "Google rejected the request: "+m;
 }
 async function callGemini(prompt,signal){
+  let first=null;
   for(;;){
-    const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI[gemIdx]}:generateContent`,{
+    const [url,auth]=GEM_AUTH[gemAuth](`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI[gemIdx]}:generateContent`,store.get(KEY)||"");
+    const r=await fetch(url,{
       method:"POST",signal,
-      headers:{"content-type":"application/json","x-goog-api-key":store.get(KEY)||""},
+      headers:Object.assign({"content-type":"application/json"},auth),
       body:JSON.stringify({contents:[{role:"user",parts:[{text:prompt}]}],generationConfig:{maxOutputTokens:1024,temperature:.9}})
     });
     if(r.status===404&&gemIdx<GEMINI.length-1){gemIdx++;continue}
-    if(!r.ok){let m="";try{const e=await r.json();m=(e&&e.error&&e.error.message)||""}catch(e){}const err=new Error(m||"api "+r.status);err.status=r.status;throw err}
+    if(!r.ok){
+      let m="";try{const e=await r.json();m=(e&&e.error&&e.error.message)||""}catch(e){}
+      const err=new Error(m||"api "+r.status);err.status=r.status;
+      if([400,401,403].includes(r.status)&&/key|credential|authenticat/i.test(m)){
+        if(!first)first=err;
+        if(gemAuth<GEM_AUTH.length-1){gemAuth++;continue}
+        gemAuth=0;throw first;   // every way failed: report Google's answer to the plain key header
+      }
+      throw err;
+    }
     const j=await r.json(),c=j.candidates&&j.candidates[0];
     return ((c&&c.content&&c.content.parts)||[]).filter(p=>!p.thought&&p.text).map(p=>p.text).join("");
   }
