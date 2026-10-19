@@ -27,7 +27,7 @@ AI.init=async function(){
   return AI.mode;
 };
 AI.setKey=function(k){
-  k=(k||"").trim();store.set(KEY,k||null);
+  k=(k||"").replace(/\s+/g,"").replace(/^["']+|["']+$/g,"");store.set(KEY,k||null);
   if(k&&AI.mode==="rules")AI.mode="key";
   if(!k&&AI.mode==="key"){AI.mode="rules";AI.enabled=false;store.set(FLAG,"0")}
 };
@@ -41,10 +41,24 @@ AI.setEnabled=async function(on){
     AI.enabled=true;store.set(FLAG,"1");return true;
   }catch(e){
     AI.enabled=false;store.set(FLAG,"0");
-    AI.note=AI.mode==="key"?"That key didn't work. Check it and try again.":"Claude access was declined or isn't available.";
+    AI.note=AI.mode==="key"?keyProblem(e):"Claude access was declined or isn't available.";
     return false;
   }
 };
+
+// Turn an API failure into something the player can act on.
+function keyProblem(e){
+  const st=e&&e.status,m=String((e&&e.message)||"");
+  if(e&&e.name==="AbortError")return "Anthropic didn't answer in time. Check your connection and try again.";
+  if(!st)return "Couldn't reach Anthropic from this page. Play from the GitHub Pages link, not a saved file or the claude.ai page.";
+  if(st===401)return "Anthropic says the key is invalid. Copy it again from console.anthropic.com (it starts with sk-ant-) and paste only the key.";
+  if(st===403)return "This key isn't allowed to use the API. Check its workspace permissions in the Anthropic console. ("+m+")";
+  if(/credit|billing|balance/i.test(m))return "Your Anthropic account has no API credit. Add some under Settings → Billing in the console, then try again.";
+  if(st===404)return "Anthropic couldn't find the model this game uses for your account. ("+m+")";
+  if(st===429)return "Rate limited by Anthropic. Wait a minute and try again.";
+  if(st===529||st>=500)return "Anthropic is overloaded right now. Try again in a minute.";
+  return "Anthropic rejected the request: "+m;
+}
 
 async function call(prompt,timeout){
   const ctl=new AbortController(),timer=setTimeout(()=>ctl.abort(),timeout||5000);
@@ -58,7 +72,7 @@ async function call(prompt,timeout){
       headers:{"content-type":"application/json","x-api-key":store.get(KEY)||"","anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
       body:JSON.stringify({model:MODEL,max_tokens:400,thinking:{type:"disabled"},messages:[{role:"user",content:prompt}]})
     });
-    if(!r.ok)throw new Error("api "+r.status);
+    if(!r.ok){let m="";try{const e=await r.json();m=(e&&e.error&&e.error.message)||""}catch(e){}const err=new Error(m||"api "+r.status);err.status=r.status;throw err}
     const j=await r.json();
     return (j.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
   }finally{clearTimeout(timer)}
