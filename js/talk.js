@@ -45,7 +45,7 @@ function logTalk(){
 }
 function closeTalk(){
   if(T)try{logTalk()}catch(e){}
-  hush();if(window.Sfx&&Sfx.duck)Sfx.duck(false);
+  hush();if(window.Sfx&&Sfx.duck)Sfx.duck(false);if(window.Whisper)Whisper.cancel();
   try{rec&&rec.abort()}catch(e){}
   T=null;$("talk").innerHTML="";$("subs").innerHTML="";$("subs").className="";
   if(window.G3&&G3.talkClosed)G3.talkClosed();
@@ -387,7 +387,8 @@ function renderSubs(){
   const best=T.counter||(T.stated?u.offer:0);
   const pat="●".repeat(Math.max(0,T.pat))+"○".repeat(Math.max(0,T.maxPat-T.pat));
   const back=T.addons.reduce((s,k)=>s+ADDONS[k].price-ADDONS[k].cost,0)+(T.financed&&!T.addons.includes("finance")?ADDONS.finance.price:0);
-  const status=T.ptt&&T.pttLatch?"🎙️ Listening… tap <b>V</b> again to send":T.ptt||T.listening?"🎙️ Listening…":T.busy?`${esc(u.name)} is thinking…`:"";
+  const dl=window.Whisper&&micMode==="whisper"&&!Whisper.ready?` · downloading speech model (first time only) ${Math.round(Whisper.progress*100)}%`:"";
+  const status=T.transcribing?(dl?"✍️ Getting ready"+dl:"✍️ Working out what you said…"):T.ptt&&T.pttLatch?"🎙️ Listening… tap <b>V</b> again to send":T.ptt||T.listening?"🎙️ Listening…"+dl:T.busy?`${esc(u.name)} is thinking…`:"";
   box.className="on";
   box.innerHTML=`<div class=subhead><b>${esc(u.name)}</b> · ${esc(label(c))} · cost ${$f(c.cost)} · ask ${$f(c.price)} · patience ${pat} · rapport ${"♥".repeat(T.rapport)||"–"}${best&&!T.agreed?` · their best ${$f(best)}${best<c.cost?" <span class=bad>(under cost)</span>":""}`:""}${T.agreed?` · <span class=good>agreed ${$f(T.agreed)} · back-end ${$f(back)}</span>`:""}${window.AI&&AI.on()?` · <span class=good>${AI.who()}</span>`:""}</div>
   ${T.crew&&performance.now()<T.crew.until?`<div class="sub s"><b>${esc(T.crew.name)}:</b> ${esc(T.crew.text)}</div>`:""}
@@ -407,10 +408,15 @@ const MIC_ERR={"not-allowed":"Mic blocked. Click the mic or lock icon in the add
   "network":"Speech recognition couldn't reach Google's servers. It needs an internet connection and Chrome or Edge. Press T to type for now.",
   "audio-capture":"No microphone found. Plug one in or check Windows sound settings, or press T to type.",
   "language-not-supported":"Your browser can't recognize English speech. Press T to type."};
+// Which recognizer to use: the browser's own, or Whisper running in the page (js/whisper.js).
+// Brave and Firefox can't use the browser's, and any browser falls back to Whisper after a network error.
+let micMode=(()=>{try{const m=localStorage.getItem("bobsMic");if(m==="whisper"||m==="browser")return m}catch(e){}return !SR||navigator.brave?"whisper":"browser"})();
+function useWhisper(){micMode="whisper";try{localStorage.setItem("bobsMic","whisper")}catch(e){}if(window.Whisper)Whisper.load().catch(()=>{})}
 function pttStart(at){
-  if(!T||T.over)return;
-  if(!SR){T.err="This browser can't listen. Use Chrome or Edge on the GitHub Pages link, or press T to type.";renderTalk();return}
+  if(!T||T.over||T.transcribing)return;
   if(T.busy){T.err="Hang on, they're still answering.";renderTalk();return}
+  if(micMode==="whisper"&&window.Whisper)return wStart(at);
+  if(!SR){T.err="This browser can't listen. Press T to type.";renderTalk();return}
   if(T.ptt){if(T.pttLatch){T.pttLatch=false;pttFinish()}return}   // second tap sends
   hush();
   try{rec&&rec.abort()}catch(e){}
@@ -426,7 +432,9 @@ function pttListen(uid){
     T.interim=(T.pttBuf+tmp).trim();renderTalk();
   };
   r.onerror=e=>{if(!T||T.uid!==uid)return;
-    if(MIC_ERR[e.error]){T.err=MIC_ERR[e.error];T.pttHeld=T.pttLatch=false;T.micFail=true}
+    if(["network","service-not-allowed","language-not-supported"].includes(e.error)&&window.Whisper){
+      useWhisper();T.pttHeld=T.pttLatch=false;T.err="Your browser's speech service isn't reachable, so the game switched to its own speech recognition. Hold V and talk again."}
+    else if(MIC_ERR[e.error]){T.err=MIC_ERR[e.error];T.pttHeld=T.pttLatch=false;T.micFail=true}
     renderTalk()};
   r.onend=()=>{
     if(!T||T.uid!==uid||rec!==r)return;
@@ -442,7 +450,28 @@ function pttFinish(){
   rec=null;try{r&&r.abort()}catch(e){}
   if(s)handleSay(s);else{T.err=T.err||"Didn't hear anything. Hold V (or tap it) and talk. If this keeps happening, check that your browser has mic access and the right microphone is selected.";renderTalk()}
 }
+// Whisper version of push-to-talk: record while V is held (or latched), then transcribe in the page.
+function wStart(at){
+  if(T.ptt){if(T.pttLatch){T.pttLatch=false;wFinish()}return}
+  hush();T.ptt=true;T.pttHeld=true;T.pttLatch=false;T.pttAt=at||performance.now();T.err="";T.interim="";
+  const uid=T.uid;
+  Whisper.load().catch(()=>{});
+  if(!Whisper.ready){clearInterval(wTick);wTick=setInterval(()=>{if(!T||Whisper.ready)clearInterval(wTick);if(T)renderTalk()},500)}
+  Whisper.start().catch(e=>{
+    if(!T||T.uid!==uid)return;T.ptt=false;const m=(e.name||"")+" "+(e.message||"");
+    T.err=/NotAllowed|denied|Permission/i.test(m)?MIC_ERR["not-allowed"]:/NotFound|device/i.test(m)?MIC_ERR["audio-capture"]:"Couldn't open the mic: "+m;renderTalk()});
+  renderTalk();
+}
+let wTick=0;
+function wFinish(){
+  if(!T)return;const uid=T.uid;T.ptt=false;T.pttHeld=false;T.transcribing=true;renderTalk();
+  Whisper.stop().then(s=>{if(!T||T.uid!==uid)return;T.transcribing=false;
+      if(s)handleSay(s);else{T.err="Didn't catch that. Hold V while you talk, a bit louder.";renderTalk()}})
+    .catch(e=>{if(!T||T.uid!==uid)return;T.transcribing=false;
+      T.err="The speech model couldn't load ("+(e.message||e)+"). Check your connection (and Brave Shields for this site), or press T to type.";renderTalk()});
+}
 function pttStop(at){
+  if(micMode==="whisper"&&T&&T.ptt&&T.pttHeld){T.pttHeld=false;if((at||performance.now())-T.pttAt<350){T.pttLatch=true;renderTalk()}else wFinish();return}
   if(!T||!T.ptt||!T.pttHeld)return;
   T.pttHeld=false;
   if((at||performance.now())-T.pttAt<350){T.pttLatch=true;renderTalk();return}   // a quick tap: keep listening until the next tap

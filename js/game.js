@@ -31,7 +31,7 @@ function showTitle(){
     <p>You're Miguel: manager of the worst lot in town, and employee of the month every month. His trucks keep the lot full of junk. Your salespeople cave on price, stall, or lose the customer. Some deals close themselves. Some are a waste of your time. The rest need you.</p>
     <div class=btnrow>${hasSave()?`<button class=go onclick="Game.start(false)">Continue</button>`:""}<button class="${hasSave()?"b":"go"}" onclick="Game.start(true)">New game</button></div>
     <div class=aibox>${aiRow}<div class=dim id=ainote>${esc(ai.note||"")}</div>
-      <div class=dim style="margin-top:6px">${(window.SpeechRecognition||window.webkitSpeechRecognition)&&!window.claude?"🎙️ Voice is ready: walk up to a customer and hold <b>V</b> to talk. <button class=b onclick=\"Game.micTest()\">Test mic</button> <span id=micres></span>":"🎙️ This page can't use your microphone, so you'll type (press <b>T</b>). For voice, play the hosted version in Chrome or Edge."}</div></div>
+      <div class=dim style="margin-top:6px">${!window.claude&&navigator.mediaDevices?"🎙️ Voice is ready: walk up to a customer and hold <b>V</b> to talk. <button class=b onclick=\"Game.micTest()\">Test mic</button> <span id=micres></span>":"🎙️ This page can't use your microphone, so you'll type (press <b>T</b>). For voice, play the hosted version in Chrome or Edge."}</div></div>
     <div class=keys><b>WASD</b> move · <b>Shift</b> sprint · <b>Mouse</b> look (click and drag if it won't lock) · <b>←/→</b> turn · <b>E</b> use / take over · <b>C</b> see yourself · <b>M</b> mute · <b>Esc</b> pause</div>
   </div>`;
   el("title").style.display="flex";
@@ -39,13 +39,27 @@ function showTitle(){
 // Listen for a few seconds on the title screen and report what was heard, or why nothing was.
 function micTest(){
   const out=el("micres");if(!out)return;
-  if(!SR){out.textContent="This browser can't do speech recognition. Use Chrome or Edge.";return}
+  if(micMode==="whisper"||!SR)return micTestWhisper(out);
   const r=new SR();r.lang="en-US";r.interimResults=true;r.continuous=true;let heard="";
   out.textContent="Listening… say something like “I can do five thousand”.";
   r.onresult=e=>{heard="";for(let i=0;i<e.results.length;i++)heard+=e.results[i][0].transcript;out.textContent="Heard: “"+heard.trim()+"”"};
-  r.onerror=e=>{out.textContent=MIC_ERR[e.error]||("Mic error: "+e.error)};
+  r.onerror=e=>{
+    if(["network","service-not-allowed","language-not-supported"].includes(e.error)){useWhisper();heard="-";out.textContent="Your browser's speech service isn't reachable, so the game will use its own. Testing that now…";setTimeout(()=>micTestWhisper(out),600);return}
+    out.textContent=MIC_ERR[e.error]||("Mic error: "+e.error)};
   r.onend=()=>{if(!heard&&/Listening/.test(out.textContent))out.textContent="Didn't hear anything. Check the browser has mic access and the right microphone is selected (Windows sound settings)."};
   try{r.start();setTimeout(()=>{try{r.stop()}catch(e){}},4500)}catch(e){out.textContent="Couldn't start the mic: "+e.message}
+}
+// Same test with the in-page Whisper recognizer: record 4 seconds, then transcribe.
+async function micTestWhisper(out){
+  const dl=setInterval(()=>{if(!Whisper.ready&&/Downloading|Working/.test(out.textContent))out.textContent=`Downloading the speech model (first time only): ${Math.round(Whisper.progress*100)}%…`},400);
+  Whisper.load().catch(()=>{});
+  try{await Whisper.start()}catch(e){clearInterval(dl);const m=(e.name||"")+" "+(e.message||"");out.textContent=/NotAllowed|denied|Permission/i.test(m)?MIC_ERR["not-allowed"]:/NotFound|device/i.test(m)?MIC_ERR["audio-capture"]:"Couldn't open the mic: "+m;return}
+  out.textContent="Listening for 4 seconds… say something like “I can do five thousand”.";
+  await new Promise(r=>setTimeout(r,4000));
+  out.textContent=Whisper.ready?"Working out what you said…":"Downloading the speech model (first time only)…";
+  try{const s=await Whisper.stop();out.textContent=s?"Heard: “"+s+"” ✔ Voice works. In a deal, hold V to talk.":"Didn't hear anything. Check Brave has mic access for this site and the right microphone is selected."}
+  catch(e){out.textContent="The speech model couldn't load ("+(e.message||e)+"). Try turning Brave Shields off for this site."}
+  clearInterval(dl);
 }
 async function toggleAI(on){
   const ok=await AI.setEnabled(on);showTitle();
