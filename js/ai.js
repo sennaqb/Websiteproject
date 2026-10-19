@@ -166,7 +166,8 @@ AI.classify=function({T,u,said}){
   const prompt=`You parse speech for a car-lot negotiation game. A used-car manager just spoke to a customer. Classify what the MANAGER said into 1 to 3 intents, in the order said.
 Car: ${label(c)}, ${c.miles} miles, condition ${c.cond}%. The manager's asking price is $${c.price}. Customer's latest counter: ${T.counter?"$"+T.counter:"none yet"}. Price already agreed: ${T.agreed?"$"+T.agreed:"no"}.
 Intent objects:
-${INTENTS}${unhinged()?"\nFor a chat reply, the customer's voice: "+UNHINGED:""}
+${INTENTS}
+For a chat reply, the customer's personality: ${persona(u).who}.${unhinged()?" Voice: "+UNHINGED:""}
 Manager said: ${JSON.stringify(said)}
 Reply with JSON only, like {"intents":[...]}.`;
   return guard(call(prompt,5000).then(text=>{
@@ -192,7 +193,8 @@ Reply with JSON only, like {"intents":[...]}.`;
 
 AI.voice=function({u,T,text,said}){
   const ty=TYPES[u.type],c=T.car;
-  const prompt=`You are ${u.name}, ${ty.who}. You are at a run-down used car lot, talking to the manager about a ${label(c)} (${c.miles} miles, ${c.note}). You came in ${u.need}.
+  const pe=persona(u);
+  const prompt=`You are ${u.name}, ${ty.who}. Personality: ${pe.who}. You are at a run-down used car lot, talking to the manager, Miguel, about a ${label(c)} (${c.miles} miles, ${c.note}). You came in ${u.need}. It is day ${S.day}; Miguel's face is on ${S.day*12} employee-of-the-month posters around the lot.${T.wife?" Your wife is on the phone and you are relaying what she says.":""}
 Rewrite your reply below as natural spoken dialogue, one or two short sentences, in your own voice.${unhinged()?"\n"+UNHINGED:""}
 Rules: keep every dollar amount exactly as written. Keep the meaning and the decision exactly the same. Never reveal a maximum price. No quotation marks, no stage directions.
 The manager just said: ${JSON.stringify(said||"")}
@@ -206,6 +208,19 @@ Rewritten reply:`;
     if(nums.some(n=>!have.includes(n))||have.some(n=>!nums.includes(n)))return null;
     return out;
   }));
+};
+
+// End-of-day online reviews of Miguel, one per conversation. Returns [{stars,text}] or throws.
+AI.reviews=function(entries){
+  const prompt=`Write funny one-to-two sentence online reviews of a run-down used car lot called Bargain Bob's Auto Mart, written by customers about the manager, Miguel (his face is on every employee-of-the-month poster, even the dumpster). One review per customer below, in that customer's personality, based on what happened. Stars 1 to 5 to match how it went.${unhinged()?" "+UNHINGED:""}
+${entries.map((e,i)=>`${i}. ${e.name}, ${e.who}. Car: ${e.car}. Outcome: ${e.out}${e.price?" for $"+e.price:""}.${e.cried?" Miguel cried during the deal.":""}${e.wife?" The customer's wife talked to Miguel on the phone.":""} Last lines: ${e.said}`).join("\n")}
+Reply with JSON only: {"reviews":[{"i":0,"stars":1,"text":"..."}]}`;
+  return call(prompt,9000).then(text=>{
+    const a=text.indexOf("{"),b=text.lastIndexOf("}");if(a<0||b<a)throw new Error("no json");
+    const o=JSON.parse(text.slice(a,b+1)),out=[];
+    (o.reviews||[]).forEach(r=>{const i=r.i|0,st=Math.max(1,Math.min(5,Math.round(+r.stars||3))),t=String(r.text||"").trim().slice(0,260);if(entries[i]&&t)out[i]={stars:st,text:t}});
+    return out;
+  });
 };
 
 window.AI=AI;

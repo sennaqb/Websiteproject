@@ -31,10 +31,21 @@ function showTitle(){
     <p>You're Miguel: manager of the worst lot in town, and employee of the month every month. His trucks keep the lot full of junk. Your salespeople cave on price, stall, or lose the customer. Some deals close themselves. Some are a waste of your time. The rest need you.</p>
     <div class=btnrow>${hasSave()?`<button class=go onclick="Game.start(false)">Continue</button>`:""}<button class="${hasSave()?"b":"go"}" onclick="Game.start(true)">New game</button></div>
     <div class=aibox>${aiRow}<div class=dim id=ainote>${esc(ai.note||"")}</div>
-      <div class=dim style="margin-top:6px">${(window.SpeechRecognition||window.webkitSpeechRecognition)&&!window.claude?"🎙️ Voice is ready: walk up to a customer and hold <b>V</b> to talk.":"🎙️ This page can't use your microphone, so you'll type (press <b>T</b>). For voice, play the hosted version in Chrome or Edge."}</div></div>
+      <div class=dim style="margin-top:6px">${(window.SpeechRecognition||window.webkitSpeechRecognition)&&!window.claude?"🎙️ Voice is ready: walk up to a customer and hold <b>V</b> to talk. <button class=b onclick=\"Game.micTest()\">Test mic</button> <span id=micres></span>":"🎙️ This page can't use your microphone, so you'll type (press <b>T</b>). For voice, play the hosted version in Chrome or Edge."}</div></div>
     <div class=keys><b>WASD</b> move · <b>Shift</b> sprint · <b>Mouse</b> look (click and drag if it won't lock) · <b>←/→</b> turn · <b>E</b> use / take over · <b>C</b> see yourself · <b>M</b> mute · <b>Esc</b> pause</div>
   </div>`;
   el("title").style.display="flex";
+}
+// Listen for a few seconds on the title screen and report what was heard, or why nothing was.
+function micTest(){
+  const out=el("micres");if(!out)return;
+  if(!SR){out.textContent="This browser can't do speech recognition. Use Chrome or Edge.";return}
+  const r=new SR();r.lang="en-US";r.interimResults=true;r.continuous=true;let heard="";
+  out.textContent="Listening… say something like “I can do five thousand”.";
+  r.onresult=e=>{heard="";for(let i=0;i<e.results.length;i++)heard+=e.results[i][0].transcript;out.textContent="Heard: “"+heard.trim()+"”"};
+  r.onerror=e=>{out.textContent=MIC_ERR[e.error]||("Mic error: "+e.error)};
+  r.onend=()=>{if(!heard&&/Listening/.test(out.textContent))out.textContent="Didn't hear anything. Check the browser has mic access and the right microphone is selected (Windows sound settings)."};
+  try{r.start();setTimeout(()=>{try{r.stop()}catch(e){}},4500)}catch(e){out.textContent="Couldn't start the mic: "+e.message}
 }
 async function toggleAI(on){
   const ok=await AI.setEnabled(on);showTitle();
@@ -58,6 +69,23 @@ function syncCars(){
   });
 }
 const carSlot=id=>G.cars[id]?G.cars[id].slot:-1;
+// What each salesperson says when they hand a deal to Miguel, and how they sound ([pitch, rate]).
+const CREW_LINES={
+  Frenchy:["Miguel, look at this sky. How is anybody supposed to sell a car under this sky.","This one's all yours, boss. I'm gonna go stare at the clouds and think about my life.","The sky's so bleak today, man. I couldn't close a car door, let alone this one."],
+  Andres:["LADIES AND GENTLEMEN, THE GREATEST CLOSER IN THE HISTORY OF CARS. MIGUEEEEL!","Boss, you're a legend. You're a god. Go get 'em. I'll be right here. Being short.","This is it, Miguel. This is your Super Bowl. I told my mom about you."],
+  Sam:["Intel: they like cars. That's all I got. Good luck.","Heads up, boss. I think they're a Scorpio. Use that.","They said they're looking for a car. Verified it myself. You're welcome."],
+  Riccardo:["Miguel, my friend, I have softened them like butter. Now you spread.","Bellissimo. They're ready. Or they're about to leave. One of the two."],
+  Mario:["It's-a you, Miguel! Sorry. I always wanted to say that.","I've got nothing, boss. I tried my best. My best is not good."],
+  Juanny:["Juanny's tapping out, Juanny's tapping out! Your turn, boss!","They called me son three times. I can't go back in there, Miguel."]
+};
+const CREW_VOICES={Frenchy:[.75,.86],Andres:[1.45,1.25],Sam:[.95,1],Riccardo:[1,1.05],Mario:[1.2,1.12],Juanny:[1.3,1.3]};
+// The posters get harder to ignore as the days go by.
+function posterGag(){
+  const d=S.day;
+  if(d<=2)return pick(["You the manager?","Hey, you're the guy from all those posters!","Miguel, right? Your face is on every wall in there."]);
+  if(d<=6)return pick(["Bro, there's like forty of you in there.","Why is your face on the dumpster, man?","I counted. You're on thirty-six posters. Thirty-six."]);
+  return pick(["Is this a cult? Are you the leader? Blink if you need help.","My kid has nightmares about your posters now. Thanks.","Do you print those yourself? Be honest."]);
+}
 // How specific salespeople look, whatever desk they sit at.
 const CREW_LOOKS={Frenchy:{height:1.09},Andres:{hairStyle:"bald",beard:false,glasses:false,height:.86},Sam:{hairStyle:"short",goatee:true,beard:false,glasses:false,height:.98}};
 function spawnCrew(){
@@ -93,6 +121,7 @@ function start(newGame){
 }
 function startShift(){
   if(G.phase!=="prep")return;
+  TALK_LOG.length=0;G.ownerSeen=false;G.wiggleAt=rnd(50,90);if(G.owner){W.scene.remove(G.owner.mesh);G.owner=null}
   if(!S.inv.length)restock();
   openDay();
   G.phase="open";G.t=0;G.ended=false;
@@ -196,6 +225,7 @@ function sim(dt){
   if(G.phase!=="open"||G.ended)return;
   G.t+=dt;if(G.t>=SHIFT_SECONDS&&G.talk)G.t=SHIFT_SECONDS;
   G.cust.forEach(c=>{if(c.state==="wait"&&G.t>=c.arrive)spawn(c)});
+  stepBob(dt);stepWiggle();
   G.cust.forEach(c=>{
     if(!c.mesh||c.state==="gone"||c.state==="talk")return;
     const arrived=stepNpc(c,dt,c.state==="working"||c.state==="stuck");
@@ -205,7 +235,8 @@ function sim(dt){
       if(!car||c.u.done){say3(`${c.u.name} left. The car's gone.`,"#bbb");finishLeave(c,false);return}
     }
     switch(c.state){
-      case"enter":if(arrived){c.state="browse";c.timer=0;c.mesh.rotation.y=W.slotPos(c.slot).row?0:Math.PI}break;
+      case"enter":if(arrived){c.state="browse";c.timer=0;c.mesh.rotation.y=W.slotPos(c.slot).row?0:Math.PI;
+        const cm=G.cars[c.u.car];if(cm&&Math.random()<.12&&W.dropBumper(cm.mesh)){c.mesh.userData.mood="shocked";say3(`The front bumper just fell off in front of ${c.u.name}.`,"#fd8");Sfx.click()}}break;
       case"pass":case"leave":if(arrived){c.state="gone";W.scene.remove(c.mesh)}break;
       case"browse":{
         c.timer+=dt;
@@ -301,8 +332,11 @@ function takeover(c){
   const frac=c.state==="stuck"?Math.max(.4,c.pat/c.patMax):1;
   c.state="talk";if(c.to){c.mesh.remove(c.to);c.to=null}removeBar(c);
   const sp=c.sp,u=c.u;
-  if(sp){sp.armsUp=false;sp.mesh.position.x+=1.1}   // the salesperson steps aside for the manager
-  openTalk(u.id,{patFrac:frac,inWorld:true,intro:sp?`${sp.def.name} has me at ${$f(car.price)}, and I'm at ${$f(u.offer)}. ${pick(["You the manager?","Hey, you're the guy from all those posters!","Miguel, right? Your face is on every wall in there.","You the employee of the month?"])} I need something ${u.need}. Can you do any better?`:`I need something ${u.need}. What's your best price?`});
+  let crew=null;
+  if(sp){sp.armsUp=false;sp.mesh.position.x+=1.1;   // the salesperson steps aside for the manager, with a word
+    const n=sp.def.name,v=CREW_VOICES[n]||[1,1];crew={name:n,text:pick(CREW_LINES[n]||["All yours, boss."])};
+    speakLine(crew.text,n.length*13+sp.def.id,v[0],v[1])}
+  openTalk(u.id,{patFrac:frac,inWorld:true,crew,intro:sp?`${sp.def.name} has me at ${$f(car.price)}, and I'm at ${$f(u.offer)}. ${posterGag()} I need something ${u.need}. Can you do any better?`:`${Math.random()<.5?posterGag()+" ":""}I need something ${u.need}. What's your best price?`});
 }
 // called by talk.js when the panel closes
 function talkClosed(){
@@ -311,6 +345,7 @@ function talkClosed(){
   if(over&&/^Bought/.test(u.msg)){
     G.stats.mgr++;G.stats.mgrGross+=u.gross||0;
     say3(`You closed ${u.name}${t.wasStuck?" (saved the deal)":""}.`,"#9f9");popup("+"+$f(u.gross||0),c.mesh.position,"#ffd24a",true);G.shake=.18;
+    bobJudges(u);
     syncCars();finishLeave(c,true);
   }else if(over&&u.polite){
     if(u.hopeless){G.stats.released++;say3(`You sent ${u.name} home with a handshake. Time saved.`,"#9cf")}
@@ -331,6 +366,62 @@ function pcClosed(){
   syncCars();boardUpdate(true);save();resume();
 }
 
+// ---------- Bob, the owner ----------
+// Once a shift he may pull up and walk the lot. Sell under cost in front of him: strike. Use the gun: he's proud.
+function stepBob(dt){
+  if(!G.owner){
+    if(!G.ownerSeen&&G.t>35&&G.t<SHIFT_SECONDS-60&&Math.random()<dt/70){
+      const m=W.person({shirt:0xd84a2a,pants:0x34363c,skin:0,hair:0x9a9a9a,hairStyle:"cap",cap:0xb01010,beard:true,wide:true,height:1.08,glasses:true});
+      const tag=W.sprite("BOB (owner)","#fff","rgba(150,0,0,.75)");tag.position.y=2.25;m.add(tag);
+      m.position.set(0,0,32);W.scene.add(m);
+      G.owner={mesh:m,path:[P(0,20),P(0,LANE_Z)],speed:1.3,ph:0,until:G.t+75};G.ownerSeen=true;
+      say3("Bob just pulled up. Don't give anything away while he's watching.","#f99");
+      if(!G.talk)speakLine(pick(["Miguel! Why is your face on my dumpster?","Miguel! Numbers! I want numbers!","Don't mind me. I'm just watching. Always watching."]),77,.62,.9);
+    }
+    return;
+  }
+  const b=G.owner;
+  if(stepNpc(b,dt,false)){
+    if(G.t>b.until){if(b.leaving){W.scene.remove(b.mesh);G.owner=null;say3("Bob left. You can breathe.","#9cf");return}b.leaving=true;b.path=[P(b.mesh.position.x,LANE_Z),P(0,LANE_Z),P(0,20),P(0,32)];b.speed=1.6}
+    else b.path=[P(rnd(-12,12),LANE_Z+rnd(-2,2))];
+  }
+}
+function bobJudges(u){
+  if(!G.owner||G.owner.leaving)return;
+  if(u.gunned){S.cash+=500;say3("Bob saw the gun thing. He's... proud? He slipped you a $500 'bonus'.","#ffd24a");speakLine("That's my boy!",77,.62,.9);return}
+  if(u.front<0){S.strikes++;say3(`Bob saw you sell under cost. That's a strike (${S.strikes} of 2).`,"#f66");speakLine("Under cost? In front of me? Strike, Miguel.",77,.62,.9);Sfx.lose()}
+}
+// Mr. Wiggle the tube man breaks loose now and then and lands on a customer.
+function stepWiggle(){
+  if(G.t<G.wiggleAt)return;
+  G.wiggleAt=G.t+rnd(70,120);
+  const c=pick(G.cust.filter(c=>c.mesh&&["browse","working","stuck"].includes(c.state)));if(!c)return;
+  const pos=c.mesh.position;
+  W.launchTube(pos.x,pos.z,()=>{
+    c.mesh.userData.mood="shocked";c.armsUp=true;setTimeout(()=>{if(c.state!=="stuck")c.armsUp=false},2500);
+    say3(`Mr. Wiggle broke loose and flattened ${c.u.name}.`,"#fd8");Sfx.click();
+    if(Math.hypot(G.px-pos.x,G.pz-pos.z)<14)G.shake=.25;
+  });
+}
+// ---------- tonight's reviews ----------
+const STARS=n=>"★".repeat(n)+"☆".repeat(5-n);
+function cannedReview(e){
+  const t=e.out;
+  if(/gunpoint/.test(t))return {stars:pick([1,5]),text:pick(["Manager pulled a gun on me. Paid full sticker. Honestly the most efficient car purchase of my life.","He said 'I have a gun' and I believed him. Car runs fine. I don't sleep anymore."])};
+  if(e.cried)return {stars:4,text:"The manager cried. I cried. The tube man cried. We all cried. Decent car."};
+  if(e.wife)return {stars:3,text:"My wife talked to the manager on the phone and now he's coming to Thanksgiving. I didn't invite him."};
+  if(/bought/.test(t))return {stars:pick([4,5]),text:pick([`Got a ${e.car} from Miguel. His face is on the dumpster. Would get stared at again.`,`Miguel sold me a ${e.car}. It started on the first try. Shocked.`])};
+  if(/politely/.test(t))return {stars:3,text:"Manager sent me home very politely. Weird. Posters everywhere. Three stars."};
+  return {stars:1,text:pick(["One star. The tube man was nicer than the manager.","Walked out. The man's face is on every wall. I felt watched."])};
+}
+function showReviews(){
+  const box=el("reviews");if(!box)return;
+  let es=TALK_LOG.slice(-4);
+  if(!es.length){const u=pick(S.cust.filter(u=>u.done)||[])||S.cust[0];if(u)es=[{name:u.name,tag:persona(u).tag,who:persona(u).who,car:"car",out:/^Bought/.test(u.msg)?"bought":"walked out",price:0,said:""}]}
+  const draw=rs=>{if(!el("reviews"))return;el("reviews").innerHTML=es.map((e,i)=>{const r=rs[i]||cannedReview(e);return `<div class=rev><span class=st>${STARS(r.stars)}</span> <b>${esc(e.name)}</b> <span class=dim>(${esc(e.tag)})</span><br>${esc(r.text)}</div>`}).join("")||"<div class=dim>No reviews today.</div>"};
+  if(window.AI&&AI.on())AI.reviews(es).then(draw,()=>draw([]));else draw([]);
+}
+
 // ---------- end of shift ----------
 function endShift(){
   if(G.ended)return;G.ended=true;
@@ -345,8 +436,10 @@ function endShift(){
    <table class=sum><tr><th>Crew</th><th>Deals</th><th>Net gross</th></tr>${rows}<tr><td>You</td><td>${st.mgr}</td><td>${$f(st.mgrGross)}</td></tr></table>
    <p>Front gross <b>${$f(front)}</b> · back-end <b>${$f(back)}</b> · commissions paid <b>${$f(st.comm)}</b></p>
    <p style="font-size:20px">Net gross today: <b class="${gross>=0?"good":"bad"}">${$f(gross)}</b></p>
+   <h3>Tonight's online reviews</h3><div class=reviews id=reviews><div class=dim>Loading reviews…</div></div>
    <button class=go onclick="Game.finish()">Count the money ▸</button>`);
   if(gross>0)Sfx.cash();
+  showReviews();
 }
 function finish(){
   const r=closeDay();
@@ -485,6 +578,7 @@ addEventListener("keydown",e=>{
     if(e.code==="KeyT"){e.preventDefault();typeStart();return}
     if(e.code==="KeyH"&&SR){T.hands=!T.hands;if(T.hands)listen();renderTalk();return}
     if(e.code==="KeyG"&&!T.over){gunDeal();return}
+    if(e.code==="KeyX"&&!T.over){cryDeal();return}
     const q={Digit1:"warranty",Digit2:"gap",Digit3:"accessories",Digit4:"financing",KeyF:"finalize"}[e.code];
     if(q&&!T.over){handleSay(q);return}
   }
@@ -529,10 +623,11 @@ function boot(){
   showTitle();loop();return true;
 }
 
-window.Game={boot,start,resume,finish,nextDay,quit,toggleAI,saveKey,clearKey,toast,pcClosed,syncCars,state:G};
+window.Game={boot,micTest,start,resume,finish,nextDay,quit,toggleAI,saveKey,clearKey,toast,pcClosed,syncCars,state:G};
+function cry(){G.shake=.4;if(G.talk&&G.talk.c.mesh)G.talk.c.mesh.userData.talkLeft=0}
 function gun(){
   G.gunEnd=performance.now()+3200;G.shake=.25;Sfx.click();
   if(G.talk&&G.talk.c.mesh)G.talk.c.mesh.userData.handsUp=4;
 }
-window.G3={gun,speaking:(s,mood)=>{if(G.talk&&G.talk.c.mesh){const u=G.talk.c.mesh.userData;u.talkLeft=s;if(mood)u.mood=mood}},fx,popup,on:()=>G.phase==="open"&&!G.ended,elapse,waiting,talkClosed,step,sim,draw,hud,takeover,endShift,startShift,state:G,world:()=>W,tier,syncCars,enterPrep};
+window.G3={gun,cry,speaking:(s,mood)=>{if(G.talk&&G.talk.c.mesh){const u=G.talk.c.mesh.userData;u.talkLeft=s;if(mood)u.mood=mood}},fx,popup,on:()=>G.phase==="open"&&!G.ended,elapse,waiting,talkClosed,step,sim,draw,hud,takeover,endShift,startShift,state:G,world:()=>W,tier,syncCars,enterPrep};
 })();

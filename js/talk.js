@@ -29,11 +29,21 @@ function openTalk(uid,opts={}){
   const ty=TYPES[u.type];
   T={uid,car:c,lines:[],pat:Math.max(1,Math.round(ty.pat*(opts.patFrac||1))),maxPat:ty.pat,rapport:0,used:{},rounds:0,
      hands:!!SR&&!opts.noMic&&!opts.inWorld,listening:false,over:false,counter:0,lastAsk:0,agreed:0,addons:[],asked:{},declines:0,err:"",summary:"",
-     stated:!!opts.intro,buf:[],busy:false,financed:false,interim:"",mute:false,sold:null,lastSaid:"",inWorld:!!opts.inWorld,typing:false,ptt:false,pttBuf:""};
+     stated:!!opts.intro,buf:[],busy:false,financed:false,interim:"",mute:false,sold:null,lastSaid:"",inWorld:!!opts.inWorld,typing:false,ptt:false,pttBuf:"",
+     cried:false,wife:false,wifeDone:false,forceMood:null,crew:opts.crew?Object.assign({until:performance.now()+8000},opts.crew):null,queueNext:!!opts.crew};
   T.buf.push(opts.intro?`${opts.intro} ${ty.intro}`:`Hi, I'm ${u.name}. ${ty.intro} I'm looking at that ${label(c)}. What's your price?`);
   flush();
 }
+// Every conversation Miguel had today, for the end-of-day reviews.
+const TALK_LOG=[];
+function logTalk(){
+  const u=S.cust.find(x=>x.id==T.uid);if(!u)return;
+  const out=T.gunned?"bought at gunpoint":T.sold?"bought":u.polite?"was sent home politely":T.over?"walked out angry":"left mid-deal";
+  TALK_LOG.push({name:u.name,tag:persona(u).tag,who:persona(u).who,car:label(T.car),out,price:T.sold||0,cried:T.cried,wife:T.wifeDone,
+    said:T.lines.slice(-4).map(l=>(l.who==="p"?"Miguel: ":u.name+": ")+l.text).join(" / ").slice(0,400)});
+}
 function closeTalk(){
+  if(T)try{logTalk()}catch(e){}
   if(window.speechSynthesis)try{speechSynthesis.cancel()}catch(e){}
   try{rec&&rec.abort()}catch(e){}
   T=null;$("talk").innerHTML="";$("subs").innerHTML="";$("subs").className="";
@@ -47,6 +57,7 @@ function flush(){
   const text=T.buf.join(" ").trim();T.buf=[];
   if(!text){renderTalk();return}
   const uid=T.uid;
+  if(!(window.AI&&AI.on())&&!T.over&&Math.random()<.3){const q=pick(persona(S.cust.find(x=>x.id==uid)).quips);if(!text.includes(q))return show(text+" "+q)}
   if(window.AI&&AI.on()&&AI.voiceOn()){
     T.busy=true;renderTalk();
     const u=S.cust.find(x=>x.id==uid);
@@ -59,6 +70,7 @@ function show(text){
   T.lines.push({who:"c",text});renderTalk();speak(text);if(window.G3&&G3.speaking)G3.speaking(Math.min(6,1+text.length/14),mood(text))}
 // Pick the customer's eyebrows from the engine's state, with the line itself as a tiebreaker.
 function mood(text){
+  if(T.forceMood){const m=T.forceMood;T.forceMood=null;return m}
   if(T.gunned)return"shocked";
   if(T.sold)return"happy";
   if(/I'm out|look elsewhere|stretching the truth|being sold|No way|really\?/i.test(text))return"angry";
@@ -68,17 +80,25 @@ function mood(text){
   if(T.pat<=1||/rough|elsewhere/i.test(text))return"worried";
   return"neutral";
 }
+// Say a line out loud. seed picks the voice; pitch and rate give each character their own sound.
+function speakLine(text,seed,pitch,rate,queue){
+  if(!window.speechSynthesis)return null;
+  try{
+    if(!queue)speechSynthesis.cancel();
+    const ut=new SpeechSynthesisUtterance(text);
+    const all=speechSynthesis.getVoices().filter(v=>/^en/i.test(v.lang));
+    const good=all.filter(v=>/natural|online|neural|google|premium|enhanced/i.test(v.name)),vs=good.length>=2?good:all;
+    if(vs.length)ut.voice=vs[Math.abs(seed|0)%vs.length];
+    ut.pitch=Math.max(.1,Math.min(2,pitch));ut.rate=Math.max(.5,Math.min(2,rate));
+    speechSynthesis.speak(ut);return ut;
+  }catch(e){return null}
+}
 function speak(text){
   if(T.mute||!window.speechSynthesis)return;
   try{
-    speechSynthesis.cancel();
-    const cu=S.cust.find(x=>x.id==T.uid),ut=new SpeechSynthesisUtterance(text);
-    const all=speechSynthesis.getVoices().filter(v=>/^en/i.test(v.lang));
-    const good=all.filter(v=>/natural|online|neural|google|premium|enhanced/i.test(v.name)),vs=good.length>=2?good:all;
-    if(vs.length)ut.voice=vs[(cu.id*7+cu.name.length)%vs.length];
-    ut.pitch=.92+(cu.id%4)*.06;ut.rate=1.04;
+    const cu=S.cust.find(x=>x.id==T.uid),pv=persona(cu).voice,q=T.queueNext;T.queueNext=false;
+    const ut=speakLine(text,cu.id*7+cu.name.length,pv[0]*(.94+(cu.id%4)*.04),pv[1]*1.04,q);if(!ut)return;
     ut.onend=()=>{if(T&&T.hands&&!T.over&&!T.busy)listen()};
-    speechSynthesis.speak(ut);
   }catch(e){}
 }
 
@@ -126,7 +146,7 @@ function gunDeal(){
   if(!T||T.over||T.busy)return;
   if(!(S.guns>0)){T.err="You're out of guaranteed deals. Back to haggling.";renderTalk();return}
   const u=S.cust.find(x=>x.id==T.uid);if(!u)return;
-  S.guns--;T.gunned=true;T.addons=[];
+  S.guns--;T.gunned=true;T.addons=[];T.wife=false;
   T.lines.push({who:"p",text:"I have a gun."});T.lastSaid="I have a gun.";T.err="";
   if(window.G3&&G3.gun)G3.gun();
   T.buf=[];T.agreed=T.car.price;
@@ -164,6 +184,7 @@ function rulesParse(s){
 
 function runIntent(u,I){
   const c=T.car,f=u.type==="researcher"?.5:1;
+  if(T.wife)return wifeTalk(u,I);
   if(I.type==="release")return release(u);
   if(I.type==="addon")return I.which==="finance"?finance(u):pitch(u,I.which);
   if(I.type==="finalize"){if(T.agreed)return finalize(u);return say("Let's settle on the price first.")}
@@ -238,7 +259,39 @@ function offerPrice(u,price){
 }
 function agree(u,p){
   T.agreed=p;
+  if(u.married&&!T.wifeDone&&!T.gunned&&Math.random()<.5){
+    T.wife=true;T.wifeDone=true;T.forceMood="worried";
+    return say(`${pick(["Okay,","Alright,"])} ${$f(p)}. Hold on, my phone's ringing. ${pick(["Oh no. It's my wife.","It's my wife. She heard I'm at a car lot."])} She wants to talk to you. ${pick(["Make it good.","Good luck, man.","Be careful, she can smell fear."])}`);
+  }
   say(`${pick(["Alright,","Okay,","Fine,","You know what,"])} ${$f(p)} works for me. ${pick(["Anything else before we do the paperwork?","What's next?","Let's get this done."])}`);
+}
+// The wife is on the phone: charm her or the price drops.
+function wifeTalk(u,I){
+  if(I.type==="release")return release(u);
+  if(I.type==="finalize"||I.type==="accept"||I.type==="addon")return say("She's still on the phone, man! Talk to her first!");
+  if(I.type==="refuse"||I.type==="offer"){T.wife=false;T.forceMood="angry";if(tire(u,1,"She hung up on you. And now I'm sleeping on the couch. I'm out."))return;return say(`She hung up. She's furious. Fine, ${$f(T.agreed)}, but let's hurry before she calls back.`)}
+  T.wife=false;
+  if(Math.random()<.45+.15*T.rapport+(persona(u).soft?.1:0)){T.forceMood="happy";return say(pick(["...Okay. She says fine. But now you're coming to Thanksgiving.","She likes you! She says you sound like a man with a lot of posters. We're good.","She says yes. She also wants your number. That's weird. Let's sign."]))}
+  const off=Math.min(400,Math.max(100,Math.round(T.agreed*.06/50)*50));T.agreed-=off;T.forceMood="worried";
+  say(`She's not buying it. She says knock off ${$f(off)} or I'm sleeping in this car tonight. So it's ${$f(T.agreed)}. Sorry, man.`);
+}
+// Miguel breaks down. Soft-hearted customers melt; hard ones smell weakness. Once per deal.
+function cryDeal(){
+  if(!T||T.over||T.busy||T.cried)return;
+  const u=S.cust.find(x=>x.id==T.uid);if(!u)return;
+  T.cried=true;T.lines.push({who:"p",text:"*Miguel breaks down sobbing*"});T.lastSaid="(Miguel starts crying)";T.err="";
+  if(window.G3&&G3.cry)G3.cry();
+  T.buf=[];
+  if(T.wife){T.wife=false;T.forceMood="happy";say("Hold on... she heard you crying. She says pay the man, he's clearly going through something. We're good.")}
+  else if(persona(u).soft||["fan","budget"].includes(u.type)){
+    bump(u,.08);T.rapport=Math.min(3,T.rapport+1);T.forceMood="worried";
+    say(pick(["Oh no, buddy, don't cry. Okay, okay, I can go a little higher.","Are you... are you crying? Jeez. Fine. Let's figure this out, man.","Hey, hey, it's okay. I didn't mean it. Let's work something out."]));
+  }else{
+    bump(u,-.04);T.forceMood="happy";
+    if(tire(u,1,"Crying at a car lot? I'm out. Get some help, Miguel."))return flush();
+    say(pick(["Tears don't work on me, Miguel. My offer just went down.","Are you crying? Pathetic. I smell weakness.","Wow. I'm putting this on the internet."]));
+  }
+  flush();
 }
 function finance(u){
   if(T.agreed)return pitch(u,"finance");
@@ -267,7 +320,7 @@ function finalize(u){
   const ad=T.addons.map(k=>ADDONS[k]);
   const front=p-c.cost,back=ad.reduce((s,a)=>s+a.price-a.cost,0);
   const room=Math.max(1,u.reserve-u.offer),pct=Math.max(0,Math.min(100,Math.round(100*(p-u.offer)/room)));
-  T.over=true;T.sold=p;u.gross=front+back;finishSale(u,c,i,p,ad);
+  T.over=true;T.sold=p;u.gross=front+back;u.front=front;u.gunned=!!T.gunned;finishSale(u,c,i,p,ad);
   const grade=pct>=95?"🏆 Maxed it":pct>=80?"👍 Strong deal":pct>=50?"Okay deal":"💸 Money left on the table";
   T.summary=`<b>${grade}</b><br>Price ${$f(p)} · front gross ${$f(front)} · back-end ${$f(back)} · <b>total ${$f(front+back)}</b><br>Their limit was ${$f(u.reserve)}. You captured ${pct}% of the room and left ${$f(Math.max(0,u.reserve-p))}.`;
   say("Thanks! Pleasure doing business.");
@@ -326,18 +379,27 @@ function renderSubs(){
   const status=T.ptt&&T.pttLatch?"🎙️ Listening… tap <b>V</b> again to send":T.ptt||T.listening?"🎙️ Listening…":T.busy?`${esc(u.name)} is thinking…`:"";
   box.className="on";
   box.innerHTML=`<div class=subhead><b>${esc(u.name)}</b> · ${esc(label(c))} · cost ${$f(c.cost)} · ask ${$f(c.price)} · patience ${pat} · rapport ${"♥".repeat(T.rapport)||"–"}${best&&!T.agreed?` · their best ${$f(best)}${best<c.cost?" <span class=bad>(under cost)</span>":""}`:""}${T.agreed?` · <span class=good>agreed ${$f(T.agreed)} · back-end ${$f(back)}</span>`:""}${window.AI&&AI.on()?` · <span class=good>${AI.who()}</span>`:""}</div>
-  ${lastC?`<div class="sub c"><b>${esc(u.name)}:</b> ${esc(lastC.text)}</div>`:""}
+  ${T.crew&&performance.now()<T.crew.until?`<div class="sub s"><b>${esc(T.crew.name)}:</b> ${esc(T.crew.text)}</div>`:""}
+  ${lastC?`<div class="sub c"><b>${esc(u.name)}</b> <span class=tag>(${esc(persona(u).tag)})</span><b>:</b> ${esc(lastC.text)}</div>`:""}
   ${T.interim?`<div class="sub p"><b>You:</b> <i>${esc(T.interim)}…</i></div>`:lastP?`<div class="sub p dimmed"><b>You:</b> ${esc(lastP.text)}</div>`:""}
   ${status?`<div class=substatus>${status}</div>`:""}${T.err?`<div class="substatus bad">${esc(T.err)}</div>`:""}
   ${T.summary?`<div class=subsum>${T.summary}</div>`:""}
   ${T.typing?`<div><input id=tin type=text autocomplete=off placeholder="Say something… Enter to send, Esc to cancel" onkeydown="event.stopPropagation();if(event.key==='Enter')typeSend();else if(event.key==='Escape')typeStop()"></div>`:""}
-  ${T.over?"":`<div class=subkeys>${SR?"<b>Hold V</b> (or tap) to talk · ":""}<b>T</b> type · ${T.agreed?"<b>1</b> warranty · <b>2</b> GAP · <b>3</b> accessories · <b>4</b> financing · <b>F</b> sign":"<b>4</b> offer financing"} · walk away to leave${S.guns>0?` · <b>G</b> "I have a gun" (${S.guns} left)`:""}${SR?` · <b>H</b> hands-free ${T.hands?"on":"off"}`:""}</div>`}`;
+  ${T.over?"":`<div class=subkeys>${SR?"<b>Hold V</b> (or tap) to talk · ":""}<b>T</b> type · ${T.agreed?"<b>1</b> warranty · <b>2</b> GAP · <b>3</b> accessories · <b>4</b> financing · <b>F</b> sign":"<b>4</b> offer financing"} · walk away to leave${T.cried?"":" · <b>X</b> cry"}${S.guns>0?` · <b>G</b> "I have a gun" (${S.guns} left)`:""}${SR?` · <b>H</b> hands-free ${T.hands?"on":"off"}`:""}</div>`}`;
   if(T.typing){const ti=$("tin");if(ti){ti.value=old;if(document.activeElement!==ti)ti.focus()}}
 }
 // V to talk. Hold it while you speak, or tap it once to start and tap again to send.
 // The browser's recognizer quits on its own after a pause; while V is held (or latched) we restart it.
+// Plain-words reasons the browser's speech recognition failed.
+const MIC_ERR={"not-allowed":"Mic blocked. Click the mic or lock icon in the address bar, allow the microphone, then try again. Or press T to type.",
+  "service-not-allowed":"This browser won't do speech recognition. Use Chrome or Edge (Brave, Opera and Firefox don't support it), or press T to type.",
+  "network":"Speech recognition couldn't reach Google's servers. It needs an internet connection and Chrome or Edge. Press T to type for now.",
+  "audio-capture":"No microphone found. Plug one in or check Windows sound settings, or press T to type.",
+  "language-not-supported":"Your browser can't recognize English speech. Press T to type."};
 function pttStart(at){
-  if(!SR||!T||T.over||T.busy)return;
+  if(!T||T.over)return;
+  if(!SR){T.err="This browser can't listen. Use Chrome or Edge on the GitHub Pages link, or press T to type.";renderTalk();return}
+  if(T.busy){T.err="Hang on, they're still answering.";renderTalk();return}
   if(T.ptt){if(T.pttLatch){T.pttLatch=false;pttFinish()}return}   // second tap sends
   try{if(window.speechSynthesis)speechSynthesis.cancel()}catch(e){}
   try{rec&&rec.abort()}catch(e){}
@@ -353,7 +415,7 @@ function pttListen(uid){
     T.interim=(T.pttBuf+tmp).trim();renderTalk();
   };
   r.onerror=e=>{if(!T||T.uid!==uid)return;
-    if(e.error==="not-allowed"||e.error==="service-not-allowed"){T.err="Mic blocked. Allow the microphone in your browser (icon in the address bar), or press T to type.";T.pttHeld=T.pttLatch=false}
+    if(MIC_ERR[e.error]){T.err=MIC_ERR[e.error];T.pttHeld=T.pttLatch=false;T.micFail=true}
     renderTalk()};
   r.onend=()=>{
     if(!T||T.uid!==uid||rec!==r)return;
@@ -367,7 +429,7 @@ function pttFinish(){
   if(!T)return;const r=rec;T.ptt=false;T.pttHeld=false;
   const s=(T.pttBuf||T.interim||"").trim();T.interim="";T.pttBuf="";
   rec=null;try{r&&r.abort()}catch(e){}
-  if(s)handleSay(s);else{T.err=T.err||"Didn't hear anything. Hold V (or tap it) and talk.";renderTalk()}
+  if(s)handleSay(s);else{T.err=T.err||"Didn't hear anything. Hold V (or tap it) and talk. If this keeps happening, check that your browser has mic access and the right microphone is selected.";renderTalk()}
 }
 function pttStop(at){
   if(!T||!T.ptt||!T.pttHeld)return;

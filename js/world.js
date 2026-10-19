@@ -253,7 +253,7 @@ function buildCar(c){
     bx(.3,.12,.06,B(c.cond<40&&sx>0?0x401010:0xc02020),sx*(o.W/2-.26),o.tail-.1,-h-.02);
   });
   bx(o.W*.45,.14,.05,M(0x222222),0,o.nose-.17,h+.03);
-  bx(o.W-.05,.13,.14,M(0x555a5e),0,.42,h+.02);bx(o.W-.05,.13,.14,M(0x555a5e),0,.42,-h-.02);
+  g.userData.bumper=bx(o.W-.05,.13,.14,M(0x555a5e),0,.42,h+.02);bx(o.W-.05,.13,.14,M(0x555a5e),0,.42,-h-.02);
   bx(.5,.12,.02,M(0xe8e8e0),0,.52,-h-.1);
   // mirrors
   [-1,1].forEach(sx=>bx(.08,.12,.14,paint,sx*(o.W/2+.03),o.belt+.12,h-o.ce-.1));
@@ -626,7 +626,7 @@ function create(canvas){
   }
   box(.15,4.2,.15,M(0x555555),-26,2.1,0,{noShadow:true});box(.15,4.2,.15,M(0x555555),26,2.1,0,{noShadow:true});
   // tube man
-  const tm=new THREE.Group();tm.position.set(14,0,16);scene.add(tm);let par=tm;
+  const tm=new THREE.Group();tm.position.set(14,0,16);scene.add(tm);let par=tm;W.tubeMan=tm;
   for(let i=0;i<6;i++){const seg=new THREE.Group();seg.position.y=i?.9:0;par.add(seg);const cy=new THREE.Mesh(new THREE.CylinderGeometry(.32,.36,.9,8),M(i%2?0xff2020:0xffee20));cy.position.y=.45;cy.castShadow=true;seg.add(cy);W.tube.push(seg);par=seg}
   // balloons
   [[-18,-8],[18,-8],[-18,8],[18,8],[-21,-5],[21,5],[-4.5,25.5],[4.5,25.5],[-21,10],[21,-10]].forEach(([bx,bz],i)=>{
@@ -678,7 +678,24 @@ function create(canvas){
     }catch(e){post.on=false;R.setRenderTarget(null);R.render(scene,cam)}
   };
 
+  // Mr. Wiggle breaks loose: fly to (x,z), lie there a few seconds, then pop back up on his fan.
+  let fly=null;const falling=[];
+  W.launchTube=function(x,z,onLand){
+    if(fly)return false;
+    fly={t:0,dur:1.9,fx:tm.position.x,fz:tm.position.z,x,z,onLand,landed:false};return true;
+  };
+  W.dropBumper=function(car){
+    const b=car&&car.userData.bumper;if(!b||b.userData.dropped)return false;
+    b.userData.dropped=true;falling.push({m:b,v:0});return true;
+  };
   W.update=function(dt,t){
+    if(fly){
+      fly.t+=dt;const k=Math.min(1,fly.t/fly.dur);
+      if(k<1){tm.position.set(fly.fx+(fly.x-fly.fx)*k,Math.sin(k*Math.PI)*8,fly.fz+(fly.z-fly.fz)*k);tm.rotation.x+=dt*7;tm.rotation.z+=dt*4}
+      else if(!fly.landed){fly.landed=true;tm.position.set(fly.x,.4,fly.z);tm.rotation.set(Math.PI/2,Math.random()*6,0);if(fly.onLand)fly.onLand()}
+      if(fly.t>fly.dur+4.5){tm.position.set(14,0,16);tm.rotation.set(0,0,0);fly=null}
+    }
+    for(let i=falling.length-1;i>=0;i--){const f=falling[i];f.v+=dt*9;f.m.position.y=Math.max(.07,f.m.position.y-f.v*dt);f.m.rotation.x=Math.min(.6,f.m.rotation.x+dt*3);f.m.position.z+=dt*.25;if(f.m.position.y<=.07)falling.splice(i,1)}
     clouds.rotation.y+=dt*.004;
     W.flick.forEach((m,i)=>{const v=Math.random()<.035?.25:1;m.material.color.setScalar(v)});
     W.tube.forEach((s,i)=>{s.rotation.z=Math.sin(t*3+i*.7)*.28;s.rotation.x=Math.cos(t*2.3+i)*.2});

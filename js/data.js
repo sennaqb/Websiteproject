@@ -42,6 +42,31 @@ const RAPPORT={
   rusher:["Sure, sure, but I'm short on time.","Thanks! Let's move this along."],
   tirekicker:["Yeah, nice place. Just looking though.","Uh huh. Cool."]
 };
+// Personalities ride on top of the buying type: they change how a customer talks, never the numbers.
+// soft: whether crying works on them. voice: speech pitch and rate.
+const PERSONAS=[
+  {id:"conspiracy",tag:"conspiracy theorist",who:"convinced the car, the lot and Miguel are all bugged by the government",soft:false,voice:[.82,1.15],
+   quips:["Is this car bugged? Blink twice if it's bugged.","I know about the posters, Miguel. I know what they're really for."]},
+  {id:"karen",tag:"wants your manager",who:"demands to speak to the manager's manager (Bob) about everything",soft:false,voice:[1.25,1.08],
+   quips:["I'd like to speak to YOUR manager. Where is Bob?","I'm going to need your full name for my review."]},
+  {id:"pokemon",tag:"pays in Pokémon cards",who:"keeps trying to pay with Pokémon cards and thinks they're worth thousands",soft:true,voice:[1.18,1.2],
+   quips:["Would you take a holographic Charizard as a down payment?","These cards are basically cash. Basically."]},
+  {id:"grandma",tag:"savage grandma",who:"a sweet-looking grandma who negotiates like a mob boss",soft:false,voice:[1.35,.85],
+   quips:["Sweetie, I've buried two husbands. I can outlast you.","Don't you dare give me the sticker price, young man."]},
+  {id:"mom",tag:"brought their mom",who:"a grown adult who brought their mom to do the talking and keeps checking with her",soft:true,voice:[1.05,1],
+   quips:["My mom says I have to ask about the airbags.","Mom! He's doing the thing again!"]},
+  {id:"influencer",tag:"live-streaming",who:"live-streaming the whole deal to their eleven followers",soft:true,voice:[1.12,1.25],
+   quips:["Say hi to the stream, Miguel! All eleven of them!","Smash that like button if this guy is ripping me off."]},
+  {id:"crypto",tag:"crypto bro",who:"a crypto bro who explains everything in coins and keeps saying the market will moon",soft:false,voice:[.95,1.22],
+   quips:["Can I pay in Dogecoin? It's gonna moon, trust me.","This car is not a long-term hold, Miguel."]},
+  {id:"dumped",tag:"just got dumped",who:"just got dumped and keeps bringing up their ex",soft:true,voice:[.9,.88],
+   quips:["My ex took the Corolla. And the dog. And my will to live.","Do you think a car can love you back, Miguel?"]},
+  {id:"prepper",tag:"doomsday prepper",who:"buying a car for the apocalypse and asks about zombie readiness",soft:false,voice:[.8,1],
+   quips:["How does it handle in a zombie situation?","I need room in the trunk for forty cans of beans."]},
+  {id:"normal",tag:"regular person",who:"a regular person who is weirded out by this lot",soft:true,voice:[1,1],
+   quips:["Why is there a tube man staring at me?","Is this place always like this?"]}
+];
+const persona=u=>PERSONAS.find(p=>p.id===(u&&u.persona))||PERSONAS[PERSONAS.length-1];
 const URGENCY={haggler:.02,researcher:0,fan:.04,budget:.01,rusher:.05,tirekicker:0};
 const EVENTS=[
   {id:"normal",name:"Regular day",desc:"Nothing special. Same cracked asphalt as always.",cust:1,bud:1,w:4},
@@ -178,7 +203,7 @@ function openDay(){
   const pool=["haggler","haggler","researcher","fan","budget","rusher","rusher","tirekicker","tirekicker"].concat(ev.bias||[]);
   for(let i=0;i<n;i++){
     S.cust.push({id:i,name:pick(NAMES),body:pick(["any","any","any","sedan","suv","truck","coupe"]),
-      budget:Math.round(rnd(1500,9000)*ev.bud/100)*100,type:pick(pool),need:pick(NEEDS),done:false,msg:""});
+      budget:Math.round(rnd(1500,9000)*ev.bud/100)*100,type:pick(pool),need:pick(NEEDS),persona:pick(PERSONAS).id,married:Math.random()<.5,done:false,msg:""});
   }
   matchCustomers();
 }

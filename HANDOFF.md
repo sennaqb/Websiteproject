@@ -17,6 +17,8 @@ First-person 3D used-car dealership game ("Bargain Bob's Auto Mart"). You play M
 - Miguel walks around as a model with his photo face and a big head: C toggles third person; he waves on the title screen.
 - Sales team: Frenchy, Andres, Sam start; Riccardo, Mario, Juanny are hireable (`TEAM` in `js/data.js`), six desks. Old saves are renamed by `renameTeam()`.
 - "I have a gun" (G in a deal): guaranteed close at asking price, 3 per career (`S.guns`), pistol shown in view (`W.gun`).
+- Fun pack: customer personalities (`PERSONAS` in data.js: quips, voice pitch/rate, soft-to-crying), crew hand-off one-liners (`CREW_LINES`/`CREW_VOICES` in game.js), wife phone call after a price is agreed (`wifeTalk`), X to cry (`cryDeal`), poster running gag by day (`posterGag`), Bob the owner walks the lot once a shift (`stepBob`/`bobJudges`: under-cost sale in front of him = strike, gun = +$500; state is `G.owner` because `G.bob` is the head-bob phase), Mr. Wiggle flies onto customers (`W.launchTube`, `stepWiggle`), bumpers fall off (`W.dropBumper`), end-of-day online reviews (`TALK_LOG`, `AI.reviews`, `cannedReview`).
+- Mic: errors explained (`MIC_ERR`), Test mic button on the title screen.
 - Signs auto-fit their text (`fitFont`); the banner is a real vinyl banner texture.
 - Miguel's photo (`js/miguel.js`, data URI): 12 employee-of-the-month posters, plus office, windows, fence and dumpster. Customers recognize him.
 - Verified headless (Playwright + swiftshader): full day loop, saves, no console errors. Career sims: active manager wins ~day 20–24; passive fired about half the time. AI path tested with a mocked model only.
