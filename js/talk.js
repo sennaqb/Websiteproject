@@ -28,15 +28,15 @@ function openTalk(uid,opts={}){
   const u=S.cust.find(x=>x.id==uid),c=S.inv.find(x=>x.id==u.car);if(!c)return;
   const ty=TYPES[u.type];
   T={uid,car:c,lines:[],pat:Math.max(1,Math.round(ty.pat*(opts.patFrac||1))),maxPat:ty.pat,rapport:0,used:{},rounds:0,
-     hands:!!SR&&!opts.noMic,listening:false,over:false,counter:0,lastAsk:0,agreed:0,addons:[],asked:{},declines:0,err:"",summary:"",
-     stated:!!opts.intro,buf:[],busy:false,financed:false,interim:"",mute:false,sold:null,lastSaid:""};
+     hands:!!SR&&!opts.noMic&&!opts.inWorld,listening:false,over:false,counter:0,lastAsk:0,agreed:0,addons:[],asked:{},declines:0,err:"",summary:"",
+     stated:!!opts.intro,buf:[],busy:false,financed:false,interim:"",mute:false,sold:null,lastSaid:"",inWorld:!!opts.inWorld,typing:false,ptt:false,pttBuf:""};
   T.buf.push(opts.intro?`${opts.intro} ${ty.intro}`:`Hi, I'm ${u.name}. ${ty.intro} I'm looking at that ${label(c)}. What's your price?`);
   flush();
 }
 function closeTalk(){
   if(window.speechSynthesis)try{speechSynthesis.cancel()}catch(e){}
   try{rec&&rec.abort()}catch(e){}
-  T=null;$("talk").innerHTML="";
+  T=null;$("talk").innerHTML="";$("subs").innerHTML="";$("subs").className="";
   if(window.G3&&G3.talkClosed)G3.talkClosed();
 }
 
@@ -54,7 +54,9 @@ function flush(){
       .catch(()=>{if(!T||T.uid!==uid)return;T.busy=false;show(text)});
   }else show(text);
 }
-function show(text){T.lines.push({who:"c",text});renderTalk();speak(text);if(window.G3&&G3.speaking)G3.speaking(Math.min(6,1+text.length/14))}
+function show(text){
+  if(T.over&&T.inWorld&&!T.closing){const uid=T.uid;T.closing=setTimeout(()=>{if(T&&T.uid===uid)closeTalk()},6000)}
+  T.lines.push({who:"c",text});renderTalk();speak(text);if(window.G3&&G3.speaking)G3.speaking(Math.min(6,1+text.length/14))}
 function speak(text){
   if(T.mute||!window.speechSynthesis)return;
   try{
@@ -89,7 +91,7 @@ function sendTyped(){const el=$("tin"),v=el&&el.value.trim();if(v){el.value="";h
 function handleSay(s){
   if(!T||T.over||T.busy)return;
   T.lines.push({who:"p",text:s});T.err="";T.lastSaid=s;
-  if(window.G3&&G3.on())G3.elapse(7);
+  if(window.G3&&G3.on()&&!T.inWorld)G3.elapse(7);
   const uid=T.uid;
   if(window.AI&&AI.on()){
     T.busy=true;renderTalk();
@@ -260,6 +262,7 @@ function walk(u,msg){
 // ---------- panel ----------
 function renderTalk(){
   if(!T)return;
+  if(T.inWorld)return renderSubs();
   const u=S.cust.find(x=>x.id==T.uid),c=T.car,old=($("tin")||{}).value||"";
   const back=T.addons.reduce((s,k)=>s+ADDONS[k].price-ADDONS[k].cost,0)+(T.financed&&!T.addons.includes("finance")?ADDONS.finance.price:0);
   const pat="●".repeat(Math.max(0,T.pat))+"○".repeat(Math.max(0,T.maxPat-T.pat));
@@ -284,3 +287,48 @@ function renderTalk(){
   const lg=$("tlog");if(lg)lg.scrollTop=lg.scrollHeight;
   const ti=$("tin");if(ti){ti.value=old;if(!T.listening&&!("ontouchstart" in window))ti.focus()}
 }
+
+// ---------- first-person conversation: subtitles, push-to-talk, typing fallback ----------
+function renderSubs(){
+  const u=S.cust.find(x=>x.id==T.uid),c=T.car,box=$("subs"),old=($("tin")||{}).value||"";
+  const rev=T.lines.slice().reverse(),lastC=rev.find(l=>l.who==="c"),lastP=rev.find(l=>l.who==="p");
+  const best=T.counter||(T.stated?u.offer:0);
+  const pat="●".repeat(Math.max(0,T.pat))+"○".repeat(Math.max(0,T.maxPat-T.pat));
+  const back=T.addons.reduce((s,k)=>s+ADDONS[k].price-ADDONS[k].cost,0)+(T.financed&&!T.addons.includes("finance")?ADDONS.finance.price:0);
+  const status=T.ptt||T.listening?"🎙️ Listening…":T.busy?`${esc(u.name)} is thinking…`:"";
+  box.className="on";
+  box.innerHTML=`<div class=subhead><b>${esc(u.name)}</b> · ${esc(label(c))} · cost ${$f(c.cost)} · ask ${$f(c.price)} · patience ${pat} · rapport ${"♥".repeat(T.rapport)||"–"}${best&&!T.agreed?` · their best ${$f(best)}${best<c.cost?" <span class=bad>(under cost)</span>":""}`:""}${T.agreed?` · <span class=good>agreed ${$f(T.agreed)} · back-end ${$f(back)}</span>`:""}${window.AI&&AI.on()?" · <span class=good>Claude</span>":""}</div>
+  ${lastC?`<div class="sub c"><b>${esc(u.name)}:</b> ${esc(lastC.text)}</div>`:""}
+  ${T.interim?`<div class="sub p"><b>You:</b> <i>${esc(T.interim)}…</i></div>`:lastP?`<div class="sub p dimmed"><b>You:</b> ${esc(lastP.text)}</div>`:""}
+  ${status?`<div class=substatus>${status}</div>`:""}${T.err?`<div class="substatus bad">${esc(T.err)}</div>`:""}
+  ${T.summary?`<div class=subsum>${T.summary}</div>`:""}
+  ${T.typing?`<div><input id=tin type=text autocomplete=off placeholder="Say something… Enter to send, Esc to cancel" onkeydown="event.stopPropagation();if(event.key==='Enter')typeSend();else if(event.key==='Escape')typeStop()"></div>`:""}
+  ${T.over?"":`<div class=subkeys>${SR?"<b>Hold V</b> to talk · ":""}<b>T</b> type · ${T.agreed?"<b>1</b> warranty · <b>2</b> GAP · <b>3</b> accessories · <b>4</b> financing · <b>F</b> sign":"<b>4</b> offer financing"} · walk away to leave${SR?` · <b>H</b> hands-free ${T.hands?"on":"off"}`:""}</div>`}`;
+  if(T.typing){const ti=$("tin");if(ti){ti.value=old;if(document.activeElement!==ti)ti.focus()}}
+}
+// hold V: listen until the key comes up, then send everything that was said
+function pttStart(){
+  if(!SR||!T||T.over||T.busy||T.ptt)return;
+  try{if(window.speechSynthesis)speechSynthesis.cancel()}catch(e){}
+  try{rec&&rec.abort()}catch(e){}
+  T.ptt=true;T.pttBuf="";T.interim="";T.err="";
+  const uid=T.uid;
+  rec=new SR();rec.lang="en-US";rec.interimResults=true;rec.continuous=true;
+  rec.onresult=e=>{
+    if(!T||T.uid!==uid)return;let tmp="";
+    for(let i=e.resultIndex;i<e.results.length;i++){const r=e.results[i];if(r.isFinal)T.pttBuf+=r[0].transcript+" ";else tmp+=r[0].transcript}
+    T.interim=(T.pttBuf+tmp).trim();renderTalk();
+  };
+  rec.onerror=e=>{if(!T||T.uid!==uid)return;T.err=e.error==="not-allowed"||e.error==="service-not-allowed"?"Mic blocked. Allow the microphone in your browser, or press T to type.":e.error==="no-speech"?"Didn't hear anything. Hold V while you talk.":"";renderTalk()};
+  rec.onend=()=>{
+    if(!T||T.uid!==uid)return;T.ptt=false;
+    const s=(T.pttBuf||T.interim||"").trim();T.interim="";T.pttBuf="";
+    if(s)handleSay(s);else renderTalk();
+  };
+  try{rec.start()}catch(e){T.ptt=false}
+  renderTalk();
+}
+function pttStop(){if(T&&T.ptt&&rec){try{rec.stop()}catch(e){}}}
+function typeStart(){if(!T||T.over)return;T.typing=true;renderTalk()}
+function typeStop(){if(!T)return;T.typing=false;renderTalk()}
+function typeSend(){const el=$("tin"),v=el&&el.value.trim();T.typing=false;if(v)handleSay(v);else renderTalk()}

@@ -8,7 +8,7 @@ const P=(x,z)=>({x,z});
 
 // ---------- overlays ----------
 const el=id=>document.getElementById(id);
-function overlayOpen(){return !!T||el("pc").style.display==="flex"||el("pause").style.display==="flex"||el("title").style.display==="flex"}
+function overlayOpen(){return (!!T&&!T.inWorld)||el("pc").style.display==="flex"||el("pause").style.display==="flex"||el("title").style.display==="flex"}
 function showPause(html){
   if(document.pointerLockElement)document.exitPointerLock();
   el("pausetxt").innerHTML=html;el("pause").style.display="flex";
@@ -30,7 +30,8 @@ function showTitle(){
     <h1>Bargain Bob's Auto Mart</h1>
     <p>Bob left you the keys to the worst lot in town. His trucks keep the lot full of junk. Your salespeople cave on price, stall, or lose the customer. Some deals close themselves. Some are a waste of your time. The rest need you.</p>
     <div class=btnrow>${hasSave()?`<button class=go onclick="Game.start(false)">Continue</button>`:""}<button class="${hasSave()?"b":"go"}" onclick="Game.start(true)">New game</button></div>
-    <div class=aibox>${aiRow}<div class=dim id=ainote>${esc(ai.note||"")}</div></div>
+    <div class=aibox>${aiRow}<div class=dim id=ainote>${esc(ai.note||"")}</div>
+      <div class=dim style="margin-top:6px">${(window.SpeechRecognition||window.webkitSpeechRecognition)&&!window.claude?"🎙️ Voice is ready: walk up to a customer and hold <b>V</b> to talk.":"🎙️ This page can't use your microphone, so you'll type (press <b>T</b>). For voice, play the hosted version in Chrome or Edge."}</div></div>
     <div class=keys><b>WASD</b> move · <b>Shift</b> sprint · <b>Mouse</b> look (click and drag if it won't lock) · <b>←/→</b> turn · <b>E</b> use / take over · <b>M</b> mute · <b>Esc</b> pause</div>
   </div>`;
   el("title").style.display="flex";
@@ -39,7 +40,7 @@ async function toggleAI(on){
   const ok=await AI.setEnabled(on);showTitle();
   if(!ok&&on)el("ainote").textContent=AI.note;
 }
-function saveKey(){const k=el("apikey").value;AI.setKey(k);showTitle()}
+async function saveKey(){const k=el("apikey").value.trim();AI.setKey(k);if(k){el("ainote").textContent="Checking your key…";await AI.setEnabled(true)}showTitle()}
 function clearKey(){AI.setKey("");showTitle()}
 
 // ---------- world population ----------
@@ -296,10 +297,9 @@ function takeover(c){
   G.talk={c,prev:c.state,wasStuck:c.state==="stuck"};G.keys={};G.vx=G.vz=0;
   const frac=c.state==="stuck"?Math.max(.4,c.pat/c.patMax):1;
   c.state="talk";if(c.to){c.mesh.remove(c.to);c.to=null}removeBar(c);
-  if(document.pointerLockElement)document.exitPointerLock();
   const sp=c.sp,u=c.u;
   if(sp){sp.armsUp=false;sp.mesh.position.x+=1.1}   // the salesperson steps aside for the manager
-  openTalk(u.id,{patFrac:frac,noMic:false,intro:sp?`${sp.def.name} has me at ${$f(car.price)}, and I'm at ${$f(u.offer)}. You the manager? I need something ${u.need}. Can you do any better?`:`I need something ${u.need}. What's your best price?`});
+  openTalk(u.id,{patFrac:frac,inWorld:true,intro:sp?`${sp.def.name} has me at ${$f(car.price)}, and I'm at ${$f(u.offer)}. You the manager? I need something ${u.need}. Can you do any better?`:`I need something ${u.need}. What's your best price?`});
 }
 // called by talk.js when the panel closes
 function talkClosed(){
@@ -323,7 +323,7 @@ function talkClosed(){
   if(G.t>=SHIFT_SECONDS){endShift();return}
   resume();
 }
-function resume(){hidePause();lockMouse();last=performance.now()}
+function resume(){hidePause();if(document.pointerLockElement!==canvas)lockMouse();last=performance.now()}
 function pcClosed(){
   syncCars();boardUpdate(true);save();resume();
 }
@@ -425,15 +425,12 @@ function titleCard(big,small){
 // camera effects, popups and the close-up during a negotiation
 function fx(dt){
   G.shake=Math.max(0,G.shake-dt);G.flash=Math.max(0,G.flash-dt*1.6);
-  G.box+=((G.talk?.085:0)-G.box)*Math.min(1,dt*5);
+  G.box+=(0-G.box)*Math.min(1,dt*5);
   for(let i=G.pops.length-1;i>=0;i--){const p=G.pops[i];p.life-=dt;p.s.position.y+=dt*.7;p.s.material.opacity=Math.min(1,p.life/.8);if(p.life<=0){W.scene.remove(p.s);G.pops.splice(i,1)}}
   G.sales.forEach(s=>{if(s.tag)s.tag.visible=!G.talk});
   if(G.talk&&G.talk.c.mesh){
     const m=G.talk.c.mesh,cx=m.position.x,cz=m.position.z;
-    const tx=cx-.3,tz=cz-Math.sign(cz||1)*2.4;           // stand in the aisle, facing them
-    G.px+=(tx-G.px)*Math.min(1,dt*3);G.pz+=(tz-G.pz)*Math.min(1,dt*3);
-    const lx=cx-G.px,lz=cz-G.pz;let dy=Math.atan2(-lx,-lz)-G.yaw;dy=Math.atan2(Math.sin(dy),Math.cos(dy));
-    G.yaw+=dy*Math.min(1,dt*4);G.pitch+=(.03-G.pitch)*Math.min(1,dt*4);
+    if(T&&!T.over&&Math.hypot(G.px-cx,G.pz-cz)>5.5){say3(`You walked away from ${G.talk.c.u.name}.`,"#bbb");closeTalk();return}
     m.rotation.y=Math.atan2(G.px-cx,G.pz-cz);
     m.userData.talkLeft=(m.userData.talkLeft||0)-dt;W.animatePerson(m,false,G.anim,false,m.userData.talkLeft>0);
   }
@@ -449,7 +446,7 @@ function draw(){
     cam.rotation.set(G.pitch,G.yaw,Math.sin(G.bob*.5)*.006*G.bobAmt);
     W.post.box=G.box;
   }
-  const want=G.phase==="title"?60:G.talk?46:(G.sprint&&G.bobAmt>.5?79:72);G.fov+=(want-G.fov)*.08;
+  const want=G.phase==="title"?60:G.talk?62:(G.sprint&&G.bobAmt>.5?79:72);G.fov+=(want-G.fov)*.08;
   if(Math.abs(cam.fov-G.fov)>.01){cam.fov=G.fov;cam.updateProjectionMatrix()}
   W.post.flash=G.flash;
   W.render();
@@ -469,6 +466,14 @@ function loop(){
 // ---------- input ----------
 addEventListener("keydown",e=>{
   if(!G.on)return;
+  if(e.target&&e.target.tagName==="INPUT")return;
+  if(T&&T.inWorld){
+    if((e.code==="KeyV"||e.code==="Space")){e.preventDefault();if(!e.repeat)pttStart();return}
+    if(e.code==="KeyT"){e.preventDefault();typeStart();return}
+    if(e.code==="KeyH"&&SR){T.hands=!T.hands;if(T.hands)listen();renderTalk();return}
+    const q={Digit1:"warranty",Digit2:"gap",Digit3:"accessories",Digit4:"financing",KeyF:"finalize"}[e.code];
+    if(q&&!T.over){handleSay(q);return}
+  }
   if(e.code==="KeyM"&&!T){Sfx.mute(!Sfx.muted);return}
   if(e.code==="Escape"){
     if(el("pc").style.display==="flex"){PC.close();return}
@@ -480,7 +485,7 @@ addEventListener("keydown",e=>{
   if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Space"].includes(e.code))e.preventDefault();
   if(e.code==="KeyE"){const n=nearest();if(n){Sfx.click();n.act()}}
 });
-addEventListener("keyup",e=>{G.keys[e.code]=false});
+addEventListener("keyup",e=>{G.keys[e.code]=false;if((e.code==="KeyV"||e.code==="Space")&&T&&T.inWorld)pttStop()});
 addEventListener("mousemove",e=>{
   if(!G.on||overlayOpen())return;
   if(document.pointerLockElement===canvas||(G.drag&&e.buttons)){G.yaw-=e.movementX*.0022;G.pitch=Math.max(-1.3,Math.min(1.3,G.pitch-e.movementY*.0022))}

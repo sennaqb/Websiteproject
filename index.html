@@ -74,6 +74,16 @@ table.sum{width:100%;border-collapse:collapse;margin:8px 0;font-size:14px}table.
 @keyframes card{0%{opacity:0;transform:scale(1.15)}12%{opacity:1;transform:scale(1)}75%{opacity:1}100%{opacity:0;transform:translateY(-14px)}}
 #hudTop{border:1px solid #ffffff1a;backdrop-filter:blur(4px)}
 #cross{font-size:0!important;width:6px;height:6px;border-radius:50%;background:#fff;opacity:.8!important;box-shadow:0 0 4px #000}
+#subs{position:fixed;left:50%;bottom:max(18px,env(safe-area-inset-bottom));transform:translateX(-50%);width:min(880px,94vw);z-index:6;text-align:center;pointer-events:none;display:none}
+#subs.on{display:block}
+#subs .subhead{display:inline-block;background:#000a;padding:4px 12px;border-radius:8px;font-size:13px;color:#dfe6ee;margin-bottom:8px}
+#subs .sub{font-size:22px;line-height:1.35;text-shadow:0 2px 6px #000,0 0 2px #000;margin:4px 0}
+#subs .sub.c{color:#ffe08a}#subs .sub.p{color:#cfe3ff}#subs .dimmed{opacity:.75;font-size:18px}
+#subs .substatus{font-size:15px;color:#fff;text-shadow:0 1px 4px #000;margin:4px 0}
+#subs .subsum{display:inline-block;background:#000c;border:1px solid #ffffff22;border-radius:10px;padding:8px 14px;margin:6px 0;font-size:15px}
+#subs .subkeys{font-size:13px;color:#cfd6de;text-shadow:0 1px 3px #000;margin-top:6px}
+#subs input{pointer-events:auto;width:min(560px,90vw);font-size:16px;padding:8px 12px;margin-top:6px}
+body.playing #subs.on~#hud #tip{display:none}
 @media (prefers-reduced-motion:reduce){#card.show,.talk{animation:none}#card.show{opacity:1}}
 .talk input[type=text]{width:72%}
 @media (max-width:640px){#tip{display:none!important}#hudTop{font-size:12px}}
@@ -83,6 +93,7 @@ table.sum{width:100%;border-collapse:collapse;margin:8px 0;font-size:14px}table.
 <canvas id="gl"></canvas>
 <div id="hud"><div id="hudTop"></div><canvas id="mini" width="170" height="170"></canvas><div id="alerts"></div><div id="feed"></div><div id="prompt"></div><div id="tip"></div><div id="cross">+</div></div>
 <div id="card"></div>
+<div id="subs"></div>
 <div id="title"></div>
 <div id="pc"></div>
 <div id="pause"><div id="pausetxt"></div></div>

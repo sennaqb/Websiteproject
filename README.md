@@ -18,6 +18,7 @@ python3 -m http.server 8000
   - Easy deals close themselves.
   - Winnable deals stall. A red **T.O.!** appears with a patience bar. Get there and press **E** before they walk.
   - Hopeless deals (tire-kickers whose limit is under Bob's cost) waste your time. Spot them and say "thanks for coming, have a nice day".
+- **Talking (first person):** walk up to a stalled pair and press **E**. You stay in your own eyes: hold **V** and talk, and the customer turns to you and answers out loud with subtitles. **T** types instead. Walk away to leave the conversation. The lot keeps running while you talk.
 - **Negotiating:** every customer has a hidden walk-away price and a patience meter. Rapport and honest pitches raise what they'll pay. Bluffing costs patience. Once a price is agreed, pitch warranty, GAP, accessories and financing for back-end gross. Every line you say costs the lot about 7 seconds while other customers wait.
 - **Bob's quota:** every 7 days Bob checks your gross. Miss it twice in a row and you're fired. Get the bank to $55,000 to win.
 
