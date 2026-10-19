@@ -3,505 +3,87 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Dealer Tycoon</title>
+<title>Bargain Bob's Auto Mart</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&display=swap">
 <style>
-:root{--bg:#10151c;--panel:#1a222d;--line:#2b3746;--txt:#e6edf3;--dim:#8b9bb0;--acc:#f5b301;--good:#3fb950;--bad:#f85149}
+/* One look: a dim, buzzing used-car lot. Taxi yellow on asphalt, red for trouble. */
+:root{color-scheme:dark;--bg:#0e1217;--panel:#1a212b;--line:#2b3644;--txt:#e8edf2;--dim:#8c9aab;--acc:#ffb81c;--good:#4cc569;--bad:#f0524a;--disp:'Bungee',Impact,'Arial Black',sans-serif}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.4 system-ui,sans-serif}
-header{position:sticky;top:0;z-index:5;background:var(--panel);border-bottom:1px solid var(--line);padding:10px 16px;display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center}
-header h1{font-size:18px;margin:0;color:var(--acc)}
-.stat b{color:var(--acc)}
-nav{display:flex;gap:6px;padding:10px 16px;flex-wrap:wrap}
-nav button.tab{background:var(--panel);color:var(--txt);border:1px solid var(--line);padding:8px 14px;border-radius:8px;cursor:pointer}
-nav button.tab.on{background:var(--acc);color:#111;border-color:var(--acc);font-weight:600}
-main{padding:0 16px 80px;max-width:1000px;margin:0 auto}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px}
-.card h3{margin:0 0 4px;font-size:16px}
-.dim{color:var(--dim);font-size:13px}
-.row{display:flex;justify-content:space-between;gap:8px}
-button.b{background:#263445;color:var(--txt);border:1px solid var(--line);padding:6px 11px;border-radius:7px;cursor:pointer;margin:6px 6px 0 0}
-button.b:hover{border-color:var(--acc)}
-button.b:disabled{opacity:.4;cursor:not-allowed}
-button.go{background:var(--acc);color:#111;font-weight:700;border:0;padding:10px 18px;border-radius:8px;cursor:pointer;font-size:15px}
-.good{color:var(--good)}.bad{color:var(--bad)}
-.bar{height:6px;background:#0c1117;border-radius:4px;overflow:hidden;margin:4px 0}
-.bar i{display:block;height:100%}
-input[type=number]{width:100px;background:#0c1117;color:var(--txt);border:1px solid var(--line);border-radius:6px;padding:5px}
-#log{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin-top:16px;max-height:200px;overflow:auto;font-size:13px}
-#log div{padding:2px 0;border-bottom:1px solid #222c39}
-h2{margin:16px 0 8px;font-size:17px}
-.talk{max-width:460px;width:92vw;text-align:left}
-.tlog{background:#0c1117;border-radius:8px;padding:8px 10px;margin:8px 0;height:200px;overflow:auto;font-size:14px}
-.tlog .c{color:var(--acc)}.tlog .p{color:var(--txt)}
-.talk input[type=text]{width:70%;background:#0c1117;color:var(--txt);border:1px solid var(--line);border-radius:6px;padding:6px}
-body.in3d header,body.in3d nav,body.in3d main{display:none}
-#g3d{display:none}body.in3d #g3d{display:block}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--txt);font:15px/1.4 system-ui,-apple-system,Segoe UI,sans-serif;overflow:hidden}
 #gl{position:fixed;inset:0;display:block;background:#8f9aa5}
+.dim{color:var(--dim);font-size:13px}.good{color:var(--good)}.bad{color:var(--bad)}
+h2,h3{margin:0 0 6px}h2{font-size:18px}h3{font-size:16px}
+button{font:inherit;color:inherit}
+button.b{background:#263445;border:1px solid var(--line);padding:6px 11px;border-radius:7px;cursor:pointer;margin:6px 6px 0 0}
+button.b:hover:not(:disabled){border-color:var(--acc)}button.b:disabled{opacity:.4;cursor:not-allowed}
+button.go{background:var(--acc);color:#111;font-weight:800;border:0;padding:11px 20px;border-radius:8px;cursor:pointer;font-size:16px;margin-right:8px}
+button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+input[type=number],input[type=text],input[type=password]{background:#0b0f14;color:var(--txt);border:1px solid var(--line);border-radius:6px;padding:6px 8px}
+input[type=number]{width:100px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+.row{display:flex;justify-content:space-between;gap:8px}
+.bar{height:6px;background:#0b0f14;border-radius:4px;overflow:hidden;margin:4px 0}.bar i{display:block;height:100%}
+table.sum{width:100%;border-collapse:collapse;margin:8px 0;font-size:14px}table.sum td,table.sum th{padding:3px 6px;text-align:left;border-bottom:1px solid var(--line)}
+
+/* HUD */
+#hud{display:none}body.playing #hud{display:block}
 #hud>*{position:fixed;z-index:4;pointer-events:none;color:#fff;text-shadow:0 1px 3px #000}
-#hudTop{top:10px;left:50%;transform:translateX(-50%);background:#000a;padding:6px 14px;border-radius:8px;font-size:15px;text-shadow:none}
-#mini{top:10px;right:10px;border:2px solid #fff6;border-radius:6px;background:#000}
-#alerts{top:50px;left:10px}.al{background:#c01818cc;margin-bottom:4px;padding:4px 10px;border-radius:6px;font-weight:600}
-#feed{bottom:60px;left:10px;font-size:14px;max-width:60vw}
-#prompt{bottom:26%;left:50%;transform:translateX(-50%);font-size:20px;font-weight:700;background:#000a;padding:6px 14px;border-radius:8px}
-#prompt:empty{display:none}#cross{top:50%;left:50%;transform:translate(-50%,-50%);font-size:22px;opacity:.7}
-#pause{position:fixed;inset:0;z-index:8;background:#000a;display:none;align-items:center;justify-content:center;color:var(--txt)}
-#pausetxt{max-width:440px;background:var(--panel);padding:20px 24px;border-radius:12px;border:1px solid var(--line);text-align:center}
-.modal{position:fixed;inset:0;background:#000b;display:flex;align-items:center;justify-content:center;z-index:9}
-.modal .card{max-width:420px;text-align:center}
+#hudTop{top:max(10px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);background:#000b;padding:6px 14px;border-radius:8px;font-size:14px;text-shadow:none;white-space:nowrap;max-width:94vw;overflow:hidden;text-overflow:ellipsis}
+#mini{top:max(10px,env(safe-area-inset-top));right:max(10px,env(safe-area-inset-right));border:2px solid #fff6;border-radius:6px;background:#000}
+#alerts{top:52px;left:max(10px,env(safe-area-inset-left))}.al{background:#c01818d9;margin-bottom:4px;padding:4px 10px;border-radius:6px;font-weight:600;text-shadow:none}
+#feed{bottom:max(14px,env(safe-area-inset-bottom));left:max(10px,env(safe-area-inset-left));font-size:14px;max-width:60vw}
+#prompt{bottom:28%;left:50%;transform:translateX(-50%);font-size:20px;font-weight:700;background:#000b;padding:6px 14px;border-radius:8px;text-align:center}
+#prompt:empty{display:none}
+#tip{bottom:max(14px,env(safe-area-inset-bottom));right:max(10px,env(safe-area-inset-right));max-width:340px;background:#000a;padding:8px 12px;border-radius:8px;font-size:14px;border-left:3px solid var(--acc);text-shadow:none}
+#cross{top:50%;left:50%;transform:translate(-50%,-50%);font-size:22px;opacity:.7}
+
+/* overlays */
+#title,#pc,#pause{position:fixed;inset:0;display:none;align-items:center;justify-content:center;padding:16px}
+#title{z-index:10;background:linear-gradient(180deg,#000a,#000d)}
+#pc{z-index:7;background:#000c}
+#pause{z-index:8;background:#000a}
+.titlebox{max-width:620px;text-align:left}
+.titlebox h1{font:400 clamp(30px,6vw,56px)/1 var(--disp);margin:6px 0 14px;color:var(--acc);letter-spacing:.5px}
+.titlebox p{max-width:56ch}
+.kicker{text-transform:uppercase;letter-spacing:.2em;font-size:12px;color:var(--dim)}
+.btnrow{margin:18px 0}.aibox{margin:10px 0;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#0006}
+.keys{margin-top:14px;font-size:13px;color:var(--dim);max-width:60ch}.keys b{color:var(--txt)}
+#pausetxt{max-width:460px;width:100%;background:var(--panel);padding:20px 24px;border-radius:12px;border:1px solid var(--line);text-align:center;max-height:92vh;overflow:auto}
+#pausetxt p{margin:8px 0}
+.pcbox{width:min(980px,100%);max-height:94vh;display:flex;flex-direction:column;background:#0b1410;border:2px solid #2e4a3a;border-radius:12px;overflow:hidden;box-shadow:0 0 40px #0008}
+.pchead{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:10px 16px;background:#102018;border-bottom:1px solid #2e4a3a;color:#8fffb0;font-family:ui-monospace,Menlo,Consolas,monospace}
+.pctabs{display:flex;gap:6px;flex-wrap:wrap;padding:10px 16px;border-bottom:1px solid var(--line)}
+.pctabs .tab{background:var(--panel);border:1px solid var(--line);padding:7px 14px;border-radius:8px;cursor:pointer}
+.pctabs .tab.on{background:var(--acc);color:#111;border-color:var(--acc);font-weight:700}
+.pcbody{padding:14px 16px 20px;overflow:auto}
+.flash{margin:10px 16px 0;padding:6px 10px;border-radius:6px;background:#3a1a18;border:1px solid var(--bad);color:#ffb0aa}
+.logbox{background:#0b0f14;border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:13px;max-height:200px;overflow:auto}.logbox div{padding:2px 0;border-bottom:1px solid #1a222c}
+
+/* negotiation */
+.modal{position:fixed;inset:0;background:#000b;display:flex;align-items:center;justify-content:center;z-index:9;padding:12px}
+.talk{max-width:520px;width:100%;max-height:96vh;overflow:auto}
+.tlog{background:#0b0f14;border-radius:8px;padding:8px 10px;margin:8px 0;height:210px;overflow:auto;font-size:14px}
+.tlog .c{color:var(--acc)}.tlog .p{color:var(--txt)}
+.talk input[type=text]{width:72%}
+@media (max-width:640px){#tip{display:none!important}#hudTop{font-size:12px}}
 </style>
 </head>
 <body>
-<header>
-  <h1>🚗 Dealer Tycoon</h1>
-  <span class="stat">Day <b id="sDay"></b></span>
-  <span class="stat">Cash <b id="sCash"></b></span>
-  <span class="stat">Net worth <b id="sNet"></b> / $<span id="sGoal"></span></span>
-  <span class="stat">Avg gross <b id="sAvg"></b></span>
-  <span class="stat">Rep <b id="sRep"></b></span>
-  <span class="stat">Lot <b id="sLot"></b></span>
-</header>
-<nav id="nav"></nav>
-<main id="main"></main>
-<div id="modal"></div>
+<canvas id="gl"></canvas>
+<div id="hud"><div id="hudTop"></div><canvas id="mini" width="170" height="170"></canvas><div id="alerts"></div><div id="feed"></div><div id="prompt"></div><div id="tip"></div><div id="cross">+</div></div>
+<div id="title"></div>
+<div id="pc"></div>
+<div id="pause"><div id="pausetxt"></div></div>
 <div id="talk"></div>
-<div id="g3d"><canvas id="gl"></canvas>
-  <div id="hud"><div id="hudTop"></div><canvas id="mini" width="170" height="170"></canvas><div id="alerts"></div><div id="feed"></div><div id="prompt"></div><div id="cross">+</div></div>
-  <div id="pause"><div id="pausetxt"></div></div></div>
 <script src="lib/three.min.js"></script>
-<script src="game3d.js"></script>
-
-<script>
-"use strict";
-// ---------- data ----------
-const MODELS=[
-  // make, model, body, base new price
-  ["Buick","LeSabre","sedan",19000],["Ford","Taurus","sedan",21000],["Chevy","Cavalier","sedan",15000],
-  ["Pontiac","Grand Am","sedan",19000],["Dodge","Neon","sedan",15000],["Saturn","Ion","sedan",16000],
-  ["Nissan","Sentra","sedan",17000],["Mercury","Grand Marquis","sedan",25000],
-  ["Ford","Ranger","truck",20000],["Chevy","S-10","truck",18000],["Dodge","Dakota","truck",22000],
-  ["Ford","Explorer","suv",32000],["Jeep","Cherokee","suv",25000],["Chevy","Blazer","suv",27000],
-  ["Ford","Mustang","coupe",24000],["Chrysler","Sebring","coupe",22000]
-];
-const BODIES=["any","sedan","suv","truck","coupe"];
-// mult = share of market value they will pay at most; pat = negotiation rounds before they walk; addon = base chance to buy back-end products
-const TYPES={
-  haggler:{mult:1.15,pat:5,addon:.5,intro:"I've shopped around, and I won't pay sticker."},
-  researcher:{mult:1.1,pat:4,addon:.3,intro:"I've already checked the market value on this."},
-  fan:{mult:1.45,pat:5,addon:.7,intro:"I've always wanted one of these!"},
-  budget:{mult:1.2,pat:4,addon:.25,intro:"I have a hard budget, so let's keep it simple."},
-  tirekicker:{mult:.72,pat:6,addon:.05,intro:"Just looking, honestly. My buddy's selling one for like eight hundred bucks."},
-  rusher:{mult:1.32,pat:3,addon:.55,intro:"I'm in a hurry, so give me your best price."}
-};
-const GOAL=40000, SAVE="dealerTycoonV1";
-const TABS=["Auction","Lot","Upgrades"];
-const $=id=>document.getElementById(id);
-const rnd=(a,b)=>a+Math.random()*(b-a), ri=(a,b)=>Math.floor(rnd(a,b+1)), pick=a=>a[ri(0,a.length-1)];
-const $f=n=>(n<0?"-$":"$")+Math.abs(Math.round(n)).toLocaleString();
-
-let S, tab="Auction";
-
-function fresh(){
-  S={day:1,cash:8000,rep:10,cap:6,ad:0,mech:0,front:0,back:0,nextId:1,inv:[],auction:[],cust:[],log:[],phase:"morning",sold:0,profit:0};
-  newAuction(); logMsg("Welcome to Bargain Bob's. Buy a few beaters, open the lot, and save the deals your salespeople can't close. Reach "+$f(GOAL)+" net worth.");
-}
-function save(){try{localStorage.setItem(SAVE,JSON.stringify(S))}catch(e){}}
-function load(){try{const s=localStorage.getItem(SAVE);if(s){S=JSON.parse(s);S.front=S.front||0;S.back=S.back||0;if(S.phase=="open"){S.phase="morning";S.cust=[]}return true}}catch(e){}return false}
-function logMsg(m){S.log.unshift("Day "+S.day+": "+m);S.log=S.log.slice(0,60)}
-
-// ---------- car logic ----------
-function marketValue(c,cond=c.cond){
-  const age=2026-c.year;
-  let v=c.base*Math.pow(0.88,Math.min(age,14));
-  v*=Math.max(.45,1-c.miles/260000);
-  v*=0.7+0.3*(cond/100);
-  return Math.max(600,Math.round(v/50)*50);
-}
-function makeCar(){
-  const [make,model,body,base]=pick(MODELS);
-  const year=ri(1996,2012), cond=ri(20,80);
-  const c={id:S.nextId++,make,model,body,base,year,miles:Math.min(290000,Math.round((2026-year)*ri(7000,13000)/100)*100),cond,seen:false,cost:0,price:0,days:0};
-  c.estCond=Math.max(10,Math.min(100,cond+ri(-18,18))); // what auction claims
-  return c;
-}
-function newAuction(){
-  S.auction=[];
-  for(let i=0;i<7+Math.floor(S.rep/25);i++){
-    const c=makeCar();
-    c.bid=Math.round(marketValue(c,c.estCond)*rnd(.6,.92)/50)*50;
-    S.auction.push(c);
-  }
-}
-const askFor=c=>Math.round(marketValue(c)*1.3/50)*50;
-const label=c=>`${c.year} ${c.make} ${c.model}`;
-const condLabel=n=>n>=85?"Excellent":n>=65?"Good":n>=45?"Fair":"Rough";
-const repairCost=c=>Math.round((100-c.cond)*(c.base/6000)*(1-0.1*S.mech)/10)*10;
-
-// ---------- actions ----------
-function buy(id){
-  const i=S.auction.findIndex(c=>c.id==id), c=S.auction[i];
-  if(S.inv.length>=S.cap)return toast("Lot full. Sell something or expand.");
-  if(S.cash<c.bid)return toast("Not enough cash.");
-  S.cash-=c.bid;c.cost=c.bid;c.cond=c.cond; // true condition revealed on purchase
-  c.price=askFor(c);S.inv.push(c);S.auction.splice(i,1);
-  const real=marketValue(c);
-  logMsg(`Bought ${label(c)} for ${$f(c.bid)}. True value ${$f(real)} (${condLabel(c.cond)}).`);
-  render();
-}
-function inspect(id){
-  const c=S.auction.find(c=>c.id==id);
-  if(S.cash<75)return toast("Inspection costs $75.");
-  S.cash-=75;c.seen=true;c.estCond=c.cond;logMsg(`Inspected ${label(c)}: true condition ${c.cond}%.`);render();
-}
-function repair(id){
-  const c=S.inv.find(c=>c.id==id), cost=repairCost(c);
-  if(S.cash<cost)return toast("Not enough cash.");
-  S.cash-=cost;c.cost+=cost;c.cond=100;c.price=askFor(c);
-  logMsg(`Reconditioned ${label(c)} for ${$f(cost)}.`);render();
-}
-function setPrice(id,v){const c=S.inv.find(c=>c.id==id);c.price=Math.max(500,Math.round(+v)||c.price);save();render()}
-function wholesale(id){
-  const i=S.inv.findIndex(c=>c.id==id),c=S.inv[i],p=Math.round(marketValue(c)*.8/50)*50;
-  S.cash+=p;S.profit+=p-c.cost;S.inv.splice(i,1);
-  logMsg(`Wholesaled ${label(c)} for ${$f(p)} (${$f(p-c.cost)} profit).`);render();
-}
-function openDay(){
-  S.phase="open";S.cust=[];
-  const n=ri(7,11)+S.ad*2+Math.floor(S.rep/15);
-  for(let i=0;i<n;i++){
-    const body=pick(["any","any","any","sedan","suv","truck","coupe"]), budget=Math.round(rnd(1500,9000)/100)*100;
-    S.cust.push({id:i,name:pick(["Alex","Sam","Jordan","Pat","Chris","Dana","Lee","Morgan","Taylor","Casey"]),body,budget,type:pick(["haggler","haggler","researcher","fan","budget","rusher","rusher","tirekicker","tirekicker"]),done:false,msg:""});
-  }
-  matchCustomers();render();
-}
-function matchCustomers(){
-  S.cust.forEach(u=>{
-    if(u.done)return;
-    const opts=S.inv.filter(c=>(u.body=="any"||c.body==u.body)&&c.price<=u.budget*1.1);
-    if(!opts.length){u.car=null;u.done=true;u.msg="Nothing on the lot fits.";return}
-    // like the best deal (price vs. market)
-    opts.sort((a,b)=>a.price/marketValue(a)-b.price/marketValue(b));
-    u.car=opts[0].id;
-    const mv=marketValue(opts[0]);
-    if(u.reserve===undefined||u.carFor!==u.car){
-      u.carFor=u.car;
-      u.reserve=Math.round(Math.min(u.budget*1.05,mv*TYPES[u.type].mult*(1+S.rep/600)*rnd(.97,1.03))/50)*50;
-      u.offer=Math.round(u.reserve*.7/50)*50;
-    }
-    if(opts[0].price>mv*1.8){u.done=true;u.car=null;u.msg=`Laughed at the price of ${label(opts[0])}.`}
-  });
-}
-function sellTo(uid,mode){
-  const u=S.cust.find(x=>x.id==uid),i=S.inv.findIndex(c=>c.id==u.car);
-  if(i<0){u.done=true;u.msg="Car already gone.";return render()}
-  const c=S.inv[i];let p=null;
-  if(mode=="ask"){ if(c.price<=u.reserve)p=c.price; }
-  else if(mode=="offer"){p=u.offer}
-  else if(mode=="split"){const mid=Math.round((u.offer+c.price)/100)*50; if(mid<=u.reserve)p=mid}
-  if(p==null){u.done=true;u.msg="Walked away.";S.rep=Math.max(0,S.rep-.5);return render()}
-  finishSale(u,c,i,p);
-}
-function finishSale(u,c,i,p,ad=[]){
-  const back=ad.reduce((s,a)=>s+a.price-a.cost,0);
-  S.cash+=p+back;S.sold++;S.front+=p-c.cost;S.back+=back;S.profit+=p-c.cost+back;S.rep+=1;S.inv.splice(i,1);u.done=true;u.msg=`Bought for ${$f(p)}!`;
-  logMsg(`Sold ${label(c)} to ${u.name} for ${$f(p)}: front ${$f(p-c.cost)}${back?`, back-end ${$f(back)}`:""}.`);
-  matchCustomers();render();
-}
-function closeDay(){
-  let fees=S.inv.length*6+40+S.ad*30;
-  S.inv.forEach(c=>c.days++);
-  if(S.day%7==0){fees+=250+S.cap*20;}
-  S.cash-=fees;logMsg(`Day over. Expenses ${$f(fees)}${S.day%7==0?" (weekly rent due)":""}.`);
-  S.day++;S.phase="morning";S.cust=[];newAuction();
-  const nw=netWorth();
-  if(nw>=GOAL)return win();
-  if(S.cash<0&&!S.inv.length)return lose();
-  save();render();
-}
-function netWorth(){return S.cash+S.inv.reduce((s,c)=>s+marketValue(c)*.9,0)}
-const UPG=[
-  {k:"cap",n:"Bigger lot (+2 spaces)",cost:()=>1500+S.cap*300,max:20,desc:"Hold more cars."},
-  {k:"ad",n:"Advertising",cost:()=>600*(S.ad+1),max:5,desc:"More customers each day (costs $30/day per level)."},
-  {k:"mech",n:"In-house mechanic",cost:()=>1200*(S.mech+1),max:5,desc:"Repairs 10% cheaper per level."}
-];
-function upgrade(k){
-  const u=UPG.find(u=>u.k==k),c=u.cost();
-  if(S.cash<c)return toast("Not enough cash.");
-  S.cash-=c;S[k]+=k=="cap"?2:1;logMsg("Bought upgrade: "+u.n);render();
-}
-function win(){S.phase="over";$("modal").innerHTML=`<div class=modal><div class=card><h2>🏆 You made it!</h2><p>Net worth hit ${$f(netWorth())} in ${S.day} days. ${S.sold} cars sold.</p><button class=go onclick="restart()">Play again</button></div></div>`}
-function lose(){S.phase="over";$("modal").innerHTML=`<div class=modal><div class=card><h2>💸 Bankrupt</h2><p>No cash, no cars. You lasted ${S.day} days and sold ${S.sold}.</p><button class=go onclick="restart()">Try again</button></div></div>`}
-function startShift(){
-  if(!S.inv.length)return toast("Empty lot. Buy something at auction first.");
-  openDay();
-  if(!window.G3||!G3.start()){S.phase="morning";S.cust=[];toast("3D needs WebGL. Try Chrome or Edge.")}
-}
-function restart(){$("modal").innerHTML="";fresh();save();render()}
-function toast(m){logMsg(m);render()}
-
-// ---------- rendering ----------
-function bar(v){const col=v>=65?"var(--good)":v>=45?"var(--acc)":"var(--bad)";return `<div class=bar><i style="width:${v}%;background:${col}"></i></div>`}
-function render(){
-  $("sDay").textContent=S.day;$("sCash").textContent=$f(S.cash);$("sNet").textContent=$f(netWorth());
-  $("sGoal").textContent=GOAL.toLocaleString();$("sRep").textContent=Math.floor(S.rep);$("sAvg").textContent=S.sold?$f(S.profit/S.sold):"—";$("sLot").textContent=S.inv.length+"/"+S.cap;
-  $("nav").innerHTML=TABS.map(t=>`<button class="tab ${t==tab?"on":""}" onclick="tab='${t}';render()">${t}</button>`).join("")+
-    `<span style="flex:1"></span>`+`<button class=go onclick="startShift()">Open the lot ▸</button>`;
-  let h="";
-  if(tab=="Auction"){
-    h+=`<h2>Auction — today's cars</h2><p class=dim>Condition shown is an estimate (±18). Inspect for $75 to see the truth. Fresh batch every morning.</p><div class=grid>`;
-    h+=S.auction.map(c=>`<div class=card><h3>${label(c)}</h3><div class=dim>${c.body} · ${c.miles.toLocaleString()} mi</div>
-      <div class=row><span>Condition ${c.seen?"":"~"}${c.estCond}%</span><span class=dim>${c.seen?"verified":"estimate"}</span></div>${bar(c.estCond)}
-      <div class=row><span>Bid ${$f(c.bid)}</span><span class=dim>est. value ${$f(marketValue(c,c.estCond))}</span></div>
-      <button class=b onclick="buy(${c.id})">Buy</button>${c.seen?"":`<button class=b onclick="inspect(${c.id})">Inspect $75</button>`}</div>`).join("")||"<p class=dim>Sold out.</p>";
-    h+="</div>";
-  }
-  if(tab=="Lot"){
-    h+=`<h2>Your lot (${S.inv.length}/${S.cap})</h2><p class=dim>Daily cost: $6/car + $40 base. Rent every 7 days ($250 + $20 per space).</p><div class=grid>`;
-    h+=S.inv.map(c=>{const mv=marketValue(c),rc=repairCost(c);return `<div class=card><h3>${label(c)}</h3><div class=dim>${c.body} · ${c.miles.toLocaleString()} mi · ${c.days}d on lot</div>
-      <div class=row><span>Condition ${c.cond}% (${condLabel(c.cond)})</span></div>${bar(c.cond)}
-      <div class=row><span>Paid ${$f(c.cost)}</span><span>Market ${$f(mv)}</span></div>
-      <div>Ask: <input type=number step=100 value=${c.price} onchange="setPrice(${c.id},this.value)"></div>
-      <div class=dim>Profit if sold at ask: <span class="${c.price-c.cost>=0?"good":"bad"}">${$f(c.price-c.cost)}</span></div>
-      ${c.cond<100?`<button class=b onclick="repair(${c.id})">Recondition ${$f(rc)}</button>`:""}
-      <button class=b onclick="wholesale(${c.id})">Wholesale ${$f(mv*.8)}</button></div>`}).join("")||"<p class=dim>Empty lot. Hit the auction.</p>";
-    h+="</div>";
-  }
-  if(tab=="Showroom"){
-    if(S.phase!="open")h+=`<h2>Showroom</h2><p class=dim>Doors are closed. Press “Open dealership” to see today's customers.</p>`;
-    else{
-      h+=`<h2>Today's customers</h2><p class=dim>Quick buttons sell at a single price. 🎤 Talk lets you negotiate the price, build rapport, pitch honestly and add warranty, GAP and accessories for back-end gross.</p><div class=grid>`;
-      h+=S.cust.map(u=>{const c=S.inv.find(c=>c.id==u.car);return `<div class=card><h3>${u.name}</h3>
-        <div class=dim>Wants: ${u.body} · budget ${$f(u.budget)}</div>`+
-        (u.done?`<p>${u.msg}</p>`:`<p>Likes your <b>${label(c)}</b> (ask ${$f(c.price)}).<br>Offers <b>${$f(u.offer)}</b>.</p>
-        <button class=b onclick="sellTo(${u.id},'ask')">Hold ask</button><button class=b onclick="sellTo(${u.id},'offer')">Take offer</button><button class=b onclick="sellTo(${u.id},'split')">Split</button><button class=b onclick="openTalk(${u.id})">🎤 Talk</button>`)+`</div>`}).join("");
-      h+="</div>";
-    }
-  }
-  if(tab=="Upgrades"){
-    h+=`<h2>Upgrades</h2><div class=grid>`;
-    h+=UPG.map(u=>{const lv=u.k=="cap"?(S.cap-6)/2:S[u.k],maxed=u.k=="cap"?S.cap>=u.max:S[u.k]>=u.max;
-      return `<div class=card><h3>${u.n}</h3><div class=dim>${u.desc}</div><p>Level ${lv}</p>${maxed?"<b>Maxed</b>":`<button class=b onclick="upgrade('${u.k}')">Buy ${$f(u.cost())}</button>`}</div>`}).join("");
-    h+="</div>";
-  }
-  h+=`<div id=log>${S.log.map(l=>`<div>${l}</div>`).join("")}</div>`;
-  $("main").innerHTML=h;
-  if(S.phase!="over")save();
-}
-
-// ---------- voice negotiation ----------
-const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-let T=null,rec=null;
-const esc=s=>s.replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]));
-const W={zero:0,one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10,eleven:11,twelve:12,thirteen:13,fourteen:14,fifteen:15,sixteen:16,seventeen:17,eighteen:18,nineteen:19,twenty:20,thirty:30,forty:40,fifty:50,sixty:60,seventy:70,eighty:80,ninety:90};
-function wordsToNum(t){
-  let total=0,cur=0,found=false;
-  for(const w of t.replace(/-/g," ").split(/\s+/)){
-    if(w in W){cur+=W[w];found=true}
-    else if(w=="hundred"){cur=(cur||1)*100;found=true}
-    else if(w=="thousand"||w=="grand"){total+=(cur||1)*1000;cur=0;found=true}
-    else if(w=="a"||w=="and"){}
-    else if(found){if(total+cur>=500)break;total=0;cur=0;found=false}
-  }
-  return total+cur;
-}
-function parseMoney(t){
-  t=t.toLowerCase().replace(/,/g,"");
-  let m=t.match(/(\d+(?:\.\d+)?)\s*(k|thousand|grand)\b/);if(m)return Math.round(m[1]*1000);
-  m=t.match(/(\d{3,6})(?:\.\d+)?/);if(m)return +m[1];
-  const n=wordsToNum(t);return n>=500?n:0;
-}
-const ADDONS={
-  warranty:{n:"extended warranty",price:700,cost:250,re:/warrant|protection plan|service contract/},
-  gap:{n:"GAP coverage",price:300,cost:80,re:/\bgap\b/},
-  acc:{n:"accessories package",price:400,cost:150,re:/accessor|floor mats|tint|bed liner/}
-};
-const RAPPORT={
-  haggler:["Ha, nice try, but I know the tricks. Still, I appreciate it.","Alright, you seem straight with me. I'm listening."],
-  researcher:["I've done my homework, but thanks.","Fine. Let's keep it factual."],
-  fan:["I've wanted one of these since I was a kid!","This would be perfect for me. Really."],
-  budget:["Thanks. I just need something reliable in budget.","Appreciate that. My number is tight."],
-  rusher:["Sure, sure, but I'm short on time.","Thanks! Let's move this along."],
-  tirekicker:["Yeah, nice place. Just looking though.","Uh huh. Cool."]
-};
-const URGENCY={haggler:.02,researcher:0,fan:.04,budget:.01,rusher:.05,tirekicker:0};
-
-function openTalk(uid,opts={}){
-  const u=S.cust.find(x=>x.id==uid),c=S.inv.find(x=>x.id==u.car);if(!c)return;
-  const ty=TYPES[u.type];
-  T={uid,car:c,lines:[],pat:Math.max(1,Math.round(ty.pat*(opts.patFrac||1))),maxPat:ty.pat,rapport:0,used:{},rounds:0,hands:!!SR,listening:false,over:false,
-     counter:0,lastAsk:0,agreed:0,addons:[],asked:{},declines:0,err:"",summary:"",stated:!!opts.intro};
-  say(opts.intro?`${opts.intro} ${ty.intro}`:`Hi, I'm ${u.name}. ${ty.intro} I'm looking at that ${label(c)}. What's your price?`);
-}
-function closeTalk(){
-  if(window.speechSynthesis)speechSynthesis.cancel();
-  try{rec&&rec.abort()}catch(e){}
-  T=null;$("talk").innerHTML="";if(window.G3)G3.talkClosed();render();
-}
-function say(text){
-  T.lines.push({who:"c",text});renderTalk();
-  if(!window.speechSynthesis)return;
-  speechSynthesis.cancel();
-  const cu=S.cust.find(x=>x.id==T.uid),ut=new SpeechSynthesisUtterance(text);
-  const vs=speechSynthesis.getVoices().filter(v=>/^en/i.test(v.lang));
-  if(vs.length)ut.voice=vs[cu.id%vs.length];
-  ut.pitch=.8+(cu.id%5)*.15;
-  ut.onend=()=>{if(T&&T.hands&&!T.over)listen()};
-  speechSynthesis.speak(ut);
-}
-function listen(){
-  if(!SR||!T||T.listening||T.over)return;
-  if(window.speechSynthesis)speechSynthesis.cancel();
-  rec=new SR();rec.lang="en-US";rec.interimResults=false;
-  rec.onstart=()=>{if(T){T.listening=true;T.err="";renderTalk()}};
-  rec.onresult=e=>handleSay(e.results[0][0].transcript);
-  rec.onerror=e=>{if(!T)return;T.err=e.error=="not-allowed"?"Mic blocked. Allow mic access, or type below.":"Didn't catch that. Try again.";if(e.error=="not-allowed")T.hands=false};
-  rec.onend=()=>{if(T){T.listening=false;renderTalk()}};
-  try{rec.start()}catch(e){}
-}
-function sendTyped(){const el=$("tin"),v=el&&el.value.trim();if(v){el.value="";handleSay(v)}}
-
-// raise (or lower) the customer's walk-away price; key makes it one-time
-function bump(u,pct,key){
-  if(key){if(T.used[key])return false;T.used[key]=1}
-  const cap=Math.min(u.budget*1.1,marketValue(T.car)*1.8);
-  u.reserve=Math.round(Math.min(cap,u.reserve*(1+pct))/50)*50;
-  u.offer=Math.min(u.offer,u.reserve);
-  return true;
-}
-// drain patience; true if the customer walked
-function tire(u,n,msg){T.pat-=n;if(T.pat<=0){walk(u,msg);return true}return false}
-
-function handleSay(s){
-  if(!T||T.over)return;
-  T.lines.push({who:"p",text:s});T.err="";
-  if(window.G3&&G3.on())G3.elapse(7);
-  const u=S.cust.find(x=>x.id==T.uid),c=T.car,t=s.toLowerCase(),f=u.type=="researcher"?.5:1;
-  if(/nice day|thanks for (coming|stopping|your time)|take care|good luck|wish you|no hard feelings|not going to work|can't make that work|shake your hand|appreciate you coming/.test(t))return release(u);
-  for(const k in ADDONS)if(ADDONS[k].re.test(t))return pitch(u,k);
-  if(T.agreed){
-    if(parseMoney(t))return say(`We agreed on ${$f(T.agreed)}. Let's do the paperwork.`);
-    if(/\b(done|that's all|that is all|finalize|sign|paperwork|close|deal|sold|shake|agreed|ok|okay|yes|sure|fine)\b/.test(t))return finalize(u);
-    return say("So are we all set? Anything else, or shall we sign?");
-  }
-  // rapport: learn about the buyer
-  if(/looking for|tell me about|what do you need|what brings|family|commute|kids|nice to meet|welcome|congrat|how are you|how's it going/.test(t)){
-    if(T.rapport<3&&bump(u,.015*f,"r"+T.rapport)){T.rapport++;return say(RAPPORT[u.type][T.rapport%2])}
-    return say("Thanks, but let's talk numbers.");
-  }
-  // value pitches: honest ones work, bluffs cost patience
-  if(/low mile|few miles|low-mile/.test(t)){
-    if(c.miles<70000){bump(u,.02*f,"miles");return say("Those are low miles. That's a plus.")}
-    if(tire(u,1,"You're stretching the truth. I'm out."))return;
-    return say("That's not low miles to me.");
-  }
-  if(/(great|excellent|good|clean) (shape|condition)|reconditioned|serviced|inspected|new tires|detailed|spotless/.test(t)){
-    if(c.cond>=85){bump(u,.025*f,"cond");return say("It does look sharp. I like that.")}
-    bump(u,-.02,"cond");
-    if(tire(u,1,"I don't like being sold. I'm out."))return;
-    return say("I'm not seeing that. Looks rough to me.");
-  }
-  if(/another buyer|someone else|other customer|last one|going fast|popular|in demand|other offers/.test(t)){
-    if(T.used.urg)return say("You already said that.");
-    T.used.urg=1;
-    if(u.type=="researcher")return say(`Nice try. It's been on your lot ${c.days} days.`);
-    bump(u,URGENCY[u.type]);
-    if(u.type!="fan"&&tire(u,1,"If it's that popular, sell it to them. I'm out."))return;
-    return say("Hmm. Then I shouldn't wait around.");
-  }
-  // questions
-  if(/\bmiles?\b|mileage/.test(t))return say(`It says ${c.miles.toLocaleString()} miles. ${c.miles>120000?"That's a lot, honestly.":"That's pretty reasonable."}`);
-  if(/year|model/.test(t))return say(`It's a ${label(c)}, right? ${c.year<2015?"Kind of old.":"Newer than I expected."}`);
-  if(/condition|shape|accident/.test(t))return say(c.cond>=85?"Looks great to me. Clean inside and out.":c.cond>=60?"Looks okay, some wear.":"Honestly it looks rough. I'd want a discount.");
-  // price
-  if(/\b(middle|halfway|split)\b/.test(t))return offerPrice(u,Math.round(((T.counter||u.offer)+(T.lastAsk||c.price))/100)*50);
-  const price=parseMoney(t);if(price)return offerPrice(u,price);
-  if(/\b(deal|sold|take it|shake|yes|yeah|sure|okay|ok|fine|agreed)\b/.test(t)){
-    if(T.counter)return agree(u,T.counter);
-    return say("Great! What price are you thinking?");
-  }
-  if(/\b(no|nope|can't|cannot|final|firm|not)\b/.test(t)){
-    if(tire(u,1,"We're too far apart. I'll look elsewhere."))return;
-    return say(`My offer stands at ${$f(T.counter||u.offer)}.`);
-  }
-  if(/\b(hi|hello|hey|morning|afternoon)\b/.test(t))return say("Hi there! So, what's your price on this one?");
-  say("Sorry, what price are you asking?");
-}
-function release(u){
-  if(T.agreed)return finalize(u);
-  const c=T.car,hopeless=u.reserve<=c.cost*1.05;
-  u.polite=true;u.hopeless=hopeless;T.over=true;u.done=true;u.msg="Walked away.";
-  T.summary=hopeless?`<b>👍 Good call.</b> They topped out around ${$f(u.reserve)} on a car you paid ${$f(c.cost)} for. No more time wasted.`
-    :`<b>🤝 Sent on their way.</b> That one was winnable: their limit was ${$f(u.reserve)}, so you could have grossed ${$f(u.reserve-c.cost)}.`;
-  say(pick(["Alright, thanks anyway. Have a good one.","No problem. Appreciate your time.","Sure, thanks. Maybe I'll come back."]));render();
-}
-function offerPrice(u,price){
-  T.lastAsk=price;
-  if(price<=u.reserve)return agree(u,price);
-  if(price>u.reserve*1.3&&u.reserve>T.car.cost*1.05)return walk(u,"That's way out of my range. I'm out.");
-  T.rounds++;
-  if(tire(u,1,"We're too far apart. I'll look elsewhere."))return;
-  const step=Math.min(1,T.rounds/Math.max(2,T.maxPat-1));
-  T.counter=Math.max(T.counter,Math.round((u.offer+(u.reserve-u.offer)*step)/50)*50);
-  say(`${price>u.reserve*1.1?"That's steep.":"Getting closer."} I can do ${$f(T.counter)}.`);
-}
-function agree(u,p){
-  T.agreed=p;
-  say(`Alright, ${$f(p)} works for me. Anything else before we do the paperwork?`);
-}
-function pitch(u,k){
-  const a=ADDONS[k],c=T.car;
-  if(!T.agreed)return say("Let's settle on the car price first.");
-  if(T.asked[k])return say(T.addons.includes(k)?"I already took that one.":"I already said no to that.");
-  if(T.declines>=2)return say("That's enough extras. Just the car, please.");
-  T.asked[k]=1;
-  let p=TYPES[u.type].addon+T.rapport*.1+(k=="warranty"&&(c.cond<60||c.miles>100000)?.2:0)+(k=="gap"&&T.agreed>3500?.15:0);
-  p=Math.max(.1,Math.min(.9,p));
-  if(Math.random()<p){T.addons.push(k);return say(`Sure, I'll take the ${a.n} for ${$f(a.price)}.`)}
-  T.declines++;
-  say(T.declines>=2?"No thanks. That's enough extras. Just the car.":"I'll pass on that.");
-}
-function finalize(u){
-  const i=S.inv.findIndex(c=>c.id==u.car);if(i<0)return;
-  const c=S.inv[i],p=T.agreed,ad=T.addons.map(k=>ADDONS[k]);
-  const front=p-c.cost,back=ad.reduce((s,a)=>s+a.price-a.cost,0);
-  const room=Math.max(1,u.reserve-u.offer),pct=Math.max(0,Math.min(100,Math.round(100*(p-u.offer)/room)));
-  T.over=true;finishSale(u,c,i,p,ad);
-  const grade=pct>=95?"🏆 Maxed it":pct>=80?"👍 Strong deal":pct>=50?"Okay deal":"💸 Money left on the table";
-  T.summary=`<b>${grade}</b><br>Price ${$f(p)} · front gross ${$f(front)} · back-end ${$f(back)} · <b>total ${$f(front+back)}</b><br>Their limit was ${$f(u.reserve)}. You captured ${pct}% of the room and left ${$f(Math.max(0,u.reserve-p))}.`;
-  say("Thanks! Pleasure doing business.");
-}
-function walk(u,msg){
-  T.over=true;u.done=true;u.msg="Walked away.";S.rep=Math.max(0,S.rep-.5);
-  T.summary=`No deal. You lost about ${$f(Math.max(0,u.reserve-T.car.cost))} of potential gross. Their limit was ${$f(u.reserve)}.`;
-  say(msg);render();
-}
-function renderTalk(){
-  if(!T)return;
-  const u=S.cust.find(x=>x.id==T.uid),c=T.car,old=($("tin")||{}).value||"";
-  const back=T.addons.reduce((s,k)=>s+ADDONS[k].price-ADDONS[k].cost,0);
-  const pat="●".repeat(Math.max(0,T.pat))+"○".repeat(Math.max(0,T.maxPat-T.pat));
-  $("talk").innerHTML=`<div class=modal><div class="card talk"><h3>🗣️ ${u.name} — ${label(c)}</h3>
-  <div class=dim>Your cost ${$f(c.cost)} · ask ${$f(c.price)} · patience ${pat} · rapport ${"♥".repeat(T.rapport)||"–"}</div>
-  ${(()=>{const best=T.counter||(T.stated?u.offer:0);return best&&!T.agreed?`<div class=dim>Their best so far: ${$f(best)} ${best<c.cost?"<span class=bad>(under your cost)</span>":""}</div>`:""})()}
-  ${window.G3&&G3.waiting?`<div class=bad>${G3.waiting()}</div>`:""}
-  ${T.agreed?`<div class=good>Agreed ${$f(T.agreed)} · front ${$f(T.agreed-c.cost)} · back-end ${$f(back)}</div>`:""}
-  <div class=tlog id=tlog>${T.lines.map(l=>`<div class="${l.who}"><b>${l.who=="c"?u.name:"You"}:</b> ${esc(l.text)}</div>`).join("")}</div>
-  ${T.err?`<div class=bad>${T.err}</div>`:""}
-  ${T.summary?`<div class=card style="margin-bottom:8px">${T.summary}</div>`:""}
-  ${T.over?`<button class=go onclick="closeTalk()">Done</button>`:`
-  ${SR?`<button class=go onclick="listen()" ${T.listening?"disabled":""}>${T.listening?"🎙️ Listening…":"🎤 Speak"}</button> <label class=dim><input type=checkbox ${T.hands?"checked":""} onchange="T.hands=this.checked"> Hands-free</label>`:`<div class=dim>Voice input needs Chrome or Edge. Type instead.</div>`}
-  <div style="margin-top:8px"><input id=tin type=text placeholder="Or type what you'd say…" onkeydown="if(event.key=='Enter')sendTyped()"> <button class=b onclick="sendTyped()">Send</button></div>
-  ${T.agreed?`<button class=b onclick="handleSay('warranty')">Warranty ${$f(ADDONS.warranty.price)}</button><button class=b onclick="handleSay('gap')">GAP ${$f(ADDONS.gap.price)}</button><button class=b onclick="handleSay('accessories')">Accessories ${$f(ADDONS.acc.price)}</button><button class=b onclick="handleSay('finalize')">Finalize ▸</button>`
-    :`<button class=b onclick="handleSay('meet in the middle')">Meet in the middle</button><button class=b onclick="handleSay('thanks for coming, have a nice day')">🤝 Have a nice day</button>`}
-  <button class=b onclick="closeTalk()">Step away</button>`}
-  </div></div>`;
-  const lg=$("tlog");if(lg)lg.scrollTop=lg.scrollHeight;
-  const ti=$("tin");if(ti)ti.value=old;
-}
-
-if(!load())fresh();
-if(S.phase=="over")fresh();
-render();
-</script>
+<script src="js/data.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/talk.js"></script>
+<script src="js/world.js"></script>
+<script src="js/pc.js"></script>
+<script src="js/game.js"></script>
+<script>window.addEventListener("load",function(){Game.boot()});</script>
 </body>
 </html>
