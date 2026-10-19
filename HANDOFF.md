@@ -9,7 +9,7 @@ First-person 3D used-car dealership game ("Bargain Bob's Auto Mart"). You play M
 - The lot restocks itself (consignment). The user explicitly does not want an auction or buying.
 - First-person conversations: press E at a stalled pair, hold V to talk (Web Speech API), T to type, 1–4/F add-ons and sign, walk away to leave. The lot keeps running live. Subtitles in `#subs`.
 - Negotiation engine owns all numbers (walk-away price, patience, rapport, add-ons). Deal tiers: easy, winnable, hopeless.
-- Gemini works too: a pasted key starting with AIza routes to Gemini (`callGemini`, tries gemini-3.5-flash-lite then fallbacks on 404). GitHub Pages is live at https://sennaqb.github.io/Websiteproject/.
+- Gemini works too: any pasted key not starting with sk-ant- routes to Gemini (new Google keys start with AQ.) (`callGemini`, tries gemini-3.5-flash-lite then fallbacks on 404). GitHub Pages is live at https://sennaqb.github.io/Websiteproject/.
 - Claude customers (`js/ai.js`, Haiku 5.5): classifies intents and voices replies; validated against jailbreaks. Sources: the claude.ai artifact `sample` capability, or the user's API key pasted on the title screen.
 - Feel pass: bloom, grading, vignette, grain, head bob, sprint FOV, shake, T.O. ring and flash, gross pop-ups, title cards.
 - Office furniture modeled in `js/world.js` (`makeDesk`, `makeOfficeChair`, `makeGuestChair`), merged per material by `bakeStatic`.

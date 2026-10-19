@@ -14,8 +14,9 @@ const store={
 AI.on=()=>AI.enabled&&AI.mode!=="rules"&&AI.fails<3;
 AI.voiceOn=()=>AI.on();
 AI.hasKey=()=>!!store.get(KEY);
-// The pasted key decides the provider: Google keys start with AIza, Anthropic keys with sk-ant-.
-AI.provider=()=>/^AIza/.test(store.get(KEY)||"")?"gemini":"claude";
+// The pasted key decides the provider: Anthropic keys start with sk-ant-; anything else is Google's
+// (older Google keys start with AIza, the newer auth keys with AQ.).
+AI.provider=()=>/^sk-ant-/.test(store.get(KEY)||"")?"claude":"gemini";
 AI.who=()=>AI.mode==="key"&&AI.provider()==="gemini"?"Gemini":"Claude";
 AI.status=()=>AI.mode==="rules"?"Built-in customers":AI.on()?(AI.mode==="sample"?"Claude customers (built in)":AI.who()+" customers (your API key)"):"Built-in customers";
 
@@ -69,7 +70,8 @@ function keyProblem(e){
 
 function geminiProblem(st,m){
   if(!st)return "Couldn't reach Google from this page. Play from the GitHub Pages link.";
-  if(/API key not valid|API_KEY_INVALID/i.test(m))return "Google says the key is invalid. Copy it again from aistudio.google.com/apikey (it starts with AIza) and paste only the key.";
+  if(/API key not valid|API_KEY_INVALID/i.test(m))return "Google says the key is invalid. Copy it again from aistudio.google.com/apikey (it starts with AQ. or AIza) and paste only the key. A brand-new key can take a minute to start working.";
+  if(/expired|blocked|disabled/i.test(m))return "Google says this key is blocked or expired. Create a new one at aistudio.google.com/apikey. ("+m+")";
   if(st===403)return "This key isn't allowed to use the Gemini API. Make sure the Generative Language API is enabled for its project. ("+m+")";
   if(st===404)return "None of the Gemini models this game uses are available to your key. ("+m+")";
   if(st===429)return "Gemini's free limit is used up for now. Wait a minute (or until tomorrow for the daily limit) and try again.";

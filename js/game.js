@@ -23,7 +23,7 @@ function showTitle(){
   G.phase="title";if(W)W.setTime(.9);document.body.classList.remove("playing");
   const ai=window.AI;
   const aiRow=ai.mode==="rules"
-    ?`<div class=dim>AI customers: paste a <b>Gemini</b> key (free at aistudio.google.com/apikey) or an <b>Anthropic</b> key to have AI play the customers. It's stored only in this browser.<br><input id=apikey type=password placeholder="AIza... or sk-ant-..." style="width:70%"> <button class=b onclick="Game.saveKey()">Save key</button></div>`
+    ?`<div class=dim>AI customers: paste a <b>Gemini</b> key (free at aistudio.google.com/apikey) or an <b>Anthropic</b> key to have AI play the customers. It's stored only in this browser.<br><input id=apikey type=password placeholder="AQ.… / AIza… or sk-ant-…" style="width:70%"> <button class=b onclick="Game.saveKey()">Save key</button></div>`
     :`<div><label><input type=checkbox id=aiToggle ${ai.on()?"checked":""} onchange="Game.toggleAI(this.checked)"> <b>${esc(ai.mode==="key"?ai.who():"Claude")} plays the customers</b> <span class=dim>(${esc(ai.status())})</span></label>${ai.mode==="key"?` <button class=b onclick="Game.clearKey()">Remove key</button>`:""}</div>`;
   el("title").innerHTML=`<div class=titlebox>
     <div class=kicker>Used cars. All sales final.</div>
