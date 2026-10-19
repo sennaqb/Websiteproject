@@ -39,17 +39,24 @@ A.win=()=>{[523,659,784,1046].forEach((f,i)=>tone(f,.35,"triangle",.2,i*.14))};
 A.click=()=>tone(520,.05,"square",.06);
 A.step=()=>{const n=performance.now();if(n-lastStep<180)return;lastStep=n;noise(.07,.07,420)};
 A.phone=()=>{for(let i=0;i<4;i++){tone(1400,.08,"square",.05,i*.18);tone(1700,.08,"square",.05,i*.18+.09)}};
+// Outdoor ambience: no constant hum, just the odd bird and a car going by now and then.
+// Ducked (silent) during conversations so the mic and the voices stay clear.
+let ducked=false;
+function bird(){const b=2600+Math.random()*1400,n=2+(Math.random()*3|0);for(let i=0;i<n;i++)tone(b+(i%2)*300,.09,"sine",.035,i*.13,600)}
+function carBy(){
+  const c=ac();if(!c||A.muted)return;
+  const t=c.currentTime,d=2.2,n=Math.floor(c.sampleRate*d),buf=c.createBuffer(1,n,c.sampleRate),data=buf.getChannelData(0);
+  for(let i=0;i<n;i++)data[i]=Math.random()*2-1;
+  const s=c.createBufferSource();s.buffer=buf;const f=c.createBiquadFilter();f.type="bandpass";f.frequency.value=500;f.Q.value=.7;
+  const g=c.createGain();g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.05,t+d*.5);g.gain.exponentialRampToValueAtTime(.0001,t+d);
+  s.connect(f);f.connect(g);g.connect(master);s.start(t);
+}
 A.ambient=on=>{
-  const c=ac();if(!c)return;
-  if(!on){if(amb){try{amb.stop()}catch(e){}amb=null}return}
-  if(amb)return;
-  const n=c.sampleRate*3,buf=c.createBuffer(1,n,c.sampleRate),d=buf.getChannelData(0);
-  let last=0;for(let i=0;i<n;i++){last=(last+(Math.random()*2-1)*.04)/1.02;d[i]=last*6}
-  const s=c.createBufferSource();s.buffer=buf;s.loop=true;
-  const f=c.createBiquadFilter();f.type="lowpass";f.frequency.value=380;
-  const g=c.createGain();g.gain.value=A.muted?0:.5;
-  s.connect(f);f.connect(g);g.connect(master);s.start();amb=s;amb._g=g;
+  if(!on){if(amb){clearInterval(amb);amb=null}return}
+  if(amb||!ac())return;
+  amb=setInterval(()=>{if(ducked||A.muted||document.hidden)return;const r=Math.random();if(r<.22)bird();else if(r<.3)carBy()},1000);
 };
+A.duck=on=>{ducked=on};
 A.mute=m=>{
   A.muted=m;try{localStorage.setItem("bobsMute",m?"1":"0")}catch(e){}
   if(master)master.gain.value=m?0:.55;

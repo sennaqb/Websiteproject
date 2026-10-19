@@ -25,6 +25,7 @@ function parseMoney(t){
 
 // ---------- open / close ----------
 function openTalk(uid,opts={}){
+  if(window.Sfx&&Sfx.duck)Sfx.duck(true);
   const u=S.cust.find(x=>x.id==uid),c=S.inv.find(x=>x.id==u.car);if(!c)return;
   const ty=TYPES[u.type];
   T={uid,car:c,lines:[],pat:Math.max(1,Math.round(ty.pat*(opts.patFrac||1))),maxPat:ty.pat,rapport:0,used:{},rounds:0,
@@ -44,7 +45,7 @@ function logTalk(){
 }
 function closeTalk(){
   if(T)try{logTalk()}catch(e){}
-  if(window.speechSynthesis)try{speechSynthesis.cancel()}catch(e){}
+  hush();if(window.Sfx&&Sfx.duck)Sfx.duck(false);
   try{rec&&rec.abort()}catch(e){}
   T=null;$("talk").innerHTML="";$("subs").innerHTML="";$("subs").className="";
   if(window.G3&&G3.talkClosed)G3.talkClosed();
@@ -81,18 +82,28 @@ function mood(text){
   return"neutral";
 }
 // Say a line out loud. seed picks the voice; pitch and rate give each character their own sound.
+// One speaker at a time: a new line cuts off the old one unless queue is set. Chrome's "Google" voices
+// stream from the network and can keep talking after cancel(), so they're avoided when others exist.
+let speakTimer=0,speakSeq=0,speakPend=[];
+function voicePool(){
+  const all=speechSynthesis.getVoices().filter(v=>/^en/i.test(v.lang)),local=all.filter(v=>!/google/i.test(v.name));
+  const base=local.length?local:all,nice=base.filter(v=>/natural|neural|premium|enhanced/i.test(v.name));
+  return nice.length>=2?nice:base;
+}
 function speakLine(text,seed,pitch,rate,queue){
   if(!window.speechSynthesis)return null;
   try{
-    if(!queue)speechSynthesis.cancel();
     const ut=new SpeechSynthesisUtterance(text);
-    const all=speechSynthesis.getVoices().filter(v=>/^en/i.test(v.lang));
-    const good=all.filter(v=>/natural|online|neural|google|premium|enhanced/i.test(v.name)),vs=good.length>=2?good:all;
-    if(vs.length)ut.voice=vs[Math.abs(seed|0)%vs.length];
+    const vs=voicePool();if(vs.length)ut.voice=vs[Math.abs(seed|0)%vs.length];
     ut.pitch=Math.max(.1,Math.min(2,pitch));ut.rate=Math.max(.5,Math.min(2,rate));
-    speechSynthesis.speak(ut);return ut;
+    if(queue){if(speakPend.length)speakPend.push(ut);else speechSynthesis.speak(ut);return ut}
+    const my=++speakSeq;clearTimeout(speakTimer);speechSynthesis.cancel();speakPend=[ut];
+    // Chrome sometimes drops or doubles a line spoken in the same tick as cancel(); wait a beat
+    speakTimer=setTimeout(()=>{if(my!==speakSeq)return;speechSynthesis.cancel();const q=speakPend;speakPend=[];q.forEach(u=>speechSynthesis.speak(u))},80);
+    return ut;
   }catch(e){return null}
 }
+function hush(){clearTimeout(speakTimer);speakSeq++;speakPend=[];try{window.speechSynthesis&&speechSynthesis.cancel()}catch(e){}}
 function speak(text){
   if(T.mute||!window.speechSynthesis)return;
   try{
@@ -105,7 +116,7 @@ function speak(text){
 // ---------- the player talks ----------
 function listen(){
   if(!SR||!T||T.listening||T.over||T.busy)return;
-  try{if(window.speechSynthesis)speechSynthesis.cancel()}catch(e){}
+  hush();
   rec=new SR();rec.lang="en-US";rec.interimResults=true;rec.continuous=false;
   rec.onstart=()=>{if(T){T.listening=true;T.err="";renderTalk()}};
   rec.onresult=e=>{
@@ -401,7 +412,7 @@ function pttStart(at){
   if(!SR){T.err="This browser can't listen. Use Chrome or Edge on the GitHub Pages link, or press T to type.";renderTalk();return}
   if(T.busy){T.err="Hang on, they're still answering.";renderTalk();return}
   if(T.ptt){if(T.pttLatch){T.pttLatch=false;pttFinish()}return}   // second tap sends
-  try{if(window.speechSynthesis)speechSynthesis.cancel()}catch(e){}
+  hush();
   try{rec&&rec.abort()}catch(e){}
   T.ptt=true;T.pttHeld=true;T.pttLatch=false;T.pttAt=at||performance.now();T.pttBuf="";T.interim="";T.err="";
   pttListen(T.uid);renderTalk();
