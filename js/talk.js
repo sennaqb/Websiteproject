@@ -56,7 +56,18 @@ function flush(){
 }
 function show(text){
   if(T.over&&T.inWorld&&!T.closing){const uid=T.uid;T.closing=setTimeout(()=>{if(T&&T.uid===uid)closeTalk()},6000)}
-  T.lines.push({who:"c",text});renderTalk();speak(text);if(window.G3&&G3.speaking)G3.speaking(Math.min(6,1+text.length/14))}
+  T.lines.push({who:"c",text});renderTalk();speak(text);if(window.G3&&G3.speaking)G3.speaking(Math.min(6,1+text.length/14),mood(text))}
+// Pick the customer's eyebrows from the engine's state, with the line itself as a tiebreaker.
+function mood(text){
+  if(T.gunned)return"shocked";
+  if(T.sold)return"happy";
+  if(/I'm out|look elsewhere|stretching the truth|being sold|No way|really\?/i.test(text))return"angry";
+  if(/way out of my range|steep|a lot for this/i.test(text))return"shocked";
+  if(/Sorry,|what price are you|You already/i.test(text))return"confused";
+  if(T.agreed||/closer|Almost|now we're talking|not far off|I like|plus|sharp|could work|Great/i.test(text))return"happy";
+  if(T.pat<=1||/rough|elsewhere/i.test(text))return"worried";
+  return"neutral";
+}
 function speak(text){
   if(T.mute||!window.speechSynthesis)return;
   try{
@@ -108,6 +119,21 @@ function runAll(ints){
   T.buf=[];
   for(const I of ints){if(!T||T.over)break;runIntent(u,I)}
   if(T)flush();
+}
+
+// Miguel's last resort: three times a career he can skip the haggling entirely.
+function gunDeal(){
+  if(!T||T.over||T.busy)return;
+  if(!(S.guns>0)){T.err="You're out of guaranteed deals. Back to haggling.";renderTalk();return}
+  const u=S.cust.find(x=>x.id==T.uid);if(!u)return;
+  S.guns--;T.gunned=true;T.addons=[];
+  T.lines.push({who:"p",text:"I have a gun."});T.lastSaid="I have a gun.";T.err="";
+  if(window.G3&&G3.gun)G3.gun();
+  T.buf=[];T.agreed=T.car.price;
+  say(pick(["Whoa whoa whoa! Okay! Full price! Where do I sign?!","Okay! Okay! I'll take it! Sticker price! It's a great car!","Jesus! Fine! Full asking! No extras, I swear I don't need extras!","Alright, alright! Deal! Best deal I ever made!"]));
+  finalize(u);
+  T.summary=`🔫 <b>Deal at gunpoint</b> (${S.guns} left)<br>`+T.summary;
+  flush();
 }
 
 // Built-in understanding of what the manager said.
@@ -305,7 +331,7 @@ function renderSubs(){
   ${status?`<div class=substatus>${status}</div>`:""}${T.err?`<div class="substatus bad">${esc(T.err)}</div>`:""}
   ${T.summary?`<div class=subsum>${T.summary}</div>`:""}
   ${T.typing?`<div><input id=tin type=text autocomplete=off placeholder="Say something… Enter to send, Esc to cancel" onkeydown="event.stopPropagation();if(event.key==='Enter')typeSend();else if(event.key==='Escape')typeStop()"></div>`:""}
-  ${T.over?"":`<div class=subkeys>${SR?"<b>Hold V</b> to talk · ":""}<b>T</b> type · ${T.agreed?"<b>1</b> warranty · <b>2</b> GAP · <b>3</b> accessories · <b>4</b> financing · <b>F</b> sign":"<b>4</b> offer financing"} · walk away to leave${SR?` · <b>H</b> hands-free ${T.hands?"on":"off"}`:""}</div>`}`;
+  ${T.over?"":`<div class=subkeys>${SR?"<b>Hold V</b> to talk · ":""}<b>T</b> type · ${T.agreed?"<b>1</b> warranty · <b>2</b> GAP · <b>3</b> accessories · <b>4</b> financing · <b>F</b> sign":"<b>4</b> offer financing"} · walk away to leave${S.guns>0?` · <b>G</b> "I have a gun" (${S.guns} left)`:""}${SR?` · <b>H</b> hands-free ${T.hands?"on":"off"}`:""}</div>`}`;
   if(T.typing){const ti=$("tin");if(ti){ti.value=old;if(document.activeElement!==ti)ti.focus()}}
 }
 // hold V: listen until the key comes up, then send everything that was said

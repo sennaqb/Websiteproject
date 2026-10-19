@@ -29,7 +29,9 @@ const ceilTex=()=>tex(128,128,(g,w,h)=>{g.fillStyle="#cfcab8";g.fillRect(0,0,w,h
 const fenceTex=()=>tex(64,64,(g,w,h)=>{g.clearRect(0,0,w,h);g.strokeStyle="rgba(175,175,180,.85)";g.lineWidth=2;for(let i=-64;i<128;i+=16){g.beginPath();g.moveTo(i,0);g.lineTo(i+64,64);g.stroke();g.beginPath();g.moveTo(i+64,0);g.lineTo(i,64);g.stroke()}},[40,3]);
 const roadTex=()=>tex(256,128,(g,w,h)=>{g.fillStyle="#2c2c2e";g.fillRect(0,0,w,h);g.fillStyle="#c8b24a";for(let x=0;x<w;x+=48)g.fillRect(x,h/2-2,28,4)},[10,1]);
 const windowsTex=()=>tex(128,256,(g,w,h)=>{g.fillStyle="#2a2f3a";g.fillRect(0,0,w,h);for(let y=8;y<h;y+=18)for(let x=8;x<w;x+=18){g.fillStyle=Math.random()<.3?"#f2d98a":"#1a1e27";g.fillRect(x,y,9,10)}});
-function textTex(text,fg,bg,w,h,font){return tex(w,h,g=>{g.fillStyle=bg;g.fillRect(0,0,w,h);g.fillStyle=fg;g.font=font;g.textAlign="center";g.textBaseline="middle";g.fillText(text,w/2,h/2)})}
+// Shrink the font until the text fits inside the canvas with a margin, so no sign is ever cut off.
+function fitFont(g,text,font,maxW){let px=+(font.match(/(\d+)px/)||[0,20])[1];do{g.font=font.replace(/\d+px/,px+"px")}while(g.measureText(text).width>maxW&&--px>6);return px}
+function textTex(text,fg,bg,w,h,font){return tex(w,h,g=>{g.fillStyle=bg;g.fillRect(0,0,w,h);g.fillStyle=fg;fitFont(g,text,font,w*.9);g.textAlign="center";g.textBaseline="middle";g.fillText(text,w/2,h/2)})}
 function sprite(text,fg,bg,sx,sy){
   const s=new THREE.Sprite(new THREE.SpriteMaterial({map:textTex(text,fg,bg,256,64,"bold 34px sans-serif"),depthTest:false,transparent:true}));
   s.scale.set(sx||1.4,sy||.35,1);s.renderOrder=10;return s;
@@ -53,45 +55,145 @@ void main(){
 }`;
 
 // ---------- people ----------
+// Merge geometries ({geo, matrix}) into one non-indexed BufferGeometry.
+function mergeGeos(list){
+  const geos=list.map(({geo,matrix})=>{const g=geo.index?geo.toNonIndexed():geo.clone();g.applyMatrix4(matrix);return g});
+  const merged=new THREE.BufferGeometry();
+  ["position","normal","uv"].forEach(k=>{
+    const n=geos.reduce((a,g)=>a+g.attributes[k].array.length,0),arr=new Float32Array(n);let o=0;
+    geos.forEach(g=>{arr.set(g.attributes[k].array,o);o+=g.attributes[k].array.length});
+    merged.setAttribute(k,new THREE.BufferAttribute(arr,k==="uv"?2:3));
+  });
+  geos.forEach(g=>g.dispose());merged.computeBoundingSphere();return merged;
+}
+// Merge a group's direct child meshes per material (in the group's space), except the ones in keep.
+function mergeChildren(group,keep){
+  const by=new Map();
+  group.children.slice().forEach(m=>{
+    if(!m.isMesh||(keep&&keep.includes(m)))return;
+    m.updateMatrix();const e=by.get(m.material)||{list:[],shadow:false};e.list.push({geo:m.geometry,matrix:m.matrix});e.shadow=e.shadow||m.castShadow;by.set(m.material,e);group.remove(m);
+  });
+  by.forEach((e,mat)=>{const m=new THREE.Mesh(mergeGeos(e.list),mat);m.castShadow=e.shadow;group.add(m)});
+}
+
+// Miguel's photo cut out as a face decal.
+let faceTexCache=null;
+function miguelFaceTex(){
+  if(faceTexCache)return faceTexCache;
+  const w=256,h=320,c=document.createElement("canvas");c.width=w;c.height=h;const g=c.getContext("2d"),t=new THREE.CanvasTexture(c);
+  const draw=img=>{
+    g.clearRect(0,0,w,h);g.fillStyle="#c99b7a";g.fillRect(0,0,w,h);
+    if(img){g.save();g.beginPath();g.ellipse(w/2,h/2,w/2-4,h/2-4,0,0,7);g.clip();g.drawImage(img,128,92,210,285,0,0,w,h);g.restore();
+      const r=g.createRadialGradient(w/2,h/2,w*.36,w/2,h/2,w*.62);r.addColorStop(0,"rgba(201,155,122,0)");r.addColorStop(1,"rgba(201,155,122,1)");g.fillStyle=r;g.fillRect(0,0,w,h)}
+    t.needsUpdate=true;
+  };
+  const im=new Image();im.onload=()=>draw(im);draw(null);if(window.MIGUEL_IMG)im.src=window.MIGUEL_IMG;
+  t.anisotropy=4;return faceTexCache=t;
+}
+
 function person(o){
   o=o||{};
-  const g=new THREE.Group(),u={},skin=SKIN[(o.skin||0)%4],shirt=o.shirt||0x555555,pants=o.pants||0x2a2a35,hair=o.hair==null?0x2a1a10:o.hair;
-  const px=(w,h,d,c,x,y,z,par)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),M(c));m.position.set(x,y,z);m.castShadow=true;(par||g).add(m);return m};
-  const leg=x=>{const p=new THREE.Group();p.position.set(x,.88,0);px(.21,.84,.23,pants,0,-.42,0,p);px(.23,.1,.32,0x15151a,0,-.86,.04,p);g.add(p);return p};
-  u.legL=leg(-.12);u.legR=leg(.12);
-  const wid=o.wide?.66:.56;
-  px(wid,.2,.3,pants,0,.9,0);                       // hips
-  px(wid,.62,.3,shirt,0,1.25,0);                     // torso
-  const arm=x=>{const p=new THREE.Group();p.position.set(x,1.52,0);px(.15,.34,.17,shirt,0,-.16,0,p);
-    const fa=new THREE.Group();fa.position.set(0,-.34,0);px(.13,.3,.15,shirt,0,-.14,0,fa);px(.12,.12,.12,skin,0,-.32,0,fa);p.add(fa);p.userData.fa=fa;g.add(p);return p};
-  u.armL=arm(-.4);u.armR=arm(.4);
-  px(.09,.1,.09,skin,0,1.6,0);                       // neck
-  const head=new THREE.Mesh(new THREE.SphereGeometry(.17,10,8),M(skin));head.position.y=1.76;head.castShadow=true;g.add(head);u.head=head;
-  const eye=x=>px(.03,.03,.02,0x111111,x,1.78,.16);eye(-.06);eye(.06);
-  u.mouth=px(.09,.025,.02,0x3a1a14,0,1.69,.165);px(.07,.018,.02,hair,-.06,1.825,.16);px(.07,.018,.02,hair,.06,1.825,.16);
+  const g=new THREE.Group(),u={},skinC=o.skinColor||SKIN[(o.skin||0)%4],shirtC=o.shirt||0x555555,pantsC=o.pants||0x2a2a35,hairC=o.hair==null?0x2a1a10:o.hair;
+  const skin=SM(skinC,{roughness:.6}),shirt=SM(shirtC,{roughness:.85}),pants=SM(pantsC,{roughness:.9}),hair=SM(hairC,{roughness:.95}),
+        shoe=SM(o.shoe||0x1a1714,{roughness:.4}),dark=SM(0x161210,{roughness:.5}),white=SM(0xf4f1ea,{roughness:.3});
+  const add=(par,geo,mat,x,y,z,sc,sh)=>{const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);if(sc)m.scale.set(sc[0],sc[1],sc[2]);m.castShadow=sh!==false;par.add(m);return m};
+  const cap=(r,l)=>new THREE.CapsuleGeometry(r,l,4,10),sph=(r,a,b)=>new THREE.SphereGeometry(r,a||14,b||10);
+  const wide=o.wide?1.16:1;
+  // legs: hip -> knee -> shoe
+  const leg=x=>{
+    const hip=new THREE.Group();hip.position.set(x,.93,0);g.add(hip);
+    add(hip,cap(.085*wide,.3),pants,0,-.2,0);
+    const knee=new THREE.Group();knee.position.y=-.42;hip.add(knee);
+    add(knee,cap(.068,.3),pants,0,-.2,0);
+    add(knee,rbox(.11,.27,.08,.04),shoe,0,-.45,.045,null).rotation.x=-Math.PI/2;
+    hip.userData.knee=knee;return hip;
+  };
+  u.legL=leg(-.1*wide);u.legR=leg(.1*wide);
+  // torso: a lathe so it reads as a body, flattened front to back
+  const pts=[[.15,0],[.168,.06],[.16,.18],[.172,.3],[.2,.42],[.205,.48],[.19,.53],[.14,.58],[.06,.61],[0,.615]].map(([r,y])=>new THREE.Vector2(r,y));
+  const torso=add(g,new THREE.LatheGeometry(pts,18),shirt,0,.9,0,[wide,1,.62]);
+  add(g,sph(.16),pants,0,.93,0,[1.12*wide,.55,.72]);
+  add(g,new THREE.CylinderGeometry(.163,.163,.04,18),dark,0,.95,0,[wide*1.04,1,.66],false);
+  if(o.tie){const tie=SM(o.tie,{roughness:.5});add(g,new THREE.ConeGeometry(.032,.3,4),tie,0,1.25,.128,[1,1,.3],false);add(g,sph(.022,8,6),tie,0,1.405,.118,[1,.8,.6],false)}
+  add(g,new THREE.TorusGeometry(.06,.016,6,14),shirt,0,1.5,.0,[1,1,1],false).rotation.x=Math.PI/2;
+  if(o.badge)add(g,BX(.07,.04,.01),white,.1,1.36,.125,null,false);
+  [-1,1].forEach(s=>add(g,sph(.07),shirt,s*.19*wide,1.43,0,[1,.9,.9]));
+  // arms: shoulder -> elbow -> hand
+  const arm=s=>{
+    const sh=new THREE.Group();sh.position.set(s*.215*wide,1.43,0);sh.rotation.z=s*.07;g.add(sh);
+    add(sh,cap(.053,.2),shirt,0,-.14,0);
+    const fa=new THREE.Group();fa.position.y=-.29;sh.add(fa);
+    add(fa,cap(.046,.18),shirt,0,-.12,0);
+    add(fa,sph(.045),skin,0,-.28,.005,[.75,1.15,.55]);
+    sh.userData.fa=fa;return sh;
+  };
+  u.armL=arm(-1);u.armR=arm(1);
+  add(g,new THREE.CylinderGeometry(.048,.055,.12,12),skin,0,1.53,0);
+  // head
+  const hd=new THREE.Group();hd.position.y=1.665;g.add(hd);u.head=hd;
+  const hs=o.bigHead||1;hd.scale.setScalar(hs);
+  const HS=[.94,1.12,1.02],style0=o.hairStyle||"short";
+  // Faces split at the mouth so the top of the head can flap open when they talk (South Park Canadian style).
+  const CUT=-.035,cutT=Math.acos(CUT/1.12/.11),hinge=!o.face;
+  const top=hinge?new THREE.Group():hd;if(hinge){top.position.set(0,CUT,-.1);hd.add(top);u.top=top}
+  const T=(geo,mat,x,y,z,sc,sh)=>hinge?add(top,geo,mat,x,y-CUT,z+.1,sc,sh):add(hd,geo,mat,x,y,z,sc,sh);
+  if(hinge){
+    T(new THREE.SphereGeometry(.11,20,12,0,Math.PI*2,0,cutT),skin,0,0,0,HS);
+    add(hd,new THREE.SphereGeometry(.11,20,6,0,Math.PI*2,cutT,Math.PI-cutT),skin,0,0,0,HS);
+    const inside=SM(0x2a0808,{roughness:1,side:THREE.DoubleSide}),cr=.11*Math.sin(cutT);
+    add(hd,new THREE.CircleGeometry(cr,20),inside,0,CUT+.001,0,[.94,1.02,1],false).rotation.x=-Math.PI/2;
+    T(new THREE.CircleGeometry(cr,20),inside,0,CUT-.001,0,[.94,1.02,1],false).rotation.x=Math.PI/2;
+    const teeth=SM(0xf2efe2,{roughness:.4});
+    T(BX(.07,.012,.012),teeth,0,CUT-.007,.09,null,false);add(hd,BX(.06,.01,.012),teeth,0,CUT+.006,.088,null,false);
+  }else add(hd,sph(.11,20,16),skin,0,0,0,HS);
+  u.brows=[];const browM=SM(style0==="bald"||hairC>0x909090?0x2a2420:hairC,{roughness:1});
+  [-1,1].forEach(s=>T(sph(.026,8,6),skin,s*.103,0,-.005,[.45,1,.75],false));
+  if(o.face){
+    const fm=new THREE.MeshStandardMaterial({map:o.face,roughness:.6});
+    add(hd,new THREE.SphereGeometry(.1115,24,18,Math.PI/2-.95,1.9,.28,1.95),fm,0,-.004,.002,HS,false);
+  }else{
+    [-1,1].forEach(s=>{T(sph(.017,10,8),white,s*.038,.018,.093,[1,.85,.6],false);T(sph(.009,8,6),dark,s*.038,.018,.103,null,false);
+      const b=T(BX(.058,.02,.016),browM,s*.04,.052,.1,null,false);b.userData={s,y:b.position.y};u.brows.push(b)});
+    T(sph(.019,10,8),skin,0,-.01,.108,[.8,1.1,1.1],false);
+  }
+  u.mouth=o.face?null:add(hd,sph(.024,10,6),SM(0x5a2a22),0,-.052,.095,[1.1,.3,.5],false);
   const style=o.hairStyle||"short";
-  if(style==="short"||style==="cap"){const hr=new THREE.Mesh(new THREE.SphereGeometry(.18,10,8,0,Math.PI*2,0,Math.PI/2),M(hair));hr.position.y=1.77;g.add(hr)}
-  if(style==="long"){const hr=new THREE.Mesh(new THREE.SphereGeometry(.18,10,8,0,Math.PI*2,0,Math.PI/2),M(hair));hr.position.y=1.77;g.add(hr);px(.3,.34,.1,hair,0,1.62,-.12)}
-  if(style==="cap"){const cp=new THREE.Mesh(new THREE.CylinderGeometry(.19,.19,.07,10),M(o.cap||0x2a4a7a));cp.position.y=1.88;g.add(cp);px(.2,.02,.16,o.cap||0x2a4a7a,0,1.86,.2)}
-  if(o.tie)px(.07,.4,.03,o.tie,0,1.27,.16);
-  if(o.beard)px(.2,.1,.1,hair,0,1.68,.1);
-  if(o.badge)px(.1,.06,.02,0xffffff,.14,1.42,.16);
+  if(style!=="bald")T(new THREE.SphereGeometry(.118,20,12,0,Math.PI*2,0,o.face?Math.PI*.3:Math.PI*.44),hair,0,.004,-.006,[.96,1.12,1.04]);
+  if(o.face&&style!=="bald")add(hd,new THREE.SphereGeometry(.116,20,14,Math.PI/2+.9,Math.PI*2-1.8,0,Math.PI*.62),hair,0,.002,-.004,[.96,1.12,1.04]);
+  if(style==="long")T(rbox(.21,.24,.06,.05),hair,0,-.07,-.075);
+  if(style==="cap"){const cm=SM(o.cap||0x2a4a7a,{roughness:.7});T(new THREE.SphereGeometry(.122,20,10,0,Math.PI*2,0,Math.PI*.42),cm,0,.012,-.004,[.98,1.1,1.05]);T(new THREE.CylinderGeometry(.09,.1,.012,16,1,false,-Math.PI/2,Math.PI),cm,0,.062,.07,[1,1,1],false)}
+  if(o.beard)add(hd,new THREE.SphereGeometry(.112,16,10,Math.PI*.15,Math.PI*.7,Math.PI*.55,Math.PI*.4),hair,0,0,.004,[.96,1.14,1.06],false);
+  if(o.glasses){const gl=SM(0xdfe6ea,{roughness:.2,metalness:.3});[-1,1].forEach(s=>T(new THREE.TorusGeometry(.024,.004,6,14),gl,s*.04,.02,.112,null,false));T(BX(.03,.005,.005),gl,0,.022,.114,null,false)}
+  // fewer draw calls: merge each rigid part
+  mergeChildren(g,[]);[u.legL,u.legR,u.legL.userData.knee,u.legR.userData.knee,u.armL,u.armR,u.armL.userData.fa,u.armR.userData.fa].forEach(p=>mergeChildren(p));
+  mergeChildren(hd,(u.mouth?[u.mouth]:[]).concat(u.brows));if(u.top)mergeChildren(u.top,u.brows);
+  if(o.height)g.scale.setScalar(o.height);
   g.userData=u;return g;
 }
+const BROWS={neutral:[0,0],happy:[.2,.016],angry:[-.75,-.008],worried:[.6,.006],shocked:[.15,.03],confused:[-.45,-.006,.3,.024]};
 function animatePerson(g,moving,t,armsUp,talk){
-  const u=g.userData,s=moving?Math.sin(t*9)*.7:0;
+  const u=g.userData,s=moving?Math.sin(t*9)*.6:0;
   u.legL.rotation.x=s;u.legR.rotation.x=-s;
+  u.legL.userData.knee.rotation.x=moving?Math.max(0,Math.sin(t*9+1.6))*.8:0;u.legR.userData.knee.rotation.x=moving?Math.max(0,-Math.sin(t*9+1.6))*.8:0;
   if(armsUp){
     u.armL.rotation.x=-2.7+Math.sin(t*10)*.25;u.armR.rotation.x=-2.7+Math.sin(t*10+1)*.25;
-    u.armL.userData.fa.rotation.x=0;u.armR.userData.fa.rotation.x=0;
+    u.armL.userData.fa.rotation.x=-.3;u.armR.userData.fa.rotation.x=-.3;
   }else if(talk){
     u.armL.rotation.x=-.5+Math.sin(t*3)*.3;u.armR.rotation.x=-.7+Math.sin(t*3.7+1)*.35;
     u.armL.userData.fa.rotation.x=-.9;u.armR.userData.fa.rotation.x=-1.1;
   }else{
     u.armL.rotation.x=moving?-s*.7:Math.sin(t*1.5)*.04;u.armR.rotation.x=moving?s*.7:-Math.sin(t*1.5)*.04;
-    u.armL.userData.fa.rotation.x=moving?-.3:-.1;u.armR.userData.fa.rotation.x=moving?-.3:-.1;
+    u.armL.userData.fa.rotation.x=moving?-.35:-.15;u.armR.userData.fa.rotation.x=moving?-.35:-.15;
   }
-  if(u.mouth){const tk=u.talkLeft>0;u.mouth.scale.y=tk?1+Math.abs(Math.sin(t*15))*2.4:1;u.head.rotation.x=tk?Math.sin(t*5)*.06:0}
+  const tk=u.talkLeft>0;
+  const flap=tk&&u.top;
+  if(u.top)u.top.rotation.x=flap?-Math.abs(Math.sin(t*11))*.6:0;
+  u.head.rotation.x=tk&&!flap?Math.sin(t*5)*.06:0;
+  if(u.mouth)u.mouth.scale.y=tk&&!flap?.3+Math.abs(Math.sin(t*15))*.9:.3;
+  // South Park eyebrows: [tilt of the inner end (+ up), lift] per mood; the confused one is lopsided
+  const B=BROWS[u.mood]||BROWS.neutral;
+  u.brows.forEach(b=>{const k=b.userData,i=k.s<0?0:1,tilt=B[2]&&i?B[2]:B[0],lift=B[3]!=null&&i?B[3]:B[1];
+    b.rotation.z+=((-k.s)*tilt-b.rotation.z)*.2;b.position.y+=(k.y+lift-b.position.y)*.2});
 }
 
 // ---------- cars ----------
@@ -285,20 +387,9 @@ function makeGuestChair(){
 function bakeStatic(group){
   group.updateMatrixWorld(true);
   const by=new Map();
-  group.traverse(m=>{if(!m.isMesh)return;
-    let g=m.geometry.index?m.geometry.toNonIndexed():m.geometry.clone();g.applyMatrix4(m.matrixWorld);
-    const e=by.get(m.material)||{geos:[],shadow:false};e.geos.push(g);e.shadow=e.shadow||m.castShadow;by.set(m.material,e)});
+  group.traverse(m=>{if(!m.isMesh)return;const e=by.get(m.material)||{list:[],shadow:false};e.list.push({geo:m.geometry,matrix:m.matrixWorld});e.shadow=e.shadow||m.castShadow;by.set(m.material,e)});
   const out=[];
-  by.forEach((e,mat)=>{
-    const merged=new THREE.BufferGeometry();
-    ["position","normal","uv"].forEach(k=>{
-      const n=e.geos.reduce((a,g)=>a+g.attributes[k].array.length,0),arr=new Float32Array(n);let o=0;
-      e.geos.forEach(g=>{arr.set(g.attributes[k].array,o);o+=g.attributes[k].array.length;g.dispose()});
-      merged.setAttribute(k,new THREE.BufferAttribute(arr,k==="uv"?2:3));
-    });
-    merged.computeBoundingSphere();
-    const m=new THREE.Mesh(merged,mat);m.castShadow=e.shadow;m.receiveShadow=true;m.matrixAutoUpdate=false;out.push(m);
-  });
+  by.forEach((e,mat)=>{const m=new THREE.Mesh(mergeGeos(e.list),mat);m.castShadow=e.shadow;m.receiveShadow=true;m.matrixAutoUpdate=false;out.push(m)});
   return out;
 }
 
@@ -308,8 +399,8 @@ function create(canvas){
   R.shadowMap.enabled=true;R.shadowMap.type=THREE.PCFSoftShadowMap;
   const scene=new THREE.Scene(),cam=new THREE.PerspectiveCamera(72,1,.05,260);
   scene.fog=new THREE.Fog(0xaab4bc,28,120);
-  const W={R,scene,cam,colliders:[],flick:[],tube:[],balloons:[],slotPos,standZ,buildCar,updateTag,person,animatePerson,sprite,
-           desks:[-6,-2,2,6],pc:{x:-7.5,z:-23.2},sw:{x:2.3,z:-15.2},bound:{x0:-27,x1:27,z0:-26.5,z1:26}};
+  const W={R,scene,cam,colliders:[],flick:[],tube:[],balloons:[],slotPos,standZ,buildCar,updateTag,person,animatePerson,sprite,miguelFaceTex,
+           desks:[-8,-4.8,-1.6,1.6,4.8,8],pc:{x:-7.5,z:-23.2},sw:{x:2.3,z:-15.2},bound:{x0:-27,x1:27,z0:-26.5,z1:26}};
   const solid=(x0,x1,z0,z1)=>W.colliders.push({x0,x1,z0,z1});
   const box=(w,h,d,mat,x,y,z,o)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);m.castShadow=!(o&&o.noShadow);m.receiveShadow=true;scene.add(m);return m};
 
@@ -360,6 +451,15 @@ function create(canvas){
   };
   fence(-15.5,27.5,25,0);fence(15.5,27.5,25,0);fence(0,-27.5,56,0);fence(-28,0,55,1);fence(28,0,55,1);
   box(.4,3.2,.4,postM,-3,1.6,27.5);box(.4,3.2,.4,postM,3,1.6,27.5);
+
+  // Miguel's pistol, held in view; hidden until he needs it
+  scene.add(cam);
+  { const gm=SM(0x1d1f22,{metalness:.7,roughness:.35}),grip=SM(0x3a2a20,{roughness:.8}),g=new THREE.Group();
+    const p=(geo,m,x,y,z,rx)=>{const k=new THREE.Mesh(geo,m);k.position.set(x,y,z);if(rx)k.rotation.x=rx;g.add(k);return k};
+    p(BX(.034,.034,.19),gm,0,0,-.06);p(new THREE.CylinderGeometry(.008,.008,.03,10),gm,0,.004,-.165,Math.PI/2);
+    p(BX(.03,.11,.045),grip,0,-.065,.01,-.25);p(new THREE.TorusGeometry(.018,.004,6,12,Math.PI),gm,0,-.022,-.03).rotation.set(0,Math.PI/2,Math.PI);
+    p(BX(.006,.008,.01),gm,0,.021,-.14);
+    g.position.set(.15,-.5,-.46);g.rotation.y=.04;g.scale.setScalar(.85);g.visible=false;cam.add(g);W.gun=g; }
 
   // ---------- showroom ----------
   const X0=-10,X1=10,Z0=-27,Z1=-14,H=3.2,wall=M(0x9a8f78),dark=M(0x6a6256);
@@ -415,12 +515,13 @@ function create(canvas){
     g.fillStyle="#555";g.font="italic 18px sans-serif";g.fillText(foot||"",16,240);
     boardTex.needsUpdate=true;
   };
-  box(2.4,1.2,.05,B(0xffffff),-2,1.9,Z0+.2,{noShadow:true}).material=new THREE.MeshBasicMaterial({map:textTex("WE FINANCE EVERYBODY!!","#ffdd00","#b01010",512,256,"bold 46px sans-serif")});
+  box(2.4,1.2,.05,B(0xffffff),-2,1.9,Z0+.2,{noShadow:true}).material=new THREE.MeshBasicMaterial({map:tex(512,256,(g,w,h)=>{g.fillStyle="#b01010";g.fillRect(0,0,w,h);g.strokeStyle="#ffdd00";g.lineWidth=8;g.strokeRect(10,10,w-20,h-20);
+    g.fillStyle="#ffdd00";g.textAlign="center";g.textBaseline="middle";fitFont(g,"EVERYBODY!!","bold 80px sans-serif",w-60);g.fillText("WE FINANCE",w/2,h*.34);g.fillText("EVERYBODY!!",w/2,h*.68)})});
   // OPEN sign + switch
   const openTex=textTex("CLOSED","#ff4040","#120505",256,96,"bold 54px sans-serif");
   const openSign=new THREE.Mesh(new THREE.PlaneGeometry(1.4,.52),new THREE.MeshBasicMaterial({map:openTex}));openSign.position.set(0,2.75,Z1-.3);openSign.rotation.y=Math.PI;scene.add(openSign);
   W.setOpen=function(open){
-    const g=openTex.userData.g;g.fillStyle="#120505";g.fillRect(0,0,256,96);g.fillStyle=open?"#40ff70":"#ff4040";g.font="bold 54px sans-serif";g.textAlign="center";g.textBaseline="middle";g.fillText(open?"OPEN":"CLOSED",128,48);openTex.needsUpdate=true;
+    const g=openTex.userData.g;g.fillStyle="#120505";g.fillRect(0,0,256,96);g.fillStyle=open?"#40ff70":"#ff4040";fitFont(g,open?"OPEN":"CLOSED","bold 54px sans-serif",230);g.textAlign="center";g.textBaseline="middle";g.fillText(open?"OPEN":"CLOSED",128,48);openTex.needsUpdate=true;
   };
   box(.18,.3,.06,M(0x333333),W.sw.x,1.3,Z1+.18);
   // floor markers for the two spots you walk up to
@@ -466,15 +567,26 @@ function create(canvas){
   box(.3,7,.3,M(0x555555),-8,3.5,22);
   const signTex=tex(512,256,(g,w,h)=>{
     g.fillStyle="#1a1a6a";g.fillRect(0,0,w,h);g.strokeStyle="#ffcc00";g.lineWidth=8;g.strokeRect(8,8,w-16,h-16);
-    g.fillStyle="#ffcc00";g.font="bold 54px sans-serif";g.textAlign="center";g.fillText("BARGAIN BOB'S",w/2,90);
-    g.fillStyle="#ff4040";g.font="bold 46px sans-serif";g.fillText("AUTO MART",w/2,150);
-    g.fillStyle="#fff";g.font="bold 28px sans-serif";g.fillText("NO CREDIT? NO PROBLEM!",w/2,212);
+    g.textAlign="center";
+    g.fillStyle="#ffcc00";fitFont(g,"BARGAIN BOB'S","bold 54px sans-serif",w-60);g.fillText("BARGAIN BOB'S",w/2,90);
+    g.fillStyle="#ff4040";fitFont(g,"AUTO MART","bold 46px sans-serif",w-60);g.fillText("AUTO MART",w/2,150);
+    g.fillStyle="#fff";fitFont(g,"NO CREDIT? NO PROBLEM!","bold 28px sans-serif",w-60);g.fillText("NO CREDIT? NO PROBLEM!",w/2,212);
   });
   const sign=box(5,2.5,.25,new THREE.MeshBasicMaterial({map:signTex}),-8,7.6,22);W.flick.push(sign);
-  const banner=new THREE.Mesh(new THREE.PlaneGeometry(9,1.3),new THREE.MeshBasicMaterial({map:textTex("EVERYTHING MUST GO","#ffffff","#c01818",512,96,"bold 54px sans-serif")}));
+  // vinyl banner: hemmed border, grommets, text sized to fit
+  const bannerTex=tex(1024,148,(g,w,h)=>{
+    g.fillStyle="#c01818";g.fillRect(0,0,w,h);
+    g.strokeStyle="#f4f4f4";g.lineWidth=6;g.strokeRect(10,10,w-20,h-20);
+    g.fillStyle="rgba(0,0,0,.12)";for(let x=0;x<w;x+=64)g.fillRect(x,0,2,h);
+    [[24,24],[w-24,24],[24,h-24],[w-24,h-24],[w/2,24],[w/2,h-24]].forEach(([x,y])=>{g.fillStyle="#bbb";g.beginPath();g.arc(x,y,8,0,7);g.fill();g.fillStyle="#444";g.beginPath();g.arc(x,y,4,0,7);g.fill()});
+    g.textAlign="center";g.textBaseline="middle";fitFont(g,"EVERYTHING MUST GO!","900 96px Impact,'Arial Black',sans-serif",w-110);
+    g.fillStyle="rgba(0,0,0,.35)";g.fillText("EVERYTHING MUST GO!",w/2+4,h/2+6);g.fillStyle="#fff";g.fillText("EVERYTHING MUST GO!",w/2,h/2+2);
+  });
+  const banner=new THREE.Mesh(new THREE.PlaneGeometry(9,1.3),new THREE.MeshBasicMaterial({map:bannerTex}));
   banner.position.set(0,4.15,Z1+.45);scene.add(banner);
-  const noRef=new THREE.Mesh(new THREE.PlaneGeometry(2,.8),new THREE.MeshBasicMaterial({map:textTex("ALL SALES FINAL","#111","#f2e04a",256,96,"bold 32px sans-serif"),side:THREE.DoubleSide}));
-  noRef.position.set(6,1.6,27.4);scene.add(noRef);
+  // two-sided, so it reads right from the road and from the lot
+  const noRefM=new THREE.MeshBasicMaterial({map:textTex("ALL SALES FINAL","#111","#f2e04a",256,96,"bold 32px sans-serif")});
+  [0,Math.PI].forEach(r=>{const m=new THREE.Mesh(new THREE.PlaneGeometry(2,.8),noRefM);m.position.set(6,1.6,27.4+(r?-.01:.01));m.rotation.y=r;scene.add(m)});
   // bunting
   const bc=[0xff3030,0xffdd30,0x30a0ff,0x30d060,0xffffff];
   for(let k=0;k<30;k++){

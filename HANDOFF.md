@@ -12,6 +12,11 @@ First-person 3D used-car dealership game ("Bargain Bob's Auto Mart"). You play M
 - Claude customers (`js/ai.js`, Haiku 5.5): classifies intents and voices replies; validated against jailbreaks. Sources: the claude.ai artifact `sample` capability, or the user's API key pasted on the title screen.
 - Feel pass: bloom, grading, vignette, grain, head bob, sprint FOV, shake, T.O. ring and flash, gross pop-ups, title cards.
 - Office furniture modeled in `js/world.js` (`makeDesk`, `makeOfficeChair`, `makeGuestChair`), merged per material by `bakeStatic`.
+- People rebuilt (`person()` in `js/world.js`): rounded bodies, faces, knees and elbows, merged per part. Customers' heads flap open South Park Canadian style when they talk (always on; the user said never turn it off). Eyebrows show mood (`BROWS`), set from `mood()` in `js/talk.js`.
+- Miguel walks around as a model with his photo face and a big head: C toggles third person; he waves on the title screen.
+- Sales team: Frenchy, Andres, Sam start; Riccardo, Mario, Juanny are hireable (`TEAM` in `js/data.js`), six desks. Old saves are renamed by `renameTeam()`.
+- "I have a gun" (G in a deal): guaranteed close at asking price, 3 per career (`S.guns`), pistol shown in view (`W.gun`).
+- Signs auto-fit their text (`fitFont`); the banner is a real vinyl banner texture.
 - Miguel's photo (`js/miguel.js`, data URI): 12 employee-of-the-month posters, plus office, windows, fence and dumpster. Customers recognize him.
 - Verified headless (Playwright + swiftshader): full day loop, saves, no console errors. Career sims: active manager wins ~day 20–24; passive fired about half the time. AI path tested with a mocked model only.
 

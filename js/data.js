@@ -52,13 +52,14 @@ const EVENTS=[
   {id:"kickers",name:"Tire-kicker Tuesday",desc:"Lots of lookers. Not many buyers.",cust:1.3,bud:.8,bias:["tirekicker","tirekicker","tirekicker"],w:1}
 ];
 const CREW0=[
-  {name:"Dale",skill:.2,cave:.5,shirt:0x8a7a3a,skin:0,quirk:""},
-  {name:"Tony",skill:.45,cave:.2,shirt:0x8a2a2a,skin:1,quirk:"pushy"},
-  {name:"Brenda",skill:.3,cave:.3,shirt:0x2f6d8a,skin:2,quirk:""}
+  {name:"Frenchy",skill:.2,cave:.5,shirt:0x8a7a3a,skin:0,quirk:""},
+  {name:"Andres",skill:.45,cave:.2,shirt:0x8a2a2a,skin:1,quirk:"pushy"},
+  {name:"Sam",skill:.3,cave:.3,shirt:0x2f6d8a,skin:2,quirk:""}
 ];
-const CAND_NAMES=["Mike","Sheila","Rex","Luis","Gina","Hank","Tamika","Vic","Priya","Ron","Donna","Ace","Marcus","Lupe"];
+// The whole sales team. Whoever isn't on the floor is waiting to be hired.
+const TEAM=["Frenchy","Andres","Sam","Riccardo","Mario","Juanny"];
 const SHIRTS=[0x8a7a3a,0x8a2a2a,0x2f6d8a,0x5a3a7a,0x2f6a4a,0x7a5a2a,0x4a4a4a];
-const MAX_CREW=4;
+const MAX_CREW=6;
 
 let S;
 const wageOf=c=>Math.round(30+c.skill*100);
@@ -69,16 +70,23 @@ function logMsg(m){S.log.unshift("Day "+S.day+": "+m);S.log=S.log.slice(0,60)}
 function toast(m){logMsg(m);if(window.PC&&PC.flash)PC.flash(m)}
 function save(){try{if(S.phase!=="open")localStorage.setItem(SAVE,JSON.stringify(S))}catch(e){}}
 function hasSave(){try{return !!localStorage.getItem(SAVE)}catch(e){return false}}
+// Older saves had other names on the floor; give everyone a name from the team.
+function renameTeam(){
+  const old={Dale:"Frenchy",Tony:"Andres",Brenda:"Sam"};
+  S.crew.forEach(c=>{if(old[c.name]&&!S.crew.some(x=>x.name===old[c.name]))c.name=old[c.name]});
+  S.crew.forEach(c=>{if(!TEAM.includes(c.name)){const n=TEAM.find(n=>!S.crew.some(x=>x.name===n));if(n)c.name=n}});
+  S.cands=(S.cands||[]).filter(c=>TEAM.includes(c.name)&&!S.crew.some(x=>x.name===c.name));
+}
 function load(){
   try{
     const s=localStorage.getItem(SAVE);
-    if(s){const o=JSON.parse(s);if(o&&o.v===2){S=o;S.phase="prep";S.cust=[];restock();return true}}
+    if(s){const o=JSON.parse(s);if(o&&o.v===2){S=o;S.phase="prep";S.cust=[];renameTeam();if(S.guns==null)S.guns=3;restock();return true}}
   }catch(e){}
   return false;
 }
 function fresh(){
   S={v:2,day:1,cash:1500,rep:10,cap:6,ad:0,mech:0,front:0,back:0,nextId:1,inv:[],cust:[],log:[],phase:"prep",sold:0,profit:0,
-     crew:CREW0.map((c,i)=>Object.assign({id:i+1},c)),crewId:4,cands:[],strikes:0,weekStart:0,event:EVENTS[0],review:"",seen:{}};
+     crew:CREW0.map((c,i)=>Object.assign({id:i+1},c)),crewId:4,cands:[],strikes:0,guns:3,weekStart:0,event:EVENTS[0],review:"",seen:{}};
   restock();genCands();
   logMsg("Bob left you the keys. His trucks keep the lot full. Open the doors and save the deals your salespeople can't close. Get the bank to "+$f(GOAL)+".");
 }
@@ -138,14 +146,14 @@ function upgrade(k){
 // ---------- crew ----------
 function genCands(){
   S.cands=[];
-  const names=CAND_NAMES.slice().sort(()=>Math.random()-.5);
-  for(let i=0;i<3;i++){
+  const names=TEAM.filter(n=>!S.crew.some(c=>c.name===n)).sort(()=>Math.random()-.5);
+  for(let i=0;i<Math.min(3,names.length);i++){
     S.cands.push({id:S.crewId++,name:names[i],skill:+rnd(.1,.5).toFixed(2),cave:+rnd(.1,.55).toFixed(2),shirt:pick(SHIRTS),skin:ri(0,3),quirk:Math.random()<.25?"pushy":""});
   }
 }
 function hire(id){
   const i=S.cands.findIndex(c=>c.id==id),c=S.cands[i];if(!c)return;
-  if(S.crew.length>=MAX_CREW)return toast("You only have four desks.");
+  if(S.crew.length>=MAX_CREW)return toast("You only have six desks.");
   S.crew.push(c);S.cands.splice(i,1);logMsg(`Hired ${c.name}. Wage ${$f(wageOf(c))}/day.`);save();
 }
 function fire(id){

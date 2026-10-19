@@ -32,7 +32,7 @@ function showTitle(){
     <div class=btnrow>${hasSave()?`<button class=go onclick="Game.start(false)">Continue</button>`:""}<button class="${hasSave()?"b":"go"}" onclick="Game.start(true)">New game</button></div>
     <div class=aibox>${aiRow}<div class=dim id=ainote>${esc(ai.note||"")}</div>
       <div class=dim style="margin-top:6px">${(window.SpeechRecognition||window.webkitSpeechRecognition)&&!window.claude?"🎙️ Voice is ready: walk up to a customer and hold <b>V</b> to talk.":"🎙️ This page can't use your microphone, so you'll type (press <b>T</b>). For voice, play the hosted version in Chrome or Edge."}</div></div>
-    <div class=keys><b>WASD</b> move · <b>Shift</b> sprint · <b>Mouse</b> look (click and drag if it won't lock) · <b>←/→</b> turn · <b>E</b> use / take over · <b>M</b> mute · <b>Esc</b> pause</div>
+    <div class=keys><b>WASD</b> move · <b>Shift</b> sprint · <b>Mouse</b> look (click and drag if it won't lock) · <b>←/→</b> turn · <b>E</b> use / take over · <b>C</b> see yourself · <b>M</b> mute · <b>Esc</b> pause</div>
   </div>`;
   el("title").style.display="flex";
 }
@@ -62,7 +62,7 @@ function spawnCrew(){
   G.sales.forEach(s=>W.scene.remove(s.mesh));G.sales=[];
   S.crew.forEach((d,i)=>{
     const home=P(W.desks[i],-18.6);
-    const m=W.person({shirt:d.shirt,pants:0x2a2a35,skin:d.skin,hair:0x2a1a10,hairStyle:i%2?"short":"cap",cap:0x333333,tie:0x202020,badge:true});m.userData.tagged=true;
+    const m=W.person({shirt:d.shirt,pants:0x2a2a35,skin:d.skin,hair:0x2a1a10,hairStyle:["short","cap","short","bald"][i%4],cap:0x333333,tie:0x202020,badge:true,glasses:i===2,beard:i===3,height:[1,.97,1.04,.99][i%4]});m.userData.tagged=true;
     m.position.set(home.x,0,home.z);m.rotation.y=Math.PI;
     const tag=W.sprite(d.name,"#fff","rgba(0,0,0,.55)");tag.position.y=2.15;m.add(tag);
     W.scene.add(m);
@@ -121,7 +121,7 @@ function stepNpc(n,dt,talk){
 const carOf=c=>S.inv.find(x=>x.id==c.u.car);
 function makeCustomerMesh(){
   return W.person({shirt:pick([0x4a6a8a,0x6a4a4a,0x4a7a5a,0x8a8a4a,0x7a4a8a,0xaaaaaa,0x3a3a3a]),pants:pick([0x30343c,0x4a3a2a,0x20262e,0x44506a]),
-    skin:ri(0,3),hair:pick([0x1a1a1a,0x5a3a1a,0xb0a080,0x777777]),hairStyle:pick(["short","short","long","cap","bald"]),cap:pick([0x2a4a7a,0x7a2a2a,0x2a5a3a]),wide:Math.random()<.25,beard:Math.random()<.2});
+    skin:ri(0,3),hair:pick([0x1a1a1a,0x5a3a1a,0xb0a080,0x777777]),hairStyle:pick(["short","short","long","cap","bald"]),cap:pick([0x2a4a7a,0x7a2a2a,0x2a5a3a]),wide:Math.random()<.25,beard:Math.random()<.2,glasses:Math.random()<.25,height:.93+Math.random()*.13});
 }
 function spawn(c){
   c.mesh=makeCustomerMesh();c.mesh.position.set(0,0,32);W.scene.add(c.mesh);
@@ -432,7 +432,8 @@ function fx(dt){
     const m=G.talk.c.mesh,cx=m.position.x,cz=m.position.z;
     if(T&&!T.over&&Math.hypot(G.px-cx,G.pz-cz)>5.5){say3(`You walked away from ${G.talk.c.u.name}.`,"#bbb");closeTalk();return}
     m.rotation.y=Math.atan2(G.px-cx,G.pz-cz);
-    m.userData.talkLeft=(m.userData.talkLeft||0)-dt;W.animatePerson(m,false,G.anim,false,m.userData.talkLeft>0);
+    m.userData.talkLeft=(m.userData.talkLeft||0)-dt;m.userData.handsUp=(m.userData.handsUp||0)-dt;
+    W.animatePerson(m,false,G.anim,m.userData.handsUp>0,m.userData.talkLeft>0);
   }
 }
 function draw(){
@@ -440,14 +441,21 @@ function draw(){
   if(G.phase==="title"){
     const a=G.anim*.07;cam.position.set(Math.sin(a)*7,2.6+Math.sin(a*1.7)*.3,24+Math.cos(a)*1.5);cam.lookAt(Math.sin(a*.6)*3,1.4,-10);
     W.post.box=.07;
+    if(G.miguel){G.miguel.visible=true;G.miguel.position.set(1.2,0,21);G.miguel.rotation.y=.12;W.animatePerson(G.miguel,false,G.anim,true,false)}
   }else{
     const sh=G.shake*.07,r=()=>(Math.random()-.5)*sh;
-    cam.position.set(G.px+r(),1.68+Math.sin(G.bob)*.045*G.bobAmt+r(),G.pz+r());
-    cam.rotation.set(G.pitch,G.yaw,Math.sin(G.bob*.5)*.006*G.bobAmt);
+    const third=G.third&&!G.talk;
+    if(third)cam.position.set(G.px+Math.sin(G.yaw)*2.4+r(),2.25+r(),G.pz+Math.cos(G.yaw)*2.4+r());
+    else cam.position.set(G.px+r(),1.68+Math.sin(G.bob)*.045*G.bobAmt+r(),G.pz+r());
+    cam.rotation.set(third?G.pitch*.6-.2:G.pitch,G.yaw,third?0:Math.sin(G.bob*.5)*.006*G.bobAmt);
+    if(G.miguel){G.miguel.visible=third;if(third){G.miguel.position.set(G.px,0,G.pz);G.miguel.rotation.y=G.yaw+Math.PI;W.animatePerson(G.miguel,G.bobAmt>.3,G.bob/8,false,false)}}
     W.post.box=G.box;
   }
   const want=G.phase==="title"?60:G.talk?62:(G.sprint&&G.bobAmt>.5?79:72);G.fov+=(want-G.fov)*.08;
   if(Math.abs(cam.fov-G.fov)>.01){cam.fov=G.fov;cam.updateProjectionMatrix()}
+  // the gun: raise, hold, lower
+  G.gunT=Math.max(0,(G.gunEnd||0)-performance.now())/1000;
+  if(W.gun){const e=3.2-G.gunT,up=G.gunT<=0?0:Math.min(1,e*5,G.gunT/.4);W.gun.visible=up>0;W.gun.position.y=-.5+.3*up;W.gun.rotation.x=up*.05}
   W.post.flash=G.flash;
   W.render();
 }
@@ -471,6 +479,7 @@ addEventListener("keydown",e=>{
     if((e.code==="KeyV"||e.code==="Space")){e.preventDefault();if(!e.repeat)pttStart();return}
     if(e.code==="KeyT"){e.preventDefault();typeStart();return}
     if(e.code==="KeyH"&&SR){T.hands=!T.hands;if(T.hands)listen();renderTalk();return}
+    if(e.code==="KeyG"&&!T.over){gunDeal();return}
     const q={Digit1:"warranty",Digit2:"gap",Digit3:"accessories",Digit4:"financing",KeyF:"finalize"}[e.code];
     if(q&&!T.over){handleSay(q);return}
   }
@@ -483,6 +492,7 @@ addEventListener("keydown",e=>{
   if(overlayOpen())return;
   G.keys[e.code]=true;
   if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Space"].includes(e.code))e.preventDefault();
+  if(e.code==="KeyC"&&!T){G.third=!G.third;return}
   if(e.code==="KeyE"){const n=nearest();if(n){Sfx.click();n.act()}}
 });
 addEventListener("keyup",e=>{G.keys[e.code]=false;if((e.code==="KeyV"||e.code==="Space")&&T&&T.inWorld)pttStop()});
@@ -505,11 +515,18 @@ function boot(){
     el("title").innerHTML=`<div class=titlebox><h1>Bargain Bob's Auto Mart</h1><p>This game needs WebGL, and your browser couldn't start it. Try Chrome, Edge or Firefox with hardware acceleration on.</p></div>`;
     el("title").style.display="flex";return false;
   }
+  // Miguel himself: his photo for a face, and a head to match his ego
+  G.miguel=W.person({shirt:0xa9b8d8,pants:0x2b2f3a,skinColor:0xd6a483,hair:0x2a1c14,hairStyle:"short",tie:0x24345e,badge:true,face:W.miguelFaceTex(),bigHead:1.35});
+  W.scene.add(G.miguel);
   W.resize();G.on=true;last=performance.now();
   AI.init().then(()=>{if(G.phase==="title")showTitle()});
   showTitle();loop();return true;
 }
 
 window.Game={boot,start,resume,finish,nextDay,quit,toggleAI,saveKey,clearKey,toast,pcClosed,syncCars,state:G};
-window.G3={speaking:s=>{if(G.talk&&G.talk.c.mesh)G.talk.c.mesh.userData.talkLeft=s},fx,popup,on:()=>G.phase==="open"&&!G.ended,elapse,waiting,talkClosed,step,sim,draw,hud,takeover,endShift,startShift,state:G,world:()=>W,tier,syncCars,enterPrep};
+function gun(){
+  G.gunEnd=performance.now()+3200;G.shake=.25;Sfx.click();
+  if(G.talk&&G.talk.c.mesh)G.talk.c.mesh.userData.handsUp=4;
+}
+window.G3={gun,speaking:(s,mood)=>{if(G.talk&&G.talk.c.mesh){const u=G.talk.c.mesh.userData;u.talkLeft=s;if(mood)u.mood=mood}},fx,popup,on:()=>G.phase==="open"&&!G.ended,elapse,waiting,talkClosed,step,sim,draw,hud,takeover,endShift,startShift,state:G,world:()=>W,tier,syncCars,enterPrep};
 })();

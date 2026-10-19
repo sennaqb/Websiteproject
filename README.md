@@ -22,7 +22,7 @@ python3 -m http.server 8000
 - **Negotiating:** every customer has a hidden walk-away price and a patience meter. Rapport and honest pitches raise what they'll pay. Bluffing costs patience. Once a price is agreed, pitch warranty, GAP, accessories and financing for back-end gross. Every line you say costs the lot about 7 seconds while other customers wait.
 - **Bob's quota:** every 7 days Bob checks your gross. Miss it twice in a row and you're fired. Get the bank to $55,000 to win.
 
-Controls: **WASD** move, **Shift** sprint, **mouse** look (click and drag if pointer lock is blocked), **←/→** turn, **E** use / take over, **M** mute, **Esc** pause.
+Controls: **WASD** move, **Shift** sprint, **mouse** look (click and drag if pointer lock is blocked), **←/→** turn, **E** use / take over, **C** third-person view, **G** "I have a gun" (in a deal, 3 per career), **M** mute, **Esc** pause.
 
 ## AI customers (optional)
 
