@@ -31,6 +31,10 @@ input[type=number]{width:100px;background:#0c1117;color:var(--txt);border:1px so
 #log{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin-top:16px;max-height:200px;overflow:auto;font-size:13px}
 #log div{padding:2px 0;border-bottom:1px solid #222c39}
 h2{margin:16px 0 8px;font-size:17px}
+.talk{max-width:460px;width:92vw;text-align:left}
+.tlog{background:#0c1117;border-radius:8px;padding:8px 10px;margin:8px 0;height:200px;overflow:auto;font-size:14px}
+.tlog .c{color:var(--acc)}.tlog .p{color:var(--txt)}
+.talk input[type=text]{width:70%;background:#0c1117;color:var(--txt);border:1px solid var(--line);border-radius:6px;padding:6px}
 .modal{position:fixed;inset:0;background:#000b;display:flex;align-items:center;justify-content:center;z-index:9}
 .modal .card{max-width:420px;text-align:center}
 </style>
@@ -47,6 +51,7 @@ h2{margin:16px 0 8px;font-size:17px}
 <nav id="nav"></nav>
 <main id="main"></main>
 <div id="modal"></div>
+<div id="talk"></div>
 
 <script>
 "use strict";
@@ -161,6 +166,9 @@ function sellTo(uid,mode){
   else if(mode=="offer"){p=u.offer}
   else if(mode=="split"){const mid=Math.round((u.offer+c.price)/100)*50; if(Math.random()<.5&&mid<=u.budget*1.05)p=mid}
   if(p==null){u.done=true;u.msg="Walked away.";S.rep=Math.max(0,S.rep-.5);return render()}
+  finishSale(u,c,i,p);
+}
+function finishSale(u,c,i,p){
   S.cash+=p;S.sold++;S.profit+=p-c.cost;S.rep+=1;S.inv.splice(i,1);u.done=true;u.msg=`Bought for ${$f(p)}!`;
   logMsg(`Sold ${label(c)} to ${u.name} for ${$f(p)} (${$f(p-c.cost)} profit).`);
   matchCustomers();render();
@@ -226,7 +234,7 @@ function render(){
       h+=S.cust.map(u=>{const c=S.inv.find(c=>c.id==u.car);return `<div class=card><h3>${u.name}</h3>
         <div class=dim>Wants: ${u.body} · budget ${$f(u.budget)}</div>`+
         (u.done?`<p>${u.msg}</p>`:`<p>Likes your <b>${label(c)}</b> (ask ${$f(c.price)}).<br>Offers <b>${$f(u.offer)}</b>.</p>
-        <button class=b onclick="sellTo(${u.id},'ask')">Hold ask</button><button class=b onclick="sellTo(${u.id},'offer')">Take offer</button><button class=b onclick="sellTo(${u.id},'split')">Split</button>`)+`</div>`}).join("");
+        <button class=b onclick="sellTo(${u.id},'ask')">Hold ask</button><button class=b onclick="sellTo(${u.id},'offer')">Take offer</button><button class=b onclick="sellTo(${u.id},'split')">Split</button><button class=b onclick="openTalk(${u.id})">🎤 Talk</button>`)+`</div>`}).join("");
       h+="</div>";
     }
   }
@@ -239,6 +247,116 @@ function render(){
   h+=`<div id=log>${S.log.map(l=>`<div>${l}</div>`).join("")}</div>`;
   $("main").innerHTML=h;
   if(S.phase!="over")save();
+}
+
+// ---------- voice negotiation ----------
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+let T=null,rec=null;
+const esc=s=>s.replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]));
+const W={zero:0,one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10,eleven:11,twelve:12,thirteen:13,fourteen:14,fifteen:15,sixteen:16,seventeen:17,eighteen:18,nineteen:19,twenty:20,thirty:30,forty:40,fifty:50,sixty:60,seventy:70,eighty:80,ninety:90};
+function wordsToNum(t){
+  let total=0,cur=0,found=false;
+  for(const w of t.replace(/-/g," ").split(/\s+/)){
+    if(w in W){cur+=W[w];found=true}
+    else if(w=="hundred"){cur=(cur||1)*100;found=true}
+    else if(w=="thousand"||w=="grand"){total+=(cur||1)*1000;cur=0;found=true}
+    else if(w=="a"||w=="and"){}
+    else if(found){if(total+cur>=500)break;total=0;cur=0;found=false}
+  }
+  return total+cur;
+}
+function parseMoney(t){
+  t=t.toLowerCase().replace(/,/g,"");
+  let m=t.match(/(\d+(?:\.\d+)?)\s*(k|thousand|grand)\b/);if(m)return Math.round(m[1]*1000);
+  m=t.match(/(\d{3,6})(?:\.\d+)?/);if(m)return +m[1];
+  const n=wordsToNum(t);return n>=500?n:0;
+}
+function openTalk(uid){
+  const u=S.cust.find(x=>x.id==uid),c=S.inv.find(x=>x.id==u.car);if(!c)return;
+  u.reserve=Math.max(u.offer,Math.min(Math.round(u.budget*1.05/50)*50,Math.round(u.offer*1.06/50)*50));
+  T={uid,lines:[],rounds:0,hands:!!SR,listening:false,over:false,counter:0,lastAsk:0,err:""};
+  say(`Hi, I'm ${u.name}. I like that ${label(c)}. What's your best price?`);
+}
+function closeTalk(){
+  if(window.speechSynthesis)speechSynthesis.cancel();
+  try{rec&&rec.abort()}catch(e){}
+  T=null;$("talk").innerHTML="";render();
+}
+function say(text){
+  T.lines.push({who:"c",text});renderTalk();
+  if(!window.speechSynthesis)return;
+  speechSynthesis.cancel();
+  const cu=S.cust.find(x=>x.id==T.uid),ut=new SpeechSynthesisUtterance(text);
+  const vs=speechSynthesis.getVoices().filter(v=>/^en/i.test(v.lang));
+  if(vs.length)ut.voice=vs[cu.id%vs.length];
+  ut.pitch=.8+(cu.id%5)*.15;
+  ut.onend=()=>{if(T&&T.hands&&!T.over)listen()};
+  speechSynthesis.speak(ut);
+}
+function listen(){
+  if(!SR||!T||T.listening||T.over)return;
+  if(window.speechSynthesis)speechSynthesis.cancel();
+  rec=new SR();rec.lang="en-US";rec.interimResults=false;
+  rec.onstart=()=>{if(T){T.listening=true;T.err="";renderTalk()}};
+  rec.onresult=e=>handleSay(e.results[0][0].transcript);
+  rec.onerror=e=>{if(!T)return;T.err=e.error=="not-allowed"?"Mic blocked. Allow mic access, or type below.":"Didn't catch that. Try again.";if(e.error=="not-allowed")T.hands=false};
+  rec.onend=()=>{if(T){T.listening=false;renderTalk()}};
+  try{rec.start()}catch(e){}
+}
+function sendTyped(){const el=$("tin"),v=el&&el.value.trim();if(v){el.value="";handleSay(v)}}
+function handleSay(s){
+  if(!T||T.over)return;
+  T.lines.push({who:"p",text:s});T.err="";
+  const u=S.cust.find(x=>x.id==T.uid),c=S.inv.find(x=>x.id==u.car),t=s.toLowerCase();
+  const price=/mile|year|model|condition|shape|accident|warrant/.test(t)?0:parseMoney(t);
+  if(price)return offerPrice(u,price);
+  if(/\bmiles?\b|mileage/.test(t))return say(`It says ${c.miles.toLocaleString()} miles. ${c.miles>120000?"That's a lot, honestly.":"That's pretty reasonable."}`);
+  if(/year|model/.test(t))return say(`It's a ${label(c)}, right? ${c.year<2015?"Kind of old.":"Newer than I expected."}`);
+  if(/condition|shape|accident/.test(t))return say(c.cond>=85?"Looks great to me. Clean inside and out.":c.cond>=60?"Looks okay, some wear.":"Honestly it looks rough. I'd want a discount.");
+  if(/warrant/.test(t))return say("A warranty would be nice, but mostly I care about the price.");
+  if(/\b(deal|sold|take it|shake|yes|yeah|sure|okay|ok|fine|agreed)\b/.test(t)){
+    if(T.counter)return voiceSale(u,T.counter);
+    return say("Great! What price are you thinking?");
+  }
+  if(/\b(no|nope|can't|cannot|final|firm|not)\b/.test(t)){
+    T.rounds++;if(T.rounds>=4)return walk(u,"We're too far apart. I'll look elsewhere.");
+    return say(`My offer stands at ${$f(T.counter||u.offer)}.`);
+  }
+  if(/\b(hi|hello|hey|morning|afternoon)\b/.test(t))return say("Hi there! So, what's your best price on this one?");
+  say("Sorry, what price are you asking?");
+}
+function offerPrice(u,price){
+  T.lastAsk=price;
+  if(price<=u.reserve)return voiceSale(u,price);
+  T.rounds++;
+  if(price>u.reserve*1.3)return walk(u,"That's way out of my range. I'm out.");
+  if(T.rounds>=4)return walk(u,"We're too far apart. I'll look elsewhere.");
+  T.counter=Math.round((u.offer+(u.reserve-u.offer)*Math.min(1,T.rounds/3))/50)*50;
+  say(`${price>u.reserve*1.1?"That's steep.":"Getting closer."} I can do ${$f(T.counter)}.`);
+}
+function voiceSale(u,p){
+  const i=S.inv.findIndex(c=>c.id==u.car);if(i<0)return;
+  T.over=true;finishSale(u,S.inv[i],i,p);
+  say(`Deal at ${$f(p)}! Thank you.`);
+}
+function walk(u,msg){
+  T.over=true;u.done=true;u.msg="Walked away.";S.rep=Math.max(0,S.rep-.5);
+  say(msg);render();
+}
+function renderTalk(){
+  if(!T)return;
+  const u=S.cust.find(x=>x.id==T.uid),c=S.inv.find(x=>x.id==u.car),old=($("tin")||{}).value||"";
+  $("talk").innerHTML=`<div class=modal><div class="card talk"><h3>🗣️ ${u.name}${c?" — "+label(c):""}</h3>
+  <div class=dim>${T.over?"":`Your ask: ${c?$f(c.price):""} · say a price, or ask about miles, year, condition`}</div>
+  <div class=tlog id=tlog>${T.lines.map(l=>`<div class="${l.who}"><b>${l.who=="c"?u.name:"You"}:</b> ${esc(l.text)}</div>`).join("")}</div>
+  ${T.err?`<div class=bad>${T.err}</div>`:""}
+  ${T.over?`<button class=go onclick="closeTalk()">Done</button>`:`
+  ${SR?`<button class=go onclick="listen()" ${T.listening?"disabled":""}>${T.listening?"🎙️ Listening…":"🎤 Speak"}</button> <label class=dim><input type=checkbox ${T.hands?"checked":""} onchange="T.hands=this.checked"> Hands-free</label>`:`<div class=dim>Voice input needs Chrome or Edge. Type instead.</div>`}
+  <div style="margin-top:8px"><input id=tin type=text placeholder="Or type what you'd say…" onkeydown="if(event.key=='Enter')sendTyped()"> <button class=b onclick="sendTyped()">Send</button></div>
+  <button class=b onclick="closeTalk()">Step away</button>`}
+  </div></div>`;
+  const lg=$("tlog");if(lg)lg.scrollTop=lg.scrollHeight;
+  const ti=$("tin");if(ti)ti.value=old;
 }
 
 if(!load())fresh();
