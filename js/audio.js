@@ -37,7 +37,7 @@ A.cash=()=>{tone(1568,.1,"triangle",.2);tone(2093,.4,"triangle",.2,.09);noise(.0
 A.lose=()=>{tone(300,.35,"sawtooth",.1,0,-120);tone(220,.5,"sawtooth",.1,.3,-90)};
 A.win=()=>{[523,659,784,1046].forEach((f,i)=>tone(f,.35,"triangle",.2,i*.14))};
 A.click=()=>tone(520,.05,"square",.06);
-A.step=()=>{const n=performance.now();if(n-lastStep<340)return;lastStep=n;noise(.07,.07,420)};
+A.step=()=>{const n=performance.now();if(n-lastStep<180)return;lastStep=n;noise(.07,.07,420)};
 A.phone=()=>{for(let i=0;i<4;i++){tone(1400,.08,"square",.05,i*.18);tone(1700,.08,"square",.05,i*.18+.09)}};
 A.ambient=on=>{
   const c=ac();if(!c)return;

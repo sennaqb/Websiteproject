@@ -2,7 +2,7 @@
 // First-person 3D lot. You are the manager: prep in your office, open the lot, then save the deals your salespeople can't close.
 (function(){
 const SHIFT_SECONDS=270, OPEN_MIN=540, CLOSE_MIN=1080, LANE_Z=0;
-const G={phase:"title",on:false,t:0,anim:0,yaw:Math.PI,pitch:0,px:0,pz:-17,keys:{},cust:[],sales:[],cars:{},stats:null,feed:[],talk:null,ended:false,acc:0,drag:false,lastSky:-1,boardKey:""};
+const G={phase:"title",on:false,t:0,anim:0,yaw:Math.PI,pitch:0,px:0,pz:-17,keys:{},vx:0,vz:0,bob:0,bobAmt:0,sprint:false,fov:72,shake:0,flash:0,box:0,pops:[],cashShown:0,cust:[],sales:[],cars:{},stats:null,feed:[],talk:null,ended:false,acc:0,drag:false,lastSky:-1,boardKey:""};
 let W,canvas,last=0;
 const P=(x,z)=>({x,z});
 
@@ -20,7 +20,7 @@ function say3(msg,col){G.feed.unshift({t:G.anim,msg,col:col||"#fff"});G.feed=G.f
 
 // ---------- title ----------
 function showTitle(){
-  G.phase="title";document.body.classList.remove("playing");
+  G.phase="title";if(W)W.setTime(.9);document.body.classList.remove("playing");
   const ai=window.AI;
   const aiRow=ai.mode==="rules"
     ?`<div class=dim>AI customers: paste an Anthropic API key to have Claude play the customers (stored only in this browser).<br><input id=apikey type=password placeholder="sk-ant-..." style="width:70%"> <button class=b onclick="Game.saveKey()">Save key</button></div>`
@@ -61,11 +61,11 @@ function spawnCrew(){
   G.sales.forEach(s=>W.scene.remove(s.mesh));G.sales=[];
   S.crew.forEach((d,i)=>{
     const home=P(W.desks[i],-18.6);
-    const m=W.person({shirt:d.shirt,pants:0x2a2a35,skin:d.skin,hair:0x2a1a10,hairStyle:i%2?"short":"cap",cap:0x333333,tie:0x202020,badge:true});
+    const m=W.person({shirt:d.shirt,pants:0x2a2a35,skin:d.skin,hair:0x2a1a10,hairStyle:i%2?"short":"cap",cap:0x333333,tie:0x202020,badge:true});m.userData.tagged=true;
     m.position.set(home.x,0,home.z);m.rotation.y=Math.PI;
     const tag=W.sprite(d.name,"#fff","rgba(0,0,0,.55)");tag.position.y=2.15;m.add(tag);
     W.scene.add(m);
-    G.sales.push({def:d,mesh:m,path:[],speed:2.1,state:"idle",cust:null,home,ph:i,deals:0,gross:0});
+    G.sales.push({def:d,mesh:m,tag,path:[],speed:2.1,state:"idle",cust:null,home,ph:i,deals:0,gross:0});
   });
 }
 function clearCustomers(){G.cust.forEach(c=>{if(c.mesh)W.scene.remove(c.mesh)});G.cust=[]}
@@ -73,7 +73,8 @@ function setPlayerStart(){G.px=0;G.pz=-17;G.yaw=Math.PI;G.pitch=0}
 function enterPrep(){
   clearCustomers();spawnCrew();syncCars();G.phase="prep";G.t=0;G.ended=false;G.talk=null;
   W.setTime(0);G.lastSky=0;W.setOpen(false);setPlayerStart();G.feed=[];
-  S.phase="prep";boardUpdate(true);
+  S.phase="prep";boardUpdate(true);G.cashShown=S.cash;
+  titleCard("DAY "+S.day,S.event.name);
 }
 
 // ---------- start / shift ----------
@@ -96,7 +97,7 @@ function startShift(){
   const n=S.cust.length;
   G.cust=S.cust.map((u,i)=>({u,mesh:null,path:[],speed:1.5,state:"wait",arrive:(i+.3)*(SHIFT_SECONDS*.8/n)+Math.random()*6,pat:0,patMax:45,sp:null,ph:Math.random()*6}));
   W.setOpen(true);Sfx.chime();
-  const ev=S.event;say3(`${ev.name}: ${ev.desc}`,"#ffd24a");
+  const ev=S.event;say3(`${ev.name}: ${ev.desc}`,"#ffd24a");titleCard("DOORS OPEN","Bob is watching the numbers");
   boardUpdate(true);
 }
 
@@ -133,7 +134,8 @@ function addBar(c){
   [bg,fg].forEach(s=>{s.center.set(0,.5);s.renderOrder=11});bg.scale.set(1.1,.14,1);fg.scale.set(1.06,.1,1);
   bg.position.set(-.55,2.35,0);fg.position.set(-.53,2.35,0);c.mesh.add(bg);c.mesh.add(fg);c.bar={bg,fg};
 }
-function removeBar(c){if(c.bar){c.mesh.remove(c.bar.bg);c.mesh.remove(c.bar.fg);c.bar=null}}
+function removeBar(c){if(c.bar){c.mesh.remove(c.bar.bg);c.mesh.remove(c.bar.fg);c.bar=null}if(c.ring){c.mesh.remove(c.ring);c.ring=null}}
+function addRing(c){const r=new THREE.Mesh(new THREE.RingGeometry(.55,.75,28),new THREE.MeshBasicMaterial({color:0xff3030,transparent:true,opacity:.75,side:THREE.DoubleSide,depthWrite:false}));r.rotation.x=-Math.PI/2;r.position.y=.06;c.mesh.add(r);c.ring=r}
 function finishLeave(c,happy){
   c.state="leave";c.path=routeOut(c.mesh.position.x,c.mesh.position.z);c.speed=happy?1.6:2.2;
   if(c.to){c.mesh.remove(c.to);c.to=null}removeBar(c);
@@ -156,7 +158,7 @@ function customerWalks(c,msg,rep){
 function stall(c){
   const sp=c.sp;c.state="stuck";c.pat=c.patMax;sp.armsUp=true;sp.state="stuck";
   c.to=W.sprite("T.O.!","#fff","#c01818",1.1,.32);c.to.position.y=2.65;c.mesh.add(c.to);addBar(c);
-  say3(`${sp.def.name} needs a T.O. on the ${label(carOf(c))}!`,"#ff7070");Sfx.alert();
+  say3(`${sp.def.name} needs a T.O. on the ${label(carOf(c))}!`,"#ff7070");Sfx.alert();G.flash=1;G.shake=.25;addRing(c);
 }
 function commission(sp,front){
   const com=Math.max(50,Math.round(front*.25/10)*10);
@@ -170,6 +172,7 @@ function spSale(c,price,why){
   G.stats.sp++;G.stats.spGross+=front-com;if(why==="cave")G.stats.cave++;
   const rec=G.sales.find(s=>s===sp);if(rec){rec.deals++;rec.gross+=front-com}
   say3(`${sp.def.name} ${why==="cave"?"caved and sold":"sold"} the ${label(car)} for ${$f(price)}: ${front<0?"lost ":""}${$f(Math.abs(front))} gross`,front>=300?"#9f9":front>=0?"#fd8":"#f88");
+  popup(`${sp.def.name} ${front-com<0?"-":"+"}${$f(Math.abs(front-com))}`,c.mesh.position,front-com>=300?"#8dffa8":front-com>=0?"#ffe08a":"#ff8a8a");
   Sfx.cash();syncCars();finishLeave(c,true);
 }
 function resolveWork(c){
@@ -210,6 +213,7 @@ function sim(dt){
       case"working":c.work-=dt;if(c.work<=0)resolveWork(c);break;
       case"stuck":{
         c.pat-=dt*(c.sp&&c.sp.def.quirk==="pushy"?1.4:1);
+        if(c.ring){const k=1+Math.sin(G.anim*8)*.14;c.ring.scale.set(k,k,k)}
         if(c.bar){const f=Math.max(0,c.pat/c.patMax);c.bar.fg.scale.x=1.06*f;c.bar.fg.material.color.set(f>.5?0x40d060:f>.25?0xe0c030:0xe03030)}
         if(c.pat<=0){
           G.stats.timeouts++;
@@ -231,15 +235,22 @@ function idleCrew(dt){
   G.sales.forEach(s=>stepNpc(s,dt,false));
 }
 function movePlayer(dt){
-  const k=G.keys,spd=(k.ShiftLeft||k.ShiftRight)?5.2:3.0;
+  const k=G.keys;G.sprint=!!(k.ShiftLeft||k.ShiftRight);const spd=G.sprint?5.4:3.1;
   if(k.ArrowLeft)G.yaw+=1.9*dt;if(k.ArrowRight)G.yaw-=1.9*dt;
   let fx=0,fz=0;
   if(k.KeyW||k.ArrowUp){fx-=Math.sin(G.yaw);fz-=Math.cos(G.yaw)}
   if(k.KeyS||k.ArrowDown){fx+=Math.sin(G.yaw);fz+=Math.cos(G.yaw)}
   if(k.KeyA){fx-=Math.cos(G.yaw);fz+=Math.sin(G.yaw)}
   if(k.KeyD){fx+=Math.cos(G.yaw);fz-=Math.sin(G.yaw)}
-  const l=Math.hypot(fx,fz);
-  if(l>0){move(fx/l*spd*dt,fz/l*spd*dt);Sfx.step()}
+  const l=Math.hypot(fx,fz),tx=l?fx/l*spd:0,tz=l?fz/l*spd:0,a=Math.min(1,dt*(l?9:12));
+  G.vx+=(tx-G.vx)*a;G.vz+=(tz-G.vz)*a;
+  const sp=Math.hypot(G.vx,G.vz);
+  if(sp>.05){
+    const ox=G.px,oz=G.pz;move(G.vx*dt,G.vz*dt);
+    if(Math.abs(G.px-ox)<1e-4&&Math.abs(G.pz-oz)<1e-4){G.vx*=.5;G.vz*=.5}
+    const prev=Math.floor(G.bob/Math.PI);G.bob+=dt*sp*2.6;if(Math.floor(G.bob/Math.PI)!==prev)Sfx.step();
+  }
+  G.bobAmt+=((sp>.3?Math.min(1,sp/3):0)-G.bobAmt)*Math.min(1,dt*8);
 }
 function move(dx,dz){
   const r=.35,b=W.bound;
@@ -282,11 +293,12 @@ function nearest(){
 }
 function takeover(c){
   const car=carOf(c);if(!car||G.talk)return;
-  G.talk={c,prev:c.state,wasStuck:c.state==="stuck"};G.keys={};
+  G.talk={c,prev:c.state,wasStuck:c.state==="stuck"};G.keys={};G.vx=G.vz=0;
   const frac=c.state==="stuck"?Math.max(.4,c.pat/c.patMax):1;
   c.state="talk";if(c.to){c.mesh.remove(c.to);c.to=null}removeBar(c);
   if(document.pointerLockElement)document.exitPointerLock();
   const sp=c.sp,u=c.u;
+  if(sp){sp.armsUp=false;sp.mesh.position.x+=1.1}   // the salesperson steps aside for the manager
   openTalk(u.id,{patFrac:frac,noMic:false,intro:sp?`${sp.def.name} has me at ${$f(car.price)}, and I'm at ${$f(u.offer)}. You the manager? I need something ${u.need}. Can you do any better?`:`I need something ${u.need}. What's your best price?`});
 }
 // called by talk.js when the panel closes
@@ -295,7 +307,7 @@ function talkClosed(){
   const c=t.c,u=c.u,over=u.done;
   if(over&&/^Bought/.test(u.msg)){
     G.stats.mgr++;G.stats.mgrGross+=u.gross||0;
-    say3(`You closed ${u.name}${t.wasStuck?" (saved the deal)":""}.`,"#9f9");
+    say3(`You closed ${u.name}${t.wasStuck?" (saved the deal)":""}.`,"#9f9");popup("+"+$f(u.gross||0),c.mesh.position,"#ffd24a",true);G.shake=.18;
     syncCars();finishLeave(c,true);
   }else if(over&&u.polite){
     if(u.hopeless){G.stats.released++;say3(`You sent ${u.name} home with a handshake. Time saved.`,"#9cf")}
@@ -309,7 +321,7 @@ function talkClosed(){
     if(!c.to){c.to=W.sprite("T.O.!","#fff","#c01818",1.1,.32);c.to.position.y=2.65;c.mesh.add(c.to)}addBar(c);
   }
   if(G.t>=SHIFT_SECONDS){endShift();return}
-  showPause(`<h2>Back on the lot</h2><button class=go onclick="Game.resume()">Resume</button>`);
+  resume();
 }
 function resume(){hidePause();lockMouse();last=performance.now()}
 function pcClosed(){
@@ -378,11 +390,12 @@ function tip(){
   return "";
 }
 function hud(){
+  G.cashShown+=(S.cash-G.cashShown)*.3;if(Math.abs(S.cash-G.cashShown)<2)G.cashShown=S.cash;
   const open=G.phase==="open";
   let clock="Prep · 8:30 AM";
   if(open){const min=OPEN_MIN+Math.min(1,G.t/SHIFT_SECONDS)*(CLOSE_MIN-OPEN_MIN),h=Math.floor(min/60),m=Math.floor(min%60);clock=`${h>12?h-12:h}:${String(m).padStart(2,"0")} ${h>=12?"PM":"AM"}`}
   const gross=open&&G.stats?S.profit-G.stats.p0:0,wk=weekOf(S.day);
-  el("hudTop").innerHTML=`<b>Day ${S.day}</b> · ${clock} · Bank <b>${$f(S.cash)}</b>${open?` · Gross today <b class="${gross>=0?"good":"bad"}">${$f(gross)}</b>`:""} · Wk ${wk} quota ${$f(Math.max(0,S.profit-S.weekStart))}/${$f(quota(wk))}${Sfx.muted?" · 🔇":""}`;
+  el("hudTop").innerHTML=`<b>Day ${S.day}</b> · ${clock} · Bank <b>${$f(G.cashShown)}</b>${open?` · Gross today <b class="${gross>=0?"good":"bad"}">${$f(gross)}</b>`:""} · Wk ${wk} quota ${$f(Math.max(0,S.profit-S.weekStart))}/${$f(quota(wk))}${Sfx.muted?" · 🔇":""}`;
   const stuck=G.cust.filter(c=>c.state==="stuck");
   el("alerts").innerHTML=stuck.map(c=>{const d=Math.round(Math.hypot(c.mesh.position.x-G.px,c.mesh.position.z-G.pz));return `<div class=al>T.O.! ${c.sp?esc(c.sp.def.name):""} · ${esc(c.u.name)} · ${esc(label(carOf(c)||{year:"",make:"",model:""}))} · ${Math.ceil(c.pat)}s · ${d}m</div>`}).join("");
   el("feed").innerHTML=G.feed.filter(f=>G.anim-f.t<14).map(f=>`<div style="color:${f.col}">${esc(f.msg)}</div>`).join("");
@@ -400,10 +413,46 @@ function hud(){
 }
 
 // ---------- loop ----------
+function popup(text,pos,col,big){
+  const s=W.sprite(text,col,"rgba(0,0,0,.45)",big?2.2:1.7,big?.55:.42);
+  s.position.set(pos.x,2.2,pos.z);W.scene.add(s);G.pops.push({s,life:2.6});
+}
+function titleCard(big,small){
+  const c=el("card");if(!c)return;
+  c.innerHTML=`<div class=big>${esc(big)}</div><div class=small>${esc(small||"")}</div>`;
+  c.classList.remove("show");void c.offsetWidth;c.classList.add("show");
+}
+// camera effects, popups and the close-up during a negotiation
+function fx(dt){
+  G.shake=Math.max(0,G.shake-dt);G.flash=Math.max(0,G.flash-dt*1.6);
+  G.box+=((G.talk?.085:0)-G.box)*Math.min(1,dt*5);
+  for(let i=G.pops.length-1;i>=0;i--){const p=G.pops[i];p.life-=dt;p.s.position.y+=dt*.7;p.s.material.opacity=Math.min(1,p.life/.8);if(p.life<=0){W.scene.remove(p.s);G.pops.splice(i,1)}}
+  G.sales.forEach(s=>{if(s.tag)s.tag.visible=!G.talk});
+  if(G.talk&&G.talk.c.mesh){
+    const m=G.talk.c.mesh,cx=m.position.x,cz=m.position.z;
+    const tx=cx-.3,tz=cz-Math.sign(cz||1)*2.4;           // stand in the aisle, facing them
+    G.px+=(tx-G.px)*Math.min(1,dt*3);G.pz+=(tz-G.pz)*Math.min(1,dt*3);
+    const lx=cx-G.px,lz=cz-G.pz;let dy=Math.atan2(-lx,-lz)-G.yaw;dy=Math.atan2(Math.sin(dy),Math.cos(dy));
+    G.yaw+=dy*Math.min(1,dt*4);G.pitch+=(.03-G.pitch)*Math.min(1,dt*4);
+    m.rotation.y=Math.atan2(G.px-cx,G.pz-cz);
+    m.userData.talkLeft=(m.userData.talkLeft||0)-dt;W.animatePerson(m,false,G.anim,false,m.userData.talkLeft>0);
+  }
+}
 function draw(){
-  if(G.phase==="title"){W.cam.position.set(0,1.9,22);W.cam.rotation.order="YXZ";W.cam.rotation.y=Math.sin(G.anim*.12)*.4;W.cam.rotation.x=-.04}
-  else{W.cam.position.set(G.px,1.7,G.pz);W.cam.rotation.order="YXZ";W.cam.rotation.y=G.yaw;W.cam.rotation.x=G.pitch}
-  W.R.render(W.scene,W.cam);
+  const cam=W.cam;cam.rotation.order="YXZ";
+  if(G.phase==="title"){
+    const a=G.anim*.07;cam.position.set(Math.sin(a)*7,2.6+Math.sin(a*1.7)*.3,24+Math.cos(a)*1.5);cam.lookAt(Math.sin(a*.6)*3,1.4,-10);
+    W.post.box=.07;
+  }else{
+    const sh=G.shake*.07,r=()=>(Math.random()-.5)*sh;
+    cam.position.set(G.px+r(),1.68+Math.sin(G.bob)*.045*G.bobAmt+r(),G.pz+r());
+    cam.rotation.set(G.pitch,G.yaw,Math.sin(G.bob*.5)*.006*G.bobAmt);
+    W.post.box=G.box;
+  }
+  const want=G.phase==="title"?60:G.talk?46:(G.sprint&&G.bobAmt>.5?79:72);G.fov+=(want-G.fov)*.08;
+  if(Math.abs(cam.fov-G.fov)>.01){cam.fov=G.fov;cam.updateProjectionMatrix()}
+  W.post.flash=G.flash;
+  W.render();
 }
 function loop(){
   requestAnimationFrame(loop);
@@ -411,6 +460,7 @@ function loop(){
   if(G.phase==="title"){G.anim+=dt;W.update(dt,G.anim);draw();return}
   const paused=overlayOpen();
   if(!paused)step(dt);else{G.anim+=dt;W.update(dt,G.anim)}
+  fx(dt);
   if(G.phase==="open"&&G.t-G.lastSky>.4){G.lastSky=G.t;W.setTime(Math.min(1,G.t/SHIFT_SECONDS))}
   G.acc+=dt;if(G.acc>.15){G.acc=0;hud()}
   draw();
@@ -456,5 +506,5 @@ function boot(){
 }
 
 window.Game={boot,start,resume,finish,nextDay,quit,toggleAI,saveKey,clearKey,toast,pcClosed,syncCars,state:G};
-window.G3={on:()=>G.phase==="open"&&!G.ended,elapse,waiting,talkClosed,step,sim,draw,hud,takeover,endShift,startShift,state:G,world:()=>W,tier,syncCars,enterPrep};
+window.G3={speaking:s=>{if(G.talk&&G.talk.c.mesh)G.talk.c.mesh.userData.talkLeft=s},fx,popup,on:()=>G.phase==="open"&&!G.ended,elapse,waiting,talkClosed,step,sim,draw,hud,takeover,endShift,startShift,state:G,world:()=>W,tier,syncCars,enterPrep};
 })();

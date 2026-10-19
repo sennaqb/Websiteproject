@@ -54,7 +54,7 @@ function flush(){
       .catch(()=>{if(!T||T.uid!==uid)return;T.busy=false;show(text)});
   }else show(text);
 }
-function show(text){T.lines.push({who:"c",text});renderTalk();speak(text)}
+function show(text){T.lines.push({who:"c",text});renderTalk();speak(text);if(window.G3&&G3.speaking)G3.speaking(Math.min(6,1+text.length/14))}
 function speak(text){
   if(T.mute||!window.speechSynthesis)return;
   try{
