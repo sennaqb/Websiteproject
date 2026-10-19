@@ -424,6 +424,8 @@ function titleCard(big,small){
   const c=el("card");if(!c)return;
   c.innerHTML=`<div class=big>${esc(big)}</div><div class=small>${esc(small||"")}</div>`;
   c.classList.remove("show");void c.offsetWidth;c.classList.add("show");
+  // the fade-out is a CSS animation, which reduced-motion settings skip, so always clear it on a timer
+  clearTimeout(titleCard.t);titleCard.t=setTimeout(()=>{c.classList.remove("show");c.innerHTML=""},2400);
 }
 // camera effects, popups and the close-up during a negotiation
 function fx(dt){
@@ -479,7 +481,7 @@ addEventListener("keydown",e=>{
   if(!G.on)return;
   if(e.target&&e.target.tagName==="INPUT")return;
   if(T&&T.inWorld){
-    if((e.code==="KeyV"||e.code==="Space")){e.preventDefault();if(!e.repeat)pttStart();return}
+    if((e.code==="KeyV"||e.code==="Space")){e.preventDefault();if(!e.repeat)pttStart(e.timeStamp);return}
     if(e.code==="KeyT"){e.preventDefault();typeStart();return}
     if(e.code==="KeyH"&&SR){T.hands=!T.hands;if(T.hands)listen();renderTalk();return}
     if(e.code==="KeyG"&&!T.over){gunDeal();return}
@@ -498,14 +500,15 @@ addEventListener("keydown",e=>{
   if(e.code==="KeyC"&&!T){G.third=!G.third;return}
   if(e.code==="KeyE"){const n=nearest();if(n){Sfx.click();n.act()}}
 });
-addEventListener("keyup",e=>{G.keys[e.code]=false;if((e.code==="KeyV"||e.code==="Space")&&T&&T.inWorld)pttStop()});
+addEventListener("keyup",e=>{G.keys[e.code]=false;if((e.code==="KeyV"||e.code==="Space")&&T&&T.inWorld)pttStop(e.timeStamp)});
 addEventListener("mousemove",e=>{
   if(!G.on||overlayOpen())return;
   if(document.pointerLockElement===canvas||(G.drag&&e.buttons)){G.yaw-=e.movementX*.0022;G.pitch=Math.max(-1.3,Math.min(1.3,G.pitch-e.movementY*.0022))}
 });
 document.addEventListener("pointerlockchange",()=>{
   if(!G.on||overlayOpen())return;
-  if(document.pointerLockElement!==canvas&&(G.phase==="prep"||G.phase==="open"))showPause(`<h2>Paused</h2><button class=go onclick="Game.resume()">Resume</button> <button class=b onclick="Game.quit()">Quit to title</button>`);
+  // losing the mouse mid-conversation (e.g. the browser's mic prompt) shouldn't pause the deal
+  if(document.pointerLockElement!==canvas&&(G.phase==="prep"||G.phase==="open")&&!G.talk)showPause(`<h2>Paused</h2><button class=go onclick="Game.resume()">Resume</button> <button class=b onclick="Game.quit()">Quit to title</button>`);
 });
 document.addEventListener("pointerlockerror",()=>{G.drag=true});
 addEventListener("resize",()=>{if(W)W.resize()});

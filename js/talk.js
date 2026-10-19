@@ -323,7 +323,7 @@ function renderSubs(){
   const best=T.counter||(T.stated?u.offer:0);
   const pat="●".repeat(Math.max(0,T.pat))+"○".repeat(Math.max(0,T.maxPat-T.pat));
   const back=T.addons.reduce((s,k)=>s+ADDONS[k].price-ADDONS[k].cost,0)+(T.financed&&!T.addons.includes("finance")?ADDONS.finance.price:0);
-  const status=T.ptt||T.listening?"🎙️ Listening…":T.busy?`${esc(u.name)} is thinking…`:"";
+  const status=T.ptt&&T.pttLatch?"🎙️ Listening… tap <b>V</b> again to send":T.ptt||T.listening?"🎙️ Listening…":T.busy?`${esc(u.name)} is thinking…`:"";
   box.className="on";
   box.innerHTML=`<div class=subhead><b>${esc(u.name)}</b> · ${esc(label(c))} · cost ${$f(c.cost)} · ask ${$f(c.price)} · patience ${pat} · rapport ${"♥".repeat(T.rapport)||"–"}${best&&!T.agreed?` · their best ${$f(best)}${best<c.cost?" <span class=bad>(under cost)</span>":""}`:""}${T.agreed?` · <span class=good>agreed ${$f(T.agreed)} · back-end ${$f(back)}</span>`:""}${window.AI&&AI.on()?` · <span class=good>${AI.who()}</span>`:""}</div>
   ${lastC?`<div class="sub c"><b>${esc(u.name)}:</b> ${esc(lastC.text)}</div>`:""}
@@ -331,32 +331,52 @@ function renderSubs(){
   ${status?`<div class=substatus>${status}</div>`:""}${T.err?`<div class="substatus bad">${esc(T.err)}</div>`:""}
   ${T.summary?`<div class=subsum>${T.summary}</div>`:""}
   ${T.typing?`<div><input id=tin type=text autocomplete=off placeholder="Say something… Enter to send, Esc to cancel" onkeydown="event.stopPropagation();if(event.key==='Enter')typeSend();else if(event.key==='Escape')typeStop()"></div>`:""}
-  ${T.over?"":`<div class=subkeys>${SR?"<b>Hold V</b> to talk · ":""}<b>T</b> type · ${T.agreed?"<b>1</b> warranty · <b>2</b> GAP · <b>3</b> accessories · <b>4</b> financing · <b>F</b> sign":"<b>4</b> offer financing"} · walk away to leave${S.guns>0?` · <b>G</b> "I have a gun" (${S.guns} left)`:""}${SR?` · <b>H</b> hands-free ${T.hands?"on":"off"}`:""}</div>`}`;
+  ${T.over?"":`<div class=subkeys>${SR?"<b>Hold V</b> (or tap) to talk · ":""}<b>T</b> type · ${T.agreed?"<b>1</b> warranty · <b>2</b> GAP · <b>3</b> accessories · <b>4</b> financing · <b>F</b> sign":"<b>4</b> offer financing"} · walk away to leave${S.guns>0?` · <b>G</b> "I have a gun" (${S.guns} left)`:""}${SR?` · <b>H</b> hands-free ${T.hands?"on":"off"}`:""}</div>`}`;
   if(T.typing){const ti=$("tin");if(ti){ti.value=old;if(document.activeElement!==ti)ti.focus()}}
 }
-// hold V: listen until the key comes up, then send everything that was said
-function pttStart(){
-  if(!SR||!T||T.over||T.busy||T.ptt)return;
+// V to talk. Hold it while you speak, or tap it once to start and tap again to send.
+// The browser's recognizer quits on its own after a pause; while V is held (or latched) we restart it.
+function pttStart(at){
+  if(!SR||!T||T.over||T.busy)return;
+  if(T.ptt){if(T.pttLatch){T.pttLatch=false;pttFinish()}return}   // second tap sends
   try{if(window.speechSynthesis)speechSynthesis.cancel()}catch(e){}
   try{rec&&rec.abort()}catch(e){}
-  T.ptt=true;T.pttBuf="";T.interim="";T.err="";
-  const uid=T.uid;
-  rec=new SR();rec.lang="en-US";rec.interimResults=true;rec.continuous=true;
-  rec.onresult=e=>{
-    if(!T||T.uid!==uid)return;let tmp="";
-    for(let i=e.resultIndex;i<e.results.length;i++){const r=e.results[i];if(r.isFinal)T.pttBuf+=r[0].transcript+" ";else tmp+=r[0].transcript}
+  T.ptt=true;T.pttHeld=true;T.pttLatch=false;T.pttAt=at||performance.now();T.pttBuf="";T.interim="";T.err="";
+  pttListen(T.uid);renderTalk();
+}
+function pttListen(uid){
+  const r=new SR();rec=r;r.lang="en-US";r.interimResults=true;r.continuous=true;
+  let tmp="";
+  r.onresult=e=>{
+    if(!T||T.uid!==uid)return;tmp="";
+    for(let i=e.resultIndex;i<e.results.length;i++){const x=e.results[i];if(x.isFinal)T.pttBuf+=x[0].transcript+" ";else tmp+=x[0].transcript}
     T.interim=(T.pttBuf+tmp).trim();renderTalk();
   };
-  rec.onerror=e=>{if(!T||T.uid!==uid)return;T.err=e.error==="not-allowed"||e.error==="service-not-allowed"?"Mic blocked. Allow the microphone in your browser, or press T to type.":e.error==="no-speech"?"Didn't hear anything. Hold V while you talk.":"";renderTalk()};
-  rec.onend=()=>{
-    if(!T||T.uid!==uid)return;T.ptt=false;
-    const s=(T.pttBuf||T.interim||"").trim();T.interim="";T.pttBuf="";
-    if(s)handleSay(s);else renderTalk();
+  r.onerror=e=>{if(!T||T.uid!==uid)return;
+    if(e.error==="not-allowed"||e.error==="service-not-allowed"){T.err="Mic blocked. Allow the microphone in your browser (icon in the address bar), or press T to type.";T.pttHeld=T.pttLatch=false}
+    renderTalk()};
+  r.onend=()=>{
+    if(!T||T.uid!==uid||rec!==r)return;
+    if(tmp)T.pttBuf+=tmp+" ";
+    if(T.ptt&&(T.pttHeld||T.pttLatch)){try{pttListen(uid)}catch(e){pttFinish()}return}   // still talking: keep listening
+    pttFinish();
   };
-  try{rec.start()}catch(e){T.ptt=false}
-  renderTalk();
+  try{r.start()}catch(e){}
 }
-function pttStop(){if(T&&T.ptt&&rec){try{rec.stop()}catch(e){}}}
+function pttFinish(){
+  if(!T)return;const r=rec;T.ptt=false;T.pttHeld=false;
+  const s=(T.pttBuf||T.interim||"").trim();T.interim="";T.pttBuf="";
+  rec=null;try{r&&r.abort()}catch(e){}
+  if(s)handleSay(s);else{T.err=T.err||"Didn't hear anything. Hold V (or tap it) and talk.";renderTalk()}
+}
+function pttStop(at){
+  if(!T||!T.ptt||!T.pttHeld)return;
+  T.pttHeld=false;
+  if((at||performance.now())-T.pttAt<350){T.pttLatch=true;renderTalk();return}   // a quick tap: keep listening until the next tap
+  // let the recognizer flush the last words, then send
+  const r=rec;try{r&&r.stop()}catch(e){}
+  setTimeout(()=>{if(T&&T.ptt&&!T.pttLatch&&rec===r)pttFinish()},1200);
+}
 function typeStart(){if(!T||T.over)return;T.typing=true;renderTalk()}
 function typeStop(){if(!T)return;T.typing=false;renderTalk()}
 function typeSend(){const el=$("tin"),v=el&&el.value.trim();T.typing=false;if(v)handleSay(v);else renderTalk()}

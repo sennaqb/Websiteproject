@@ -373,6 +373,20 @@ function makeOfficeChair(){
   [-1,1].forEach(s=>{part(g,BX(.03,.2,.04),F.plastic,s*.26,.6,0);part(g,rbox(.07,.26,.03,.025),F.plastic,s*.26,.71,.02,{rx:-Math.PI/2})});
   return g;
 }
+// Three-seat vinyl sofa with rolled arms and a throw pillow. Sitters face local +z.
+function makeSofa(){
+  const F=furnMats(),g=new THREE.Group(),vin=SM(0x7a2e2a,{roughness:.45}),pil=SM(0xd8b35a,{roughness:.9});
+  part(g,rbox(2.0,.78,.22,.06),vin,0,.24,0,{rx:-Math.PI/2});                     // base
+  for(let i=-1;i<=1;i++)part(g,rbox(.62,.66,.14,.07),vin,i*.64,.41,.06,{rx:-Math.PI/2});   // seat cushions
+  for(let i=-1;i<=1;i++)part(g,rbox(.62,.5,.16,.08),vin,i*.64,.72,-.3,{rx:-.18});         // back cushions
+  part(g,rbox(2.0,.62,.14,.06),vin,0,.62,-.4);                                    // back frame
+  [-1,1].forEach(s=>{part(g,rbox(.16,.42,.82,.07),vin,s*1.06,.36,-.02);
+    part(g,new THREE.CylinderGeometry(.1,.1,.84,16),vin,s*1.06,.58,-.02,{rx:Math.PI/2})});           // rolled arms
+  [[-.95,.32],[.95,.32],[-.95,-.36],[.95,-.36]].forEach(([x,z])=>part(g,new THREE.CylinderGeometry(.025,.02,.12,8),F.black,x,.06,z,{noShadow:true}));
+  part(g,rbox(.36,.34,.12,.08),pil,-.62,.68,-.16,{rx:-.3}).rotation.z=.2;
+  return g;
+}
+
 // Waiting-room style guest chair: chrome frame, vinyl cushions. Sitter faces local +z.
 function makeGuestChair(){
   const F=furnMats(),g=new THREE.Group();
@@ -399,7 +413,7 @@ function create(canvas){
   R.setPixelRatio(Math.min(window.devicePixelRatio||1,1.5));
   R.shadowMap.enabled=true;R.shadowMap.type=THREE.PCFSoftShadowMap;
   const scene=new THREE.Scene(),cam=new THREE.PerspectiveCamera(72,1,.05,260);
-  scene.fog=new THREE.Fog(0xaab4bc,28,120);
+  scene.fog=new THREE.Fog(0xcfe6fb,45,190);
   const W={R,scene,cam,colliders:[],flick:[],tube:[],balloons:[],slotPos,standZ,buildCar,updateTag,person,animatePerson,sprite,miguelFaceTex,
            desks:[-8,-4.8,-1.6,1.6,4.8,8],pc:{x:-7.5,z:-23.2},sw:{x:2.3,z:-15.2},bound:{x0:-27,x1:27,z0:-26.5,z1:26}};
   const solid=(x0,x1,z0,z1)=>W.colliders.push({x0,x1,z0,z1});
@@ -414,7 +428,8 @@ function create(canvas){
   sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-36,right:36,top:36,bottom:-36,near:5,far:120});sun.shadow.bias=-.0006;
   scene.add(sun);scene.add(sun.target);
   const lamps=[],glows=[];
-  const KEYS=[[0,0x8fa3b5,0xc9d0d4,.95],[.5,0x9db8d0,0xdde3e6,1],[.8,0x8a8fa8,0xe0b27a,.7],[1,0x3e3e6c,0xd9744a,.4]];
+  // [time, sky top, horizon, light]: a clear blue morning into a warm sunset
+  const KEYS=[[0,0x3d7fd6,0xbfdcf2,1],[.5,0x2f78e0,0xcfe6fb,1.05],[.8,0x4a74c9,0xf3d6a8,.85],[1,0x2c2f6e,0xf08a55,.5]];
   W.setTime=function(p){
     p=Math.max(0,Math.min(1,p));let a=KEYS[0],b=KEYS[1];
     for(let i=0;i<KEYS.length-1;i++)if(p>=KEYS[i][0]&&p<=KEYS[i+1][0]){a=KEYS[i];b=KEYS[i+1]}
@@ -427,7 +442,22 @@ function create(canvas){
     sun.position.set(-24+p*30,38-p*18,14);
     const dusk=Math.max(0,Math.min(1,(p-.55)/.4));
     glows.forEach(f=>f(dusk));
+    sunDisc.position.copy(sun.position).normalize().multiplyScalar(140);sunDisc.material.color.set(mix(0xfff8e0,0xffa060,dusk));
+    cloudMats.forEach(m=>m.color.set(mix(0xffffff,0xffc4a0,dusk)));
   };
+
+  // sun and clouds
+  const sunDisc=new THREE.Sprite(new THREE.SpriteMaterial({map:tex(128,128,(g,w,h)=>{const r=g.createRadialGradient(64,64,0,64,64,64);r.addColorStop(0,"rgba(255,255,240,1)");r.addColorStop(.25,"rgba(255,250,220,1)");r.addColorStop(.4,"rgba(255,230,160,.35)");r.addColorStop(1,"rgba(255,220,150,0)");g.fillStyle=r;g.fillRect(0,0,w,h)}),fog:false,depthWrite:false,transparent:true}));
+  sunDisc.scale.set(26,26,1);scene.add(sunDisc);
+  const cloudTex=seed=>tex(256,128,(g,w,h)=>{
+    for(let i=0;i<9;i++){const r=20+Math.random()*20,x=r+8+Math.random()*(240-2*r-16),y=Math.max(r+4,Math.min(124-r,60+Math.random()*24-(i%3)*8));
+      const gr=g.createRadialGradient(x,y,0,x,y,r);gr.addColorStop(0,"rgba(255,255,255,.95)");gr.addColorStop(.6,"rgba(255,255,255,.75)");gr.addColorStop(1,"rgba(255,255,255,0)");g.fillStyle=gr;g.fillRect(0,0,w,h)}
+    g.globalCompositeOperation="source-atop";const sh=g.createLinearGradient(0,40,0,h);sh.addColorStop(0,"rgba(0,0,0,0)");sh.addColorStop(1,"rgba(120,140,170,.35)");g.fillStyle=sh;g.fillRect(0,0,w,h);
+  });
+  const cloudMats=[0,1,2].map(i=>new THREE.SpriteMaterial({map:cloudTex(i),fog:false,depthWrite:false,transparent:true}));
+  const clouds=new THREE.Group();scene.add(clouds);W.clouds=clouds;
+  for(let i=0;i<16;i++){const a=i/16*Math.PI*2+Math.random()*.3,r=95+Math.random()*45,c=new THREE.Sprite(cloudMats[i%3]);
+    const sc=28+Math.random()*30;c.scale.set(sc,sc*.5,1);c.position.set(Math.cos(a)*r,30+Math.random()*28,Math.sin(a)*r);clouds.add(c)}
 
   // ground, road, scenery
   const dirt=new THREE.Mesh(new THREE.PlaneGeometry(400,400),M(0x5b5a4a));dirt.rotation.x=-Math.PI/2;dirt.position.y=-.03;dirt.receiveShadow=true;scene.add(dirt);
@@ -504,7 +534,7 @@ function create(canvas){
   // water cooler, plants, sofa
   box(.5,1.1,.5,M(0x88aacc),8,.55,-25);solid(7.7,8.3,-25.3,-24.7);
   [[9.2,-15],[-9.2,-15],[9.2,-26]].forEach(([x,z])=>{box(.4,.4,.4,M(0x6a3a22),x,.2,z);const lf=new THREE.Mesh(new THREE.SphereGeometry(.45,7,6),M(0x2e5a2a));lf.position.set(x,.8,z);lf.castShadow=true;scene.add(lf)});
-  box(2.2,.5,.9,M(0x6a2a2a),6.4,.25,-16.2);box(2.2,.5,.2,M(0x6a2a2a),6.4,.6,-16.6);solid(5.3,7.5,-16.7,-15.7);
+  { const sofa=makeSofa();sofa.position.set(6.4,0,-16.2);sofa.rotation.y=Math.PI;scene.add(sofa);solid(5.3,7.5,-16.7,-15.7); }
   // sales board (live stats), posters
   const boardTex=textTex("","#222","#f0f0e8",512,256,"20px sans-serif");
   const board=new THREE.Mesh(new THREE.PlaneGeometry(4,2),new THREE.MeshBasicMaterial({map:boardTex}));board.position.set(3,1.9,Z0+.2);scene.add(board);
@@ -631,7 +661,7 @@ function create(canvas){
     const sm=(fs,u)=>new THREE.ShaderMaterial({uniforms:u,vertexShader:vs,fragmentShader:fs,depthTest:false,depthWrite:false});
     post.bright=sm("uniform sampler2D t;uniform float th;varying vec2 vUv;void main(){vec3 c=texture2D(t,vUv).rgb;float l=dot(c,vec3(.2126,.7152,.0722));gl_FragColor=vec4(c*smoothstep(th,th+.2,l),1.);}",{t:{value:null},th:{value:.8}});
     post.blur=sm("uniform sampler2D t;uniform vec2 dir;varying vec2 vUv;void main(){vec3 s=texture2D(t,vUv).rgb*.227;s+=texture2D(t,vUv+dir*1.384).rgb*.316;s+=texture2D(t,vUv-dir*1.384).rgb*.316;s+=texture2D(t,vUv+dir*3.23).rgb*.0703;s+=texture2D(t,vUv-dir*3.23).rgb*.0703;gl_FragColor=vec4(s,1.);}",{t:{value:null},dir:{value:new THREE.Vector2()}});
-    post.comp=sm(COMP_FS,{tS:{value:null},tB:{value:null},time:{value:0},bloom:{value:.7},vig:{value:.55},grain:{value:.035},flash:{value:0},box:{value:0},sat:{value:1.08},warm:{value:1},res:{value:new THREE.Vector2(1,1)}});
+    post.comp=sm(COMP_FS,{tS:{value:null},tB:{value:null},time:{value:0},bloom:{value:.7},vig:{value:.35},grain:{value:.035},flash:{value:0},box:{value:0},sat:{value:1.15},warm:{value:1},res:{value:new THREE.Vector2(1,1)}});
     post.scene=new THREE.Scene();post.cam=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
     post.quad=new THREE.Mesh(new THREE.PlaneGeometry(2,2),post.comp);post.quad.frustumCulled=false;post.scene.add(post.quad);
   }catch(e){post.on=false}
@@ -649,6 +679,7 @@ function create(canvas){
   };
 
   W.update=function(dt,t){
+    clouds.rotation.y+=dt*.004;
     W.flick.forEach((m,i)=>{const v=Math.random()<.035?.25:1;m.material.color.setScalar(v)});
     W.tube.forEach((s,i)=>{s.rotation.z=Math.sin(t*3+i*.7)*.28;s.rotation.x=Math.cos(t*2.3+i)*.2});
     W.balloons.forEach(b=>{const u=b.userData.b;b.position.y=u[1]+Math.sin(t*1.5+u[3])*.15;b.position.x=u[0]+Math.sin(t*.9+u[3])*.2});
