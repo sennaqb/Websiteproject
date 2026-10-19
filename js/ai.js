@@ -3,6 +3,9 @@
 // The negotiation engine (talk.js) still owns every number, so a clever sentence can't break the game.
 (function(){
 const MODEL="claude-haiku-5-5", KEY="bobsApiKey", FLAG="bobsAI";
+// Gemini models to try in order; a model this key can't use (404) falls through to the next.
+const GEMINI=["gemini-3.5-flash-lite","gemini-3.1-flash-lite","gemini-flash-lite-latest","gemini-2.5-flash-lite"];
+let gemIdx=0;
 const AI={mode:"rules",enabled:false,fails:0,note:"",sample:null};
 const store={
   get(k){try{return localStorage.getItem(k)}catch(e){return null}},
@@ -11,7 +14,10 @@ const store={
 AI.on=()=>AI.enabled&&AI.mode!=="rules"&&AI.fails<3;
 AI.voiceOn=()=>AI.on();
 AI.hasKey=()=>!!store.get(KEY);
-AI.status=()=>AI.mode==="rules"?"Built-in customers":AI.on()?(AI.mode==="sample"?"Claude customers (built in)":"Claude customers (your API key)"):"Built-in customers";
+// The pasted key decides the provider: Google keys start with AIza, Anthropic keys with sk-ant-.
+AI.provider=()=>/^AIza/.test(store.get(KEY)||"")?"gemini":"claude";
+AI.who=()=>AI.mode==="key"&&AI.provider()==="gemini"?"Gemini":"Claude";
+AI.status=()=>AI.mode==="rules"?"Built-in customers":AI.on()?(AI.mode==="sample"?"Claude customers (built in)":AI.who()+" customers (your API key)"):"Built-in customers";
 
 // Work out what is available. Called once at boot.
 AI.init=async function(){
@@ -50,6 +56,7 @@ AI.setEnabled=async function(on){
 function keyProblem(e){
   const st=e&&e.status,m=String((e&&e.message)||"");
   if(e&&e.name==="AbortError")return "Anthropic didn't answer in time. Check your connection and try again.";
+  if(AI.provider()==="gemini")return geminiProblem(st,m);
   if(!st)return "Couldn't reach Anthropic from this page. Play from the GitHub Pages link, not a saved file or the claude.ai page.";
   if(st===401)return "Anthropic says the key is invalid. Copy it again from console.anthropic.com (it starts with sk-ant-) and paste only the key.";
   if(st===403)return "This key isn't allowed to use the API. Check its workspace permissions in the Anthropic console. ("+m+")";
@@ -60,6 +67,29 @@ function keyProblem(e){
   return "Anthropic rejected the request: "+m;
 }
 
+function geminiProblem(st,m){
+  if(!st)return "Couldn't reach Google from this page. Play from the GitHub Pages link.";
+  if(/API key not valid|API_KEY_INVALID/i.test(m))return "Google says the key is invalid. Copy it again from aistudio.google.com/apikey (it starts with AIza) and paste only the key.";
+  if(st===403)return "This key isn't allowed to use the Gemini API. Make sure the Generative Language API is enabled for its project. ("+m+")";
+  if(st===404)return "None of the Gemini models this game uses are available to your key. ("+m+")";
+  if(st===429)return "Gemini's free limit is used up for now. Wait a minute (or until tomorrow for the daily limit) and try again.";
+  if(st>=500)return "Gemini is overloaded right now. Try again in a minute.";
+  return "Google rejected the request: "+m;
+}
+async function callGemini(prompt,signal){
+  for(;;){
+    const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI[gemIdx]}:generateContent`,{
+      method:"POST",signal,
+      headers:{"content-type":"application/json","x-goog-api-key":store.get(KEY)||""},
+      body:JSON.stringify({contents:[{role:"user",parts:[{text:prompt}]}],generationConfig:{maxOutputTokens:1024,temperature:.9}})
+    });
+    if(r.status===404&&gemIdx<GEMINI.length-1){gemIdx++;continue}
+    if(!r.ok){let m="";try{const e=await r.json();m=(e&&e.error&&e.error.message)||""}catch(e){}const err=new Error(m||"api "+r.status);err.status=r.status;throw err}
+    const j=await r.json(),c=j.candidates&&j.candidates[0];
+    return ((c&&c.content&&c.content.parts)||[]).filter(p=>!p.thought&&p.text).map(p=>p.text).join("");
+  }
+}
+
 async function call(prompt,timeout){
   const ctl=new AbortController(),timer=setTimeout(()=>ctl.abort(),timeout||5000);
   try{
@@ -67,6 +97,7 @@ async function call(prompt,timeout){
       const r=await AI.sample(prompt,{modelTier:"quick",cache:false,signal:ctl.signal});
       return (r&&r.text)||"";
     }
+    if(AI.provider()==="gemini")return await callGemini(prompt,ctl.signal);
     const r=await fetch("https://api.anthropic.com/v1/messages",{
       method:"POST",signal:ctl.signal,
       headers:{"content-type":"application/json","x-api-key":store.get(KEY)||"","anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
