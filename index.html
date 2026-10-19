@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dealer Tycoon</title>
+<style>
+:root{--bg:#10151c;--panel:#1a222d;--line:#2b3746;--txt:#e6edf3;--dim:#8b9bb0;--acc:#f5b301;--good:#3fb950;--bad:#f85149}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.4 system-ui,sans-serif}
+header{position:sticky;top:0;z-index:5;background:var(--panel);border-bottom:1px solid var(--line);padding:10px 16px;display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center}
+header h1{font-size:18px;margin:0;color:var(--acc)}
+.stat b{color:var(--acc)}
+nav{display:flex;gap:6px;padding:10px 16px;flex-wrap:wrap}
+nav button.tab{background:var(--panel);color:var(--txt);border:1px solid var(--line);padding:8px 14px;border-radius:8px;cursor:pointer}
+nav button.tab.on{background:var(--acc);color:#111;border-color:var(--acc);font-weight:600}
+main{padding:0 16px 80px;max-width:1000px;margin:0 auto}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px}
+.card h3{margin:0 0 4px;font-size:16px}
+.dim{color:var(--dim);font-size:13px}
+.row{display:flex;justify-content:space-between;gap:8px}
+button.b{background:#263445;color:var(--txt);border:1px solid var(--line);padding:6px 11px;border-radius:7px;cursor:pointer;margin:6px 6px 0 0}
+button.b:hover{border-color:var(--acc)}
+button.b:disabled{opacity:.4;cursor:not-allowed}
+button.go{background:var(--acc);color:#111;font-weight:700;border:0;padding:10px 18px;border-radius:8px;cursor:pointer;font-size:15px}
+.good{color:var(--good)}.bad{color:var(--bad)}
+.bar{height:6px;background:#0c1117;border-radius:4px;overflow:hidden;margin:4px 0}
+.bar i{display:block;height:100%}
+input[type=number]{width:100px;background:#0c1117;color:var(--txt);border:1px solid var(--line);border-radius:6px;padding:5px}
+#log{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin-top:16px;max-height:200px;overflow:auto;font-size:13px}
+#log div{padding:2px 0;border-bottom:1px solid #222c39}
+h2{margin:16px 0 8px;font-size:17px}
+.modal{position:fixed;inset:0;background:#000b;display:flex;align-items:center;justify-content:center;z-index:9}
+.modal .card{max-width:420px;text-align:center}
+</style>
+</head>
+<body>
+<header>
+  <h1>🚗 Dealer Tycoon</h1>
+  <span class="stat">Day <b id="sDay"></b></span>
+  <span class="stat">Cash <b id="sCash"></b></span>
+  <span class="stat">Net worth <b id="sNet"></b> / $<span id="sGoal"></span></span>
+  <span class="stat">Rep <b id="sRep"></b></span>
+  <span class="stat">Lot <b id="sLot"></b></span>
+</header>
+<nav id="nav"></nav>
+<main id="main"></main>
+<div id="modal"></div>
+
+<script>
+"use strict";
+// ---------- data ----------
+const MODELS=[
+  // make, model, body, base new price
+  ["Honda","Civic","sedan",24000],["Toyota","Camry","sedan",27000],["Nissan","Altima","sedan",25000],
+  ["Toyota","RAV4","suv",30000],["Honda","CR-V","suv",31000],["Ford","Explorer","suv",38000],
+  ["Ford","F-150","truck",42000],["Chevy","Silverado","truck",43000],["Ram","1500","truck",45000],
+  ["Mazda","MX-5","coupe",30000],["Ford","Mustang","coupe",34000],["BMW","330i","sedan",44000],
+  ["Tesla","Model 3","sedan",42000],["Subaru","Outback","suv",32000],["Hyundai","Elantra","sedan",22000]
+];
+const BODIES=["any","sedan","suv","truck","coupe"];
+const GOAL=250000, SAVE="dealerTycoonV1";
+const TABS=["Auction","Lot","Showroom","Upgrades"];
+const $=id=>document.getElementById(id);
+const rnd=(a,b)=>a+Math.random()*(b-a), ri=(a,b)=>Math.floor(rnd(a,b+1)), pick=a=>a[ri(0,a.length-1)];
+const $f=n=>(n<0?"-$":"$")+Math.abs(Math.round(n)).toLocaleString();
+
+let S, tab="Auction";
+
+function fresh(){
+  S={day:1,cash:15000,rep:10,cap:4,ad:0,mech:0,nextId:1,inv:[],auction:[],cust:[],log:[],phase:"morning",sold:0,profit:0};
+  newAuction(); logMsg("Welcome! Buy low at auction, fix up, sell high. Reach "+$f(GOAL)+" net worth.");
+}
+function save(){try{localStorage.setItem(SAVE,JSON.stringify(S))}catch(e){}}
+function load(){try{const s=localStorage.getItem(SAVE);if(s){S=JSON.parse(s);return true}}catch(e){}return false}
+function logMsg(m){S.log.unshift("Day "+S.day+": "+m);S.log=S.log.slice(0,60)}
+
+// ---------- car logic ----------
+function marketValue(c,cond=c.cond){
+  const age=2026-c.year;
+  let v=c.base*Math.pow(0.88,age);
+  v*=Math.max(.45,1-c.miles/260000);
+  v*=0.7+0.3*(cond/100);
+  return Math.max(900,Math.round(v/50)*50);
+}
+function makeCar(){
+  const [make,model,body,base]=pick(MODELS);
+  const year=ri(2008,2025), cond=ri(25,98);
+  const c={id:S.nextId++,make,model,body,base,year,miles:Math.round((2026-year)*ri(7000,15000)/100)*100,cond,seen:false,cost:0,price:0,days:0};
+  c.estCond=Math.max(10,Math.min(100,cond+ri(-18,18))); // what auction claims
+  return c;
+}
+function newAuction(){
+  S.auction=[];
+  for(let i=0;i<5+Math.floor(S.rep/25);i++){
+    const c=makeCar();
+    c.bid=Math.round(marketValue(c,c.estCond)*rnd(.6,.92)/50)*50;
+    S.auction.push(c);
+  }
+}
+const label=c=>`${c.year} ${c.make} ${c.model}`;
+const condLabel=n=>n>=85?"Excellent":n>=65?"Good":n>=45?"Fair":"Rough";
+const repairCost=c=>Math.round((100-c.cond)*(c.base/1100)*(1-0.1*S.mech)/10)*10;
+
+// ---------- actions ----------
+function buy(id){
+  const i=S.auction.findIndex(c=>c.id==id), c=S.auction[i];
+  if(S.inv.length>=S.cap)return toast("Lot full. Sell something or expand.");
+  if(S.cash<c.bid)return toast("Not enough cash.");
+  S.cash-=c.bid;c.cost=c.bid;c.cond=c.cond; // true condition revealed on purchase
+  c.price=marketValue(c);S.inv.push(c);S.auction.splice(i,1);
+  const real=marketValue(c);
+  logMsg(`Bought ${label(c)} for ${$f(c.bid)}. True value ${$f(real)} (${condLabel(c.cond)}).`);
+  render();
+}
+function inspect(id){
+  const c=S.auction.find(c=>c.id==id);
+  if(S.cash<75)return toast("Inspection costs $75.");
+  S.cash-=75;c.seen=true;c.estCond=c.cond;logMsg(`Inspected ${label(c)}: true condition ${c.cond}%.`);render();
+}
+function repair(id){
+  const c=S.inv.find(c=>c.id==id), cost=repairCost(c);
+  if(S.cash<cost)return toast("Not enough cash.");
+  S.cash-=cost;c.cost+=cost;c.cond=100;c.price=marketValue(c);
+  logMsg(`Reconditioned ${label(c)} for ${$f(cost)}.`);render();
+}
+function setPrice(id,v){const c=S.inv.find(c=>c.id==id);c.price=Math.max(500,Math.round(+v)||c.price);save();render()}
+function wholesale(id){
+  const i=S.inv.findIndex(c=>c.id==id),c=S.inv[i],p=Math.round(marketValue(c)*.8/50)*50;
+  S.cash+=p;S.profit+=p-c.cost;S.inv.splice(i,1);
+  logMsg(`Wholesaled ${label(c)} for ${$f(p)} (${$f(p-c.cost)} profit).`);render();
+}
+function openDay(){
+  S.phase="open";S.cust=[];
+  const n=ri(2,4)+Math.floor(S.ad*1.5)+Math.floor(S.rep/20);
+  for(let i=0;i<n;i++){
+    const body=pick(BODIES), budget=Math.round(rnd(6000,45000)/500)*500;
+    S.cust.push({id:i,name:pick(["Alex","Sam","Jordan","Pat","Chris","Dana","Lee","Morgan","Taylor","Casey"]),body,budget,haggle:rnd(.88,1.0),done:false,msg:""});
+  }
+  matchCustomers();render();
+}
+function matchCustomers(){
+  S.cust.forEach(u=>{
+    if(u.done)return;
+    const opts=S.inv.filter(c=>(u.body=="any"||c.body==u.body)&&c.price<=u.budget*1.1);
+    if(!opts.length){u.car=null;u.done=true;u.msg="Nothing on the lot fits.";return}
+    // like the best deal (price vs. market)
+    opts.sort((a,b)=>a.price/marketValue(a)-b.price/marketValue(b));
+    u.car=opts[0].id;
+    const mv=marketValue(opts[0]);
+    u.offer=Math.round(Math.min(u.budget*1.05,mv*u.haggle*(1+S.rep/600))/50)*50;
+    if(opts[0].price>mv*1.25){u.done=true;u.car=null;u.msg=`Laughed at the price of ${label(opts[0])}.`}
+  });
+}
+function sellTo(uid,mode){
+  const u=S.cust.find(x=>x.id==uid),i=S.inv.findIndex(c=>c.id==u.car);
+  if(i<0){u.done=true;u.msg="Car already gone.";return render()}
+  const c=S.inv[i];let p=null;
+  if(mode=="ask"){ if(c.price<=u.offer*1.08||c.price<=u.budget&&c.price<=marketValue(c)*u.haggle*1.1) p=c.price; }
+  else if(mode=="offer"){p=u.offer}
+  else if(mode=="split"){const mid=Math.round((u.offer+c.price)/100)*50; if(Math.random()<.5&&mid<=u.budget*1.05)p=mid}
+  if(p==null){u.done=true;u.msg="Walked away.";S.rep=Math.max(0,S.rep-.5);return render()}
+  S.cash+=p;S.sold++;S.profit+=p-c.cost;S.rep+=1;S.inv.splice(i,1);u.done=true;u.msg=`Bought for ${$f(p)}!`;
+  logMsg(`Sold ${label(c)} to ${u.name} for ${$f(p)} (${$f(p-c.cost)} profit).`);
+  matchCustomers();render();
+}
+function closeDay(){
+  let fees=S.inv.length*12+25+S.ad*40;
+  S.inv.forEach(c=>c.days++);
+  if(S.day%7==0){fees+=350+S.cap*40;}
+  S.cash-=fees;logMsg(`Day over. Expenses ${$f(fees)}${S.day%7==0?" (weekly rent due)":""}.`);
+  S.day++;S.phase="morning";S.cust=[];newAuction();
+  const nw=netWorth();
+  if(nw>=GOAL)return win();
+  if(S.cash<0&&!S.inv.length)return lose();
+  save();render();
+}
+function netWorth(){return S.cash+S.inv.reduce((s,c)=>s+marketValue(c)*.9,0)}
+const UPG=[
+  {k:"cap",n:"Bigger lot (+2 spaces)",cost:()=>3000+S.cap*800,max:20,desc:"Hold more cars."},
+  {k:"ad",n:"Advertising",cost:()=>1200*(S.ad+1),max:5,desc:"More customers each day (costs $40/day per level)."},
+  {k:"mech",n:"In-house mechanic",cost:()=>2500*(S.mech+1),max:5,desc:"Repairs 10% cheaper per level."}
+];
+function upgrade(k){
+  const u=UPG.find(u=>u.k==k),c=u.cost();
+  if(S.cash<c)return toast("Not enough cash.");
+  S.cash-=c;S[k]+=k=="cap"?2:1;logMsg("Bought upgrade: "+u.n);render();
+}
+function win(){S.phase="over";$("modal").innerHTML=`<div class=modal><div class=card><h2>🏆 You made it!</h2><p>Net worth hit ${$f(netWorth())} in ${S.day} days. ${S.sold} cars sold.</p><button class=go onclick="restart()">Play again</button></div></div>`}
+function lose(){S.phase="over";$("modal").innerHTML=`<div class=modal><div class=card><h2>💸 Bankrupt</h2><p>No cash, no cars. You lasted ${S.day} days and sold ${S.sold}.</p><button class=go onclick="restart()">Try again</button></div></div>`}
+function restart(){$("modal").innerHTML="";fresh();save();render()}
+function toast(m){logMsg(m);render()}
+
+// ---------- rendering ----------
+function bar(v){const col=v>=65?"var(--good)":v>=45?"var(--acc)":"var(--bad)";return `<div class=bar><i style="width:${v}%;background:${col}"></i></div>`}
+function render(){
+  $("sDay").textContent=S.day;$("sCash").textContent=$f(S.cash);$("sNet").textContent=$f(netWorth());
+  $("sGoal").textContent=GOAL.toLocaleString();$("sRep").textContent=Math.floor(S.rep);$("sLot").textContent=S.inv.length+"/"+S.cap;
+  $("nav").innerHTML=TABS.map(t=>`<button class="tab ${t==tab?"on":""}" onclick="tab='${t}';render()">${t}</button>`).join("")+
+    `<span style="flex:1"></span>`+(S.phase=="open"?`<button class=go onclick="closeDay()">End day ▸</button>`:`<button class=go onclick="openDay()">Open dealership ▸</button>`);
+  let h="";
+  if(tab=="Auction"){
+    h+=`<h2>Auction — today's cars</h2><p class=dim>Condition shown is an estimate (±18). Inspect for $75 to see the truth. Fresh batch every morning.</p><div class=grid>`;
+    h+=S.auction.map(c=>`<div class=card><h3>${label(c)}</h3><div class=dim>${c.body} · ${c.miles.toLocaleString()} mi</div>
+      <div class=row><span>Condition ${c.seen?"":"~"}${c.estCond}%</span><span class=dim>${c.seen?"verified":"estimate"}</span></div>${bar(c.estCond)}
+      <div class=row><span>Bid ${$f(c.bid)}</span><span class=dim>est. value ${$f(marketValue(c,c.estCond))}</span></div>
+      <button class=b onclick="buy(${c.id})">Buy</button>${c.seen?"":`<button class=b onclick="inspect(${c.id})">Inspect $75</button>`}</div>`).join("")||"<p class=dim>Sold out.</p>";
+    h+="</div>";
+  }
+  if(tab=="Lot"){
+    h+=`<h2>Your lot (${S.inv.length}/${S.cap})</h2><p class=dim>Daily cost: $12/car + $25 base. Rent every 7 days.</p><div class=grid>`;
+    h+=S.inv.map(c=>{const mv=marketValue(c),rc=repairCost(c);return `<div class=card><h3>${label(c)}</h3><div class=dim>${c.body} · ${c.miles.toLocaleString()} mi · ${c.days}d on lot</div>
+      <div class=row><span>Condition ${c.cond}% (${condLabel(c.cond)})</span></div>${bar(c.cond)}
+      <div class=row><span>Paid ${$f(c.cost)}</span><span>Market ${$f(mv)}</span></div>
+      <div>Ask: <input type=number step=100 value=${c.price} onchange="setPrice(${c.id},this.value)"></div>
+      <div class=dim>Profit if sold at ask: <span class="${c.price-c.cost>=0?"good":"bad"}">${$f(c.price-c.cost)}</span></div>
+      ${c.cond<100?`<button class=b onclick="repair(${c.id})">Recondition ${$f(rc)}</button>`:""}
+      <button class=b onclick="wholesale(${c.id})">Wholesale ${$f(mv*.8)}</button></div>`}).join("")||"<p class=dim>Empty lot. Hit the auction.</p>";
+    h+="</div>";
+  }
+  if(tab=="Showroom"){
+    if(S.phase!="open")h+=`<h2>Showroom</h2><p class=dim>Doors are closed. Press “Open dealership” to see today's customers.</p>`;
+    else{
+      h+=`<h2>Today's customers</h2><p class=dim>Ask = hold your price. Offer = take theirs. Split = meet in the middle (50% risk).</p><div class=grid>`;
+      h+=S.cust.map(u=>{const c=S.inv.find(c=>c.id==u.car);return `<div class=card><h3>${u.name}</h3>
+        <div class=dim>Wants: ${u.body} · budget ${$f(u.budget)}</div>`+
+        (u.done?`<p>${u.msg}</p>`:`<p>Likes your <b>${label(c)}</b> (ask ${$f(c.price)}).<br>Offers <b>${$f(u.offer)}</b>.</p>
+        <button class=b onclick="sellTo(${u.id},'ask')">Hold ask</button><button class=b onclick="sellTo(${u.id},'offer')">Take offer</button><button class=b onclick="sellTo(${u.id},'split')">Split</button>`)+`</div>`}).join("");
+      h+="</div>";
+    }
+  }
+  if(tab=="Upgrades"){
+    h+=`<h2>Upgrades</h2><div class=grid>`;
+    h+=UPG.map(u=>{const lv=u.k=="cap"?(S.cap-4)/2:S[u.k],maxed=u.k=="cap"?S.cap>=u.max:S[u.k]>=u.max;
+      return `<div class=card><h3>${u.n}</h3><div class=dim>${u.desc}</div><p>Level ${lv}</p>${maxed?"<b>Maxed</b>":`<button class=b onclick="upgrade('${u.k}')">Buy ${$f(u.cost())}</button>`}</div>`}).join("");
+    h+="</div>";
+  }
+  h+=`<div id=log>${S.log.map(l=>`<div>${l}</div>`).join("")}</div>`;
+  $("main").innerHTML=h;
+  if(S.phase!="over")save();
+}
+
+if(!load())fresh();
+if(S.phase=="over")fresh();
+render();
+</script>
+</body>
+</html>
