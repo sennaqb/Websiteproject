@@ -58,11 +58,14 @@ function syncCars(){
   });
 }
 const carSlot=id=>G.cars[id]?G.cars[id].slot:-1;
+// How specific salespeople look, whatever desk they sit at.
+const CREW_LOOKS={Andres:{hairStyle:"bald",beard:false,glasses:false},Sam:{hairStyle:"short",goatee:true,beard:false,glasses:false}};
 function spawnCrew(){
   G.sales.forEach(s=>W.scene.remove(s.mesh));G.sales=[];
   S.crew.forEach((d,i)=>{
     const home=P(W.desks[i],-18.6);
-    const m=W.person({shirt:d.shirt,pants:0x2a2a35,skin:d.skin,hair:0x2a1a10,hairStyle:["short","cap","short","bald"][i%4],cap:0x333333,tie:0x202020,badge:true,glasses:i===2,beard:i===3,height:[1,.97,1.04,.99][i%4]});m.userData.tagged=true;
+    const look=Object.assign({hairStyle:["short","cap","short","bald"][i%4],glasses:i===2,beard:i===3,height:[1,.97,1.04,.99][i%4]},CREW_LOOKS[d.name]);
+    const m=W.person(Object.assign({shirt:d.shirt,pants:0x2a2a35,skin:d.skin,hair:0x2a1a10,cap:0x333333,tie:0x202020,badge:true},look));m.userData.tagged=true;
     m.position.set(home.x,0,home.z);m.rotation.y=Math.PI;
     const tag=W.sprite(d.name,"#fff","rgba(0,0,0,.55)");tag.position.y=2.15;m.add(tag);
     W.scene.add(m);

@@ -163,6 +163,7 @@ function person(o){
   if(style==="long")T(rbox(.21,.24,.06,.05),hair,0,-.07,-.075);
   if(style==="cap"){const cm=SM(o.cap||0x2a4a7a,{roughness:.7});T(new THREE.SphereGeometry(.122,20,10,0,Math.PI*2,0,Math.PI*.42),cm,0,.012,-.004,[.98,1.1,1.05]);T(new THREE.CylinderGeometry(.09,.1,.012,16,1,false,-Math.PI/2,Math.PI),cm,0,.062,.07,[1,1,1],false)}
   if(o.beard)add(hd,new THREE.SphereGeometry(.112,16,10,Math.PI*.15,Math.PI*.7,Math.PI*.55,Math.PI*.4),hair,0,0,.004,[.96,1.14,1.06],false);
+  if(o.goatee){add(hd,sph(.03,12,8),hair,0,-.088,.082,[1,1.25,.6],false);T(BX(.06,.013,.014),hair,0,-.03,.1,null,false)}
   if(o.glasses){const gl=SM(0xdfe6ea,{roughness:.2,metalness:.3});[-1,1].forEach(s=>T(new THREE.TorusGeometry(.024,.004,6,14),gl,s*.04,.02,.112,null,false));T(BX(.03,.005,.005),gl,0,.022,.114,null,false)}
   // fewer draw calls: merge each rigid part
   mergeChildren(g,[]);[u.legL,u.legR,u.legL.userData.knee,u.legR.userData.knee,u.armL,u.armR,u.armL.userData.fa,u.armR.userData.fa].forEach(p=>mergeChildren(p));
