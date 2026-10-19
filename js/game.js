@@ -59,7 +59,7 @@ function syncCars(){
 }
 const carSlot=id=>G.cars[id]?G.cars[id].slot:-1;
 // How specific salespeople look, whatever desk they sit at.
-const CREW_LOOKS={Andres:{hairStyle:"bald",beard:false,glasses:false},Sam:{hairStyle:"short",goatee:true,beard:false,glasses:false}};
+const CREW_LOOKS={Frenchy:{height:1.09},Andres:{hairStyle:"bald",beard:false,glasses:false,height:.86},Sam:{hairStyle:"short",goatee:true,beard:false,glasses:false,height:.98}};
 function spawnCrew(){
   G.sales.forEach(s=>W.scene.remove(s.mesh));G.sales=[];
   S.crew.forEach((d,i)=>{
