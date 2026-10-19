@@ -32,7 +32,7 @@ First-person 3D used-car dealership game ("Bargain Bob's Auto Mart"). You play M
 2. Get the user's playtest feedback (voice, Claude replies, pacing, difficulty) and fix the top issues.
 3. If Voicestudio has a live TTS API (cloud or localhost), add it as an optional voice backend in `speak()` in `js/talk.js`, keeping browser voices as the fallback.
 4. Possible: merge AI classify and voice into one call to cut reply latency (`js/ai.js`).
-5. After code changes: `node --check js/*.js`, headless run, commit and push, republish the artifact (publish copy = index.html head from `<title>` + body contents; send changed `js/*` in `files`).
+5. After code changes: bump `?v=` on the script tags in index.html (cache-busting for Pages), `node --check js/*.js`, headless run, commit and push, republish the artifact (publish copy = index.html head from `<title>` + body contents; send changed `js/*` in `files`).
 
 ## Watch out
 - This session's GitHub integration cannot change repo settings or create repos (403). The user must do the Pages and visibility clicks themselves.

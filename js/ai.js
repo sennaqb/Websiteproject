@@ -55,6 +55,10 @@ AI.setEnabled=async function(on){
 
 // Turn an API failure into something the player can act on.
 function keyProblem(e){
+  const k=store.get(KEY)||"",tag=` [sent to ${AI.provider()==="gemini"?"Google":"Anthropic"} · key starts "${k.slice(0,5)}…", ${k.length} characters · reply: ${String((e&&e.message)||"none").slice(0,160)}]`;
+  return problem(e)+tag;
+}
+function problem(e){
   const st=e&&e.status,m=String((e&&e.message)||"");
   if(e&&e.name==="AbortError")return "Anthropic didn't answer in time. Check your connection and try again.";
   if(AI.provider()==="gemini")return geminiProblem(st,m);
