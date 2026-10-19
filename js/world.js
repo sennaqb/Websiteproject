@@ -276,10 +276,10 @@ function create(canvas){
   solid(-10,-7.1,-22.55,-22.25);solid(-5.9,-5.25,-22.55,-22.25);solid(-5.55,-5.25,-27,-22.4);
   box(3.2,.85,1.2,M(0x5a4030),-7.5,.42,-25);solid(-9.1,-5.9,-25.7,-24.3);
   box(.8,.5,.06,M(0x1a1a1a),-7.5,1.2,-25.3);
-  const screen=new THREE.Mesh(new THREE.PlaneGeometry(.7,.4),new THREE.MeshBasicMaterial({map:textTex("AUCTION  ·  CREW  ·  BOOKS","#6fff9a","#06140c",256,128,"bold 20px monospace")}));
+  const screen=new THREE.Mesh(new THREE.PlaneGeometry(.7,.4),new THREE.MeshBasicMaterial({map:textTex("PRICES  ·  CREW  ·  BOOKS","#6fff9a","#06140c",256,128,"bold 20px monospace")}));
   screen.position.set(-7.5,1.2,-25.26);scene.add(screen);W.pcScreen=screen;
   const pcLight=new THREE.PointLight(0x66ff99,1.2,5);pcLight.position.set(-7.5,1.3,-24.4);scene.add(pcLight);
-  box(.9,.25,.03,B(0xffffff),-7.5,1.65,-24.4,{noShadow:true}).material=new THREE.MeshBasicMaterial({map:textTex("MANAGER","#222","#e8e0c0",128,32,"bold 18px sans-serif")});
+  box(.9,.25,.03,B(0xffffff),-7.5,.98,-24.37,{noShadow:true}).material=new THREE.MeshBasicMaterial({map:textTex("MANAGER","#222","#e8e0c0",128,32,"bold 18px sans-serif")});
   box(.7,.7,.7,M(0x5a5a5a),-9.4,.35,-26.4);solid(-9.75,-9.05,-26.75,-26.05); // filing cabinet
   // water cooler, plants, sofa
   box(.5,1.1,.5,M(0x88aacc),8,.55,-25);solid(7.7,8.3,-25.3,-24.7);
@@ -307,6 +307,40 @@ function create(canvas){
   // floor markers for the two spots you walk up to
   const ringM=new THREE.MeshBasicMaterial({color:0xffd24a,transparent:true,opacity:.55,side:THREE.DoubleSide});
   W.rings=[W.pc,W.sw].map(p=>{const r=new THREE.Mesh(new THREE.RingGeometry(.55,.7,24),ringM);r.rotation.x=-Math.PI/2;r.position.set(p.x,.06,p.z);scene.add(r);return r});
+
+  // ---------- Miguel: employee of the month, every month ----------
+  W.miguelImg=new Image();if(window.MIGUEL_IMG)W.miguelImg.src=window.MIGUEL_IMG;
+  const posterTex=(title,sub)=>{
+    const w=256,h=360,c=document.createElement("canvas");c.width=w;c.height=h;const g=c.getContext("2d"),t=new THREE.CanvasTexture(c);t.anisotropy=4;
+    const fit=(txt,max,size)=>{let fs=size;do{g.font=`bold ${fs}px Impact,'Arial Black',sans-serif`}while(g.measureText(txt).width>max&&--fs>9)};
+    const draw=img=>{
+      g.fillStyle="#b8902a";g.fillRect(0,0,w,h);g.fillStyle="#f3ead2";g.fillRect(9,9,w-18,h-18);
+      g.fillStyle="#13254a";g.fillRect(9,9,w-18,50);g.fillStyle="#ffd24a";g.textAlign="center";g.textBaseline="middle";fit(title,w-36,24);g.fillText(title,w/2,35);
+      const ps=w-56;g.fillStyle="#999";g.fillRect(28,70,ps,ps);
+      if(img)g.drawImage(img,77,60,320,320,28,70,ps,ps);
+      g.strokeStyle="#b8902a";g.lineWidth=5;g.strokeRect(28,70,ps,ps);
+      g.fillStyle="#13254a";fit("MIGUEL",w-40,34);g.fillText("MIGUEL",w/2,70+ps+30);
+      g.fillStyle="#8a6410";fit(sub,w-40,18);g.fillText(sub,w/2,70+ps+60);
+      g.save();g.translate(w-40,84);g.rotate(.3);g.fillStyle="#ffcc22";g.beginPath();
+      for(let i=0;i<10;i++){const r=i%2?9:20,a=i*Math.PI/5-Math.PI/2;g.lineTo(Math.cos(a)*r,Math.sin(a)*r)}
+      g.closePath();g.fill();g.strokeStyle="#8a6410";g.lineWidth=2;g.stroke();g.restore();
+      t.needsUpdate=true;
+    };
+    const im=W.miguelImg,ok=()=>im.complete&&im.naturalWidth;
+    draw(ok()?im:null);if(!ok())im.addEventListener("load",()=>draw(im));
+    return t;
+  };
+  const poster=(title,sub,x,y,z,ry,s)=>{
+    s=s||1;const m=new THREE.Mesh(new THREE.PlaneGeometry(.8*s,1.12*s),new THREE.MeshBasicMaterial({map:posterTex(title,sub)}));
+    m.position.set(x,y,z);m.rotation.set(0,ry,(Math.random()-.5)*.14);scene.add(m);return m;
+  };
+  ["JANUARY","FEBRUARY","MARCH","APRIL","MAY","JUNE","JULY","AUGUST","SEPTEMBER","OCTOBER","NOVEMBER","DECEMBER"]
+    .forEach((mo,i)=>poster("EMPLOYEE OF THE MONTH",mo,X1-.17,i<6?2.5:1.32,-25.4+(i%6)*1.75,-Math.PI/2));
+  poster("EMPLOYEE OF THE YEAR","VOTED BY: MIGUEL",-7.5,2.15,Z0+.17,0,1.35);
+  poster("ASK FOR MIGUEL!","HE'S THE MANAGER",-4.6,1.75,Z1+.2,0);
+  poster("ASK FOR MIGUEL!","HE'S THE MANAGER",4.6,1.75,Z1+.2,0);
+  poster("EMPLOYEE OF THE CENTURY","NO OTHER NOMINEES",-8,1.45,27.33,Math.PI,1.2);
+  poster("EMPLOYEE OF THE MONTH","EVEN THIS ONE",-22,.8,-19.27,0,.75);
 
   // ---------- outside ----------
   // pole sign

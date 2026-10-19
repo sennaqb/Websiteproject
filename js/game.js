@@ -28,7 +28,7 @@ function showTitle(){
   el("title").innerHTML=`<div class=titlebox>
     <div class=kicker>Used cars. All sales final.</div>
     <h1>Bargain Bob's Auto Mart</h1>
-    <p>Bob left you the keys to the worst lot in town. His trucks keep the lot full of junk. Your salespeople cave on price, stall, or lose the customer. Some deals close themselves. Some are a waste of your time. The rest need you.</p>
+    <p>You're Miguel: manager of the worst lot in town, and employee of the month every month. His trucks keep the lot full of junk. Your salespeople cave on price, stall, or lose the customer. Some deals close themselves. Some are a waste of your time. The rest need you.</p>
     <div class=btnrow>${hasSave()?`<button class=go onclick="Game.start(false)">Continue</button>`:""}<button class="${hasSave()?"b":"go"}" onclick="Game.start(true)">New game</button></div>
     <div class=aibox>${aiRow}<div class=dim id=ainote>${esc(ai.note||"")}</div>
       <div class=dim style="margin-top:6px">${(window.SpeechRecognition||window.webkitSpeechRecognition)&&!window.claude?"🎙️ Voice is ready: walk up to a customer and hold <b>V</b> to talk.":"🎙️ This page can't use your microphone, so you'll type (press <b>T</b>). For voice, play the hosted version in Chrome or Edge."}</div></div>
@@ -299,7 +299,7 @@ function takeover(c){
   c.state="talk";if(c.to){c.mesh.remove(c.to);c.to=null}removeBar(c);
   const sp=c.sp,u=c.u;
   if(sp){sp.armsUp=false;sp.mesh.position.x+=1.1}   // the salesperson steps aside for the manager
-  openTalk(u.id,{patFrac:frac,inWorld:true,intro:sp?`${sp.def.name} has me at ${$f(car.price)}, and I'm at ${$f(u.offer)}. You the manager? I need something ${u.need}. Can you do any better?`:`I need something ${u.need}. What's your best price?`});
+  openTalk(u.id,{patFrac:frac,inWorld:true,intro:sp?`${sp.def.name} has me at ${$f(car.price)}, and I'm at ${$f(u.offer)}. ${pick(["You the manager?","Hey, you're the guy from all those posters!","Miguel, right? Your face is on every wall in there.","You the employee of the month?"])} I need something ${u.need}. Can you do any better?`:`I need something ${u.need}. What's your best price?`});
 }
 // called by talk.js when the panel closes
 function talkClosed(){
