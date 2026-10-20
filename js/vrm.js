@@ -68,6 +68,29 @@ function dress(vrm,o){
   tint(Array.isArray(bottoms.material)?bottoms.material[0]:bottoms.material,o.skirt==="plaid"?0x1a1a22:o.skirt,o.skirt==="plaid"?0x101014:null);
 }
 
+// ---------- Beach Day ----------
+// Hide the outfit and turn the underwear VRoid paints on the body texture into a bikini:
+// the dark underwear pixels get recolored (and grown a little for a fuller cut), with a light trim at the edges.
+function swim(vrm,o){
+  const hide=o.hide||/Onepiece|Tops_|Bottoms_/;let body=null;
+  vrm.scene.traverse(m=>{if(!m.isMesh||!m.material)return;const mt=Array.isArray(m.material)?m.material[0]:m.material,n=mt.name||"";
+    if(hide.test(n))m.visible=false;if(/Body_00_SKIN/.test(n))body=mt});
+  const img=body&&body.map&&body.map.image;if(!img)return;
+  const W=img.width,H=img.height,cv=document.createElement("canvas");cv.width=W;cv.height=H;const g=cv.getContext("2d");g.drawImage(img,0,0);
+  const d=g.getImageData(0,0,W,H),px=d.data,mask=new Uint8Array(W*H);
+  for(let i=0;i<W*H;i++){const r=px[i*4],gg=px[i*4+1],b=px[i*4+2];if(px[i*4+3]>10&&r+gg+b<150)mask[i]=1}
+  // grow the cut by a few pixels (separable max filter)
+  const R=Math.round((o.grow||5)*W/2048),tmp=new Uint8Array(W*H),m2=new Uint8Array(W*H);
+  for(let y=0;y<H;y++){let c=0;for(let x=-R;x<W;x++){if(x+R<W&&mask[y*W+x+R])c++;if(x-R-1>=0&&mask[y*W+x-R-1])c--;if(x>=0)tmp[y*W+x]=c>0}}
+  for(let x=0;x<W;x++){let c=0;for(let y=-R;y<H;y++){if(y+R<H&&tmp[(y+R)*W+x])c++;if(y-R-1>=0&&tmp[(y-R-1)*W+x])c--;if(y>=0)m2[y*W+x]=c>0}}
+  const col=new THREE.Color(o.color||0xe8364f),tr=new THREE.Color(o.trim||0xffffff),C=[col.r*255,col.g*255,col.b*255],T=[tr.r*255,tr.g*255,tr.b*255];
+  for(let y=1;y<H-1;y++)for(let x=1;x<W-1;x++){const i=y*W+x;if(!m2[i])continue;
+    const edge=!m2[i-1]||!m2[i+1]||!m2[i-W]||!m2[i+W],c=edge?T:C,dots=o.dots&&((x>>4)+(y>>4))%3===0&&(x&15)>5&&(x&15)<11&&(y&15)>5&&(y&15)<11;
+    px[i*4]=dots?T[0]:c[0];px[i*4+1]=dots?T[1]:c[1];px[i*4+2]=dots?T[2]:c[2];px[i*4+3]=255}
+  g.putImageData(d,0,0);const t=new THREE.CanvasTexture(cv);t.colorSpace=body.map.colorSpace;t.flipY=body.map.flipY;t.wrapS=body.map.wrapS;t.wrapT=body.map.wrapT;
+  body.map=t;if(body.shadeMultiplyTexture===img||body.shadeMultiplyTexture===body.map)body.shadeMultiplyTexture=t;body.needsUpdate=true;
+}
+
 // Put a VRoid character inside a game person group (returned at once; the model pops in when loaded).
 K.attach=function(g,url,o){
   const u=g.userData;u.vrmLoading=true;u.hipY=.8;u.brows=u.brows||[];
@@ -83,6 +106,7 @@ K.attach=function(g,url,o){
     const stock=!o||!o.dressIf||String(vrm.src||url).includes(o.dressIf);
     if(o&&o.outfit&&stock)try{dress(vrm,o.outfit)}catch(e){console.warn("outfit",e)}
     if(o&&o.adult&&stock)try{adult(vrm,g,o.adult)}catch(e){console.warn("adult",e)}
+    if(o&&o.swim&&!(o.swimSkip&&String(vrm.src||url).includes(o.swimSkip)))try{swim(vrm,o.swim)}catch(e){console.warn("swim",e)}
   }).catch(e=>{u.vrmLoading=false;u.vrmFailed=String(e);console.warn("VRM load failed",e)});
 };
 // Grown-up proportions for a stock VRoid body: smaller head, longer neck and legs, taller overall,

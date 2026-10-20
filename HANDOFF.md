@@ -86,3 +86,4 @@ First-person 3D used-car dealership game ("Bargain Bob's Auto Mart"). You play M
 - Tiffany is now the user's own VRoid Studio model (models/receptionist.vrm, source in models/source/). Generated outfits/adult tweaks only apply to the sample fallback.
 - New Tiffany (white blouse, pencil mini, glasses) replaces the suit model. Artifact copy loads models/receptionist.b64.txt (gzipped base64, decoded in vrm.js) since the artifact can't serve .vrm; clothes dimmed x.82 so white doesn't blow out.
 - Outfit rotation: RECEP_LOOKS in game.js (receptionist / receptionist-beach 'Beach Day' with its own lines), alternating by day; missing files fall back to the main model.
+- Beach Day (even days): vrm.js swim() hides the outfit and recolors the painted-on underwear into a red bikini (dilated, white trim). A real receptionist-beach.vrm overrides it. Crew drifts to reception twice as often that day.
