@@ -129,7 +129,7 @@ function enterPrep(){
   W.setTime(0);G.lastSky=0;W.setOpen(false);setPlayerStart();G.feed=[];
   S.phase="prep";boardUpdate(true);G.cashShown=S.cash;
   titleCard("DAY "+S.day,S.event.name);
-  G.usedPC=false;G.tut=S.day===1&&!tutDone()?{i:0,t:0,said:-1}:null;
+  G.whToday=0;G.whLost=0;G.whPend=0;G.usedPC=false;G.tut=S.day===1&&!tutDone()?{i:0,t:0,said:-1}:null;
 }
 
 // ---------- start / shift ----------
@@ -650,6 +650,24 @@ function talkClosed(){
 function resume(){hidePause();if(document.pointerLockElement!==canvas)lockMouse();last=performance.now()}
 function pcClosed(){
   syncCars();boardUpdate(true);save();resume();
+  if(G.whPend)setTimeout(recepRoast,600);
+}
+// ---------- Tiffany roasts you for dumping cars at wholesale ----------
+function wholesaled(c,p){G.whPend=(G.whPend||0)+1;G.whToday=(G.whToday||0)+1;G.whLost=(G.whLost||0)+Math.max(0,(c.price||p)-p)}
+function recepRoast(){
+  const n=G.whPend,tot=G.whToday,lost=G.whLost||0,empty=!S.inv.length;G.whPend=0;if(!n)return;
+  const L=empty?[`You wholesaled the ENTIRE lot. Miguel. What are the salesmen supposed to sell? Air? Frenchy is trying to sell the vending machine.`,
+      `The lot is empty. Completely empty. Bob just drove by and asked if we got robbed. I said "kind of."`,
+      `Congratulations, you're the first manager to turn a car dealership into a parking lot. ${$f(lost)} left on the table. I did the math. Out loud. To Bob.`]
+    :tot>=3?[`That's ${tot} cars to the auction today. We're a dealership, Miguel, not a donation center.`,
+      `${tot} wholesales? At this point just hand the auction guy your wallet and your car keys.`,
+      `Another wholesale? Juanny asked me what "wholesale" means. I said "it's what Miguel does instead of his job."`,
+      `You've thrown away about ${$f(lost)} in retail today. Sam could've sold those. Okay, maybe not Sam. But someone.`]
+    :[`Did you just wholesale a car? Bob's gonna hear about this. From me.`,
+      `Wholesale? Really? I could've sold that one, and I'm the receptionist.`,
+      `Oh, we're wholesaling now? Cool, cool. I'll update my résumé.`];
+  if(G.recep){G.recep.cool=0;G.recep.mesh.userData.mood="angry";setTimeout(()=>{if(G.recep)G.recep.mesh.userData.mood="neutral"},6000)}
+  tutSay(pick(L));if(G.recep)G.recep.mesh.userData.wave=0;   // no waving while she roasts you
 }
 
 // ---------- Mini Miguel ----------
@@ -961,7 +979,7 @@ function boot(){
   showTitle();loop();return true;
 }
 
-window.Game={boot,micTest,start,resume,finish,nextDay,quit,toggleAI,saveKey,clearKey,toast,pcClosed,syncCars,state:G};
+window.Game={boot,micTest,wholesaled,start,resume,finish,nextDay,quit,toggleAI,saveKey,clearKey,toast,pcClosed,syncCars,state:G};
 function cry(){G.shake=.4;if(G.talk&&G.talk.c.mesh)G.talk.c.mesh.userData.talkLeft=0}
 function gun(){
   G.gunEnd=performance.now()+3200;G.shake=.25;Sfx.click();

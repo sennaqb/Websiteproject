@@ -33,7 +33,7 @@ table.sum{width:100%;border-collapse:collapse;margin:8px 0;font-size:14px}table.
 #mini{top:max(10px,env(safe-area-inset-top));right:max(10px,env(safe-area-inset-right));border:2px solid #fff6;border-radius:6px;background:#000}
 #alerts{top:50px;left:50%;transform:translateX(-50%);display:flex;flex-wrap:wrap;justify-content:center;gap:6px;max-width:min(760px,70vw)}
 .al{background:#a01414c4;padding:2px 10px;border-radius:999px;font-weight:600;font-size:12.5px;text-shadow:none;border:1px solid #ff6a5a88;white-space:nowrap}.al.mini{background:#163a5ac4;border-color:#6ac8ff88}.al.flirt{background:#7a1a52c4;border-color:#ff7ab888}
-#feed{bottom:max(14px,env(safe-area-inset-bottom));left:max(10px,env(safe-area-inset-left));font-size:14px;max-width:60vw}
+#feed{bottom:max(14px,env(safe-area-inset-bottom));left:max(10px,env(safe-area-inset-left));font-size:clamp(16px,1.25vw,22px);max-width:60vw}
 #prompt{bottom:28%;left:50%;transform:translateX(-50%);font-size:20px;font-weight:700;background:#000b;padding:6px 14px;border-radius:8px;text-align:center}
 #prompt:empty{display:none}
 #tip{bottom:max(14px,env(safe-area-inset-bottom));right:max(10px,env(safe-area-inset-right));max-width:340px;background:#000a;padding:8px 12px;border-radius:8px;font-size:14px;border-left:3px solid var(--acc);text-shadow:none}
@@ -75,15 +75,15 @@ table.sum{width:100%;border-collapse:collapse;margin:8px 0;font-size:14px}table.
 @keyframes card{0%{opacity:0;transform:scale(1.15)}12%{opacity:1;transform:scale(1)}75%{opacity:1}100%{opacity:0;transform:translateY(-14px)}}
 #hudTop{border:1px solid #ffffff1a;backdrop-filter:blur(4px)}
 #cross{font-size:0!important;width:6px;height:6px;border-radius:50%;background:#fff;opacity:.8!important;box-shadow:0 0 4px #000}
-#subs{position:fixed;left:50%;bottom:max(18px,env(safe-area-inset-bottom));transform:translateX(-50%);width:min(880px,94vw);z-index:6;text-align:center;pointer-events:none;display:none}
+#subs{position:fixed;left:50%;bottom:max(18px,env(safe-area-inset-bottom));transform:translateX(-50%);width:min(1200px,94vw);z-index:6;text-align:center;pointer-events:none;display:none}
 #subs.on{display:block}
-#subs .subhead{display:inline-block;background:#000a;padding:4px 12px;border-radius:8px;font-size:13px;color:#dfe6ee;margin-bottom:8px}
-#subs .sub{font-size:22px;line-height:1.35;text-shadow:0 2px 6px #000,0 0 2px #000;margin:4px 0}
-#subs .sub.c{color:#ffe08a}#subs .sub.s{color:#9fe8a0;font-size:18px}#subs .tag{font-size:14px;opacity:.8;font-weight:400}#subs .sub.p{color:#cfe3ff}#subs .dimmed{opacity:.75;font-size:18px}
-#subs .substatus{font-size:15px;color:#fff;text-shadow:0 1px 4px #000;margin:4px 0}
-#subs .subsum{display:inline-block;background:#000c;border:1px solid #ffffff22;border-radius:10px;padding:8px 14px;margin:6px 0;font-size:15px}
-#subs .subkeys{font-size:13px;color:#cfd6de;text-shadow:0 1px 3px #000;margin-top:6px}
-#subs input{pointer-events:auto;width:min(560px,90vw);font-size:16px;padding:8px 12px;margin-top:6px}
+#subs .subhead{display:inline-block;background:#000a;padding:5px 14px;border-radius:8px;font-size:clamp(15px,1.3vw,22px);color:#dfe6ee;margin-bottom:8px}
+#subs .sub{font-size:clamp(26px,2.3vw,42px);line-height:1.3;text-shadow:0 2px 6px #000,0 0 2px #000;margin:4px 0}
+#subs .sub.c{color:#ffe08a}#subs .sub.s{color:#9fe8a0;font-size:clamp(21px,1.8vw,32px)}#subs .tag{font-size:clamp(16px,1.2vw,22px);opacity:.8;font-weight:400}#subs .sub.p{color:#cfe3ff}#subs .dimmed{opacity:.75;font-size:clamp(21px,1.8vw,32px)}
+#subs .substatus{font-size:clamp(17px,1.4vw,24px);color:#fff;text-shadow:0 1px 4px #000;margin:4px 0}
+#subs .subsum{display:inline-block;background:#000c;border:1px solid #ffffff22;border-radius:10px;padding:8px 14px;margin:6px 0;font-size:clamp(17px,1.4vw,24px)}
+#subs .subkeys{font-size:clamp(15px,1.2vw,20px);color:#cfd6de;text-shadow:0 1px 3px #000;margin-top:6px}
+#subs input{pointer-events:auto;width:min(760px,90vw);font-size:clamp(18px,1.5vw,26px);padding:8px 12px;margin-top:6px}
 body.talking #tip,body.talking #feed{display:none!important}
 @media (prefers-reduced-motion:reduce){#card.show,.talk{animation:none}#card.show{opacity:1}}
 .talk input[type=text]{width:72%}
@@ -105,7 +105,7 @@ body.talking #tip,body.talking #feed{display:none!important}
 #deal .chips{margin-top:8px;display:flex;flex-wrap:wrap;gap:4px}#deal .chip{font-size:11.5px;padding:2px 7px;border-radius:999px;background:#ffffff14;border:1px solid #ffffff1f}
 #deal .chip.on{background:#1f5a2c;border-color:#4cc569}#deal .chip.hot{border-color:#ffc93a}
 #deal .tipline{margin-top:10px;font-size:12.5px;color:#cfe3ff;border-top:1px solid #ffffff1a;padding-top:8px}
-#subs .doubt{display:inline-block;margin:4px 0 8px;padding:6px 14px;border-radius:999px;font-weight:800;font-size:17px;background:#5a4208ee;border:1px solid #ffc93a;color:#fff;text-shadow:none}
+#subs .doubt{display:inline-block;margin:4px 0 8px;padding:6px 16px;border-radius:999px;font-weight:800;font-size:clamp(19px,1.6vw,28px);background:#5a4208ee;border:1px solid #ffc93a;color:#fff;text-shadow:none}
 #subs .doubt.red{background:#5a1010ee;border-color:#ff5a4a}#subs .doubt.blue{background:#0f3a5aee;border-color:#6ac8ff}#subs .doubt.purple{background:#4a1a5aee;border-color:#d08aff}
 @keyframes pulse{0%,100%{box-shadow:0 0 0 0 #ffc93a00}50%{box-shadow:0 0 14px 2px #ffc93a55}}
 @media (max-width:900px){#deal{width:240px;font-size:12px}}
@@ -124,18 +124,18 @@ body.talking #tip,body.talking #feed{display:none!important}
 <script src="lib/three.min.js"></script>
 <!-- ES modules (the VRoid/VRM loader) import "three" through a shim that hands them the same THREE as the game -->
 <script type="importmap">{"imports":{"three":"./js/three-shim.js"}}</script>
-<script type="module" src="js/vrm.js?v=20261020-27"></script>
-<script src="js/data.js?v=20261020-27"></script>
-<script src="js/audio.js?v=20261020-27"></script>
-<script src="js/ai.js?v=20261020-27"></script>
-<script src="js/whisper.js?v=20261020-27"></script>
-<script src="js/voices.js?v=20261020-27"></script>
-<script src="js/lines.js?v=20261020-27"></script>
-<script src="js/talk.js?v=20261020-27"></script>
-<script src="js/miguel.js?v=20261020-27"></script>
-<script src="js/world.js?v=20261020-27"></script>
-<script src="js/pc.js?v=20261020-27"></script>
-<script src="js/game.js?v=20261020-27"></script>
+<script type="module" src="js/vrm.js?v=20261020-29"></script>
+<script src="js/data.js?v=20261020-29"></script>
+<script src="js/audio.js?v=20261020-29"></script>
+<script src="js/ai.js?v=20261020-29"></script>
+<script src="js/whisper.js?v=20261020-29"></script>
+<script src="js/voices.js?v=20261020-29"></script>
+<script src="js/lines.js?v=20261020-29"></script>
+<script src="js/talk.js?v=20261020-29"></script>
+<script src="js/miguel.js?v=20261020-29"></script>
+<script src="js/world.js?v=20261020-29"></script>
+<script src="js/pc.js?v=20261020-29"></script>
+<script src="js/game.js?v=20261020-29"></script>
 <script>window.addEventListener("load",function(){Game.boot()});</script>
 </body>
 </html>

@@ -211,6 +211,8 @@ function wholesale(id){
   const i=S.inv.findIndex(c=>c.id==id),c=S.inv[i];if(!c)return;
   const p=Math.round(marketValue(c)*.8/50)*50;
   S.cash+=p-c.cost;S.profit+=p-c.cost;S.inv.splice(i,1);
+  // Tiffany hears about every wholesale (game.js roasts you when you close the computer)
+  if(window.Game&&Game.wholesaled)Game.wholesaled(c,p);
   logMsg(`Wholesaled ${label(c)} for ${$f(p)} (${$f(p-c.cost)} profit).`);save();
 }
 const UPG=[
