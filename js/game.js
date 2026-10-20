@@ -32,7 +32,7 @@ function showTitle(){
     <div class=btnrow>${hasSave()?`<button class=go onclick="Game.start(false)">Continue</button>`:""}<button class="${hasSave()?"b":"go"}" onclick="Game.start(true)">New game</button></div>
     <div class=aibox>${aiRow}<div class=dim id=ainote>${esc(ai.note||"")}</div>
       <div class=dim style="margin-top:6px">${!window.claude&&navigator.mediaDevices?"🎙️ Voice is ready: walk up to a customer and hold <b>V</b> to talk. <button class=b onclick=\"Game.micTest()\">Test mic</button> <span id=micres></span>":"🎙️ This page can't use your microphone, so you'll type (press <b>T</b>). For voice, play the hosted version in Chrome or Edge."}</div></div>
-      <div class=dim style="margin-top:6px"><label><input type=checkbox ${window.Voices&&Voices.on?"checked":""} onchange="Voices.setOn(this.checked)"> 🗣️ <b>Natural voices</b></label> <span id=vstat>${window.Voices?esc(Voices.status()):""}</span></div>
+      <div class=dim style="margin-top:6px"><label><input type=checkbox ${window.Voices&&Voices.on?"checked":""} onchange="Voices.setOn(this.checked)"> 🗣️ <b>Natural voices</b></label> <span id=vstat>${window.Voices?esc(Voices.status()):""}</span> <button class=b id=vretry style="display:none" onclick="Voices.retry()">Retry</button></div>
     <div class=keys><b>WASD</b> move · <b>Shift</b> sprint · <b>Mouse</b> look (click and drag if it won't lock) · <b>←/→</b> turn · <b>E</b> use / take over · <b>Q</b> send Mini Miguel to a T.O. (2 a day) · <b>C</b> see yourself · <b>M</b> mute · <b>Esc</b> pause</div>
   </div>`;
   el("title").style.display="flex";
@@ -466,9 +466,16 @@ const RECEP_HI=["Welcome to Bargain Bob's! Someone will be right with you. Proba
 const RECEP_JOKES=["Bob asked me to answer the phone 'Bargain Bob's, how can I lower your expectations?' So I do.","A guy called asking if we take trades. I said we take anything. He's bringing a boat. And a goat.",
   "I put 'Do not lean on the Corolla' on a sign and someone leaned on the sign and the sign broke the Corolla.","Juanny told me something really sweet today. I think. It was in Spanish. Might have been a sandwich order.",
   "Frenchy keeps calling me 'mon petit croissant'. HR is me. I'm HR. I said it's fine.","The phone rang four times today. Three were Bob's mom.","Sam's goatee has its own Instagram. It has more followers than the dealership."];
+// Her outfits (generated on the sample body): one per day, in rotation.
+const RECEP_OUTFITS=[{name:"office",top:0xffffff,shade:0xc9ccd8,skirt:0x1d2747,shoes:0x111111,line:"White blouse, navy skirt. Bob says it's 'the dealership look'. Bob wears cargo shorts."},
+  {name:"red",top:0xc8203c,shade:0x7a1024,skirt:0xb81630,shoes:0x111111,line:"Red dress day! Studies say red sells cars. I made that study up. It works anyway."},
+  {name:"plaid",top:0x26262e,shade:0x121216,skirt:"plaid",shoes:0x2a1a12,line:"Plaid Wednesday. Don't tell Frenchy it's Wednesday, he gets weird."},
+  {name:"pink",top:0xff9ccc,shade:0xc8689a,skirt:0xf2efe8,shoes:0xf2efe8,line:"Pink top, white skirt. Mario said I look like a strawberry milkshake. I'm choosing to take that as a compliment."},
+  {name:"black",top:0x18181c,shade:0x0c0c0e,skirt:0x18181c,shoes:0x111111,flare:.28,line:"All black. Not for a funeral. Yet. Depends how the numbers look today."}];
+const recepOutfit=()=>RECEP_OUTFITS[((S?S.day:1)-1)%RECEP_OUTFITS.length];
 function makeRecep(){
   const g=new THREE.Group();g.userData={isVRM:true,brows:[],hipY:.8,sex:"f",mood:"happy",keep:true};
-  const day=S?S.day:1;VRMKit.attach(g,[`models/receptionist-day${(day-1)%3+1}.vrm`].concat(RECEP_MODELS));
+  const day=S?S.day:1;VRMKit.attach(g,[`models/receptionist-day${(day-1)%3+1}.vrm`].concat(RECEP_MODELS),{outfit:recepOutfit(),dressIf:"VRM1_Constraint"});
   g.position.set(W.reception.x,0,W.reception.z);g.rotation.y=Math.PI;W.scene.add(g);
   G.recep={mesh:g,cool:0,said:{},day};
 }
@@ -535,6 +542,7 @@ function recepChat(){
   if(G.phase==="open"&&G.minis>0)list.push(`You've got ${G.minis} Mini Miguel${G.minis>1?"s":""} left today. He keeps asking me out. He's eleven inches tall.`);
   if(G.phase==="open"&&G.minis===0)list.push("Mini Miguel's on his break. He's sitting in the cup holder of the Civic, sulking.");
   try{const wk=weekOf(S0.day),got=S0.profit-S0.weekStart,q=quota(wk);list.push(got>=q?"You hit quota! Bob said 'good job' and then immediately said 'don't get used to it.'":`You need ${$f(q-got)} more this week for quota. No pressure. Except from Bob. And the bank.`)}catch(e){}
+  if(!G.recep.toldOutfit){G.recep.toldOutfit=true;G.recep.mesh.userData.wave=1.2;return recepSay(recepOutfit().line,true)}
   list.push(recepPick(RECEP_JOKES));
   G.recep.mesh.userData.wave=1.2;recepSay(pick(list.slice(0,2).concat(list.slice(-1))),true);
 }
@@ -900,7 +908,7 @@ function boot(){
   AI.init().then(()=>{if(G.phase==="title")showTitle()});
   // natural voices: start the one-time download now; keep the title screen's status line current
   if(window.Voices){Voices.onSlow=()=>say3("Natural voices are too slow on this computer, so the game switched to standard voices.","#fd8");
-    if(Voices.on)Voices.load();setInterval(()=>{const v=el("vstat");if(v)v.textContent=Voices.status()},700)}
+    if(Voices.on)Voices.load();setInterval(()=>{const v=el("vstat");if(v)v.textContent=Voices.status();const r=el("vretry");if(r)r.style.display=Voices.on&&(Voices.failed||Voices.slow)?"":"none"},700)}
   showTitle();loop();return true;
 }
 

@@ -78,3 +78,6 @@ First-person 3D used-car dealership game ("Bargain Bob's Auto Mart"). You play M
 - Reception counter in world.js (`makeReception`, `W.reception`). game.js: `makeRecep`, `stepRecep`, `recepChat` (E), greets customers walking in.
 - Models: models/receptionist.vrm, optional models/receptionist-day1..3.vrm (daily outfits), sample fallback. See models/README.md.
 - Crew distraction: idle salespeople drift to reception (`stepFlirt`, FLIRT_RATE per person), skip customers while there; E sends them back (`sendBack`); Tiffany shoos them after 75 s. Pink chip + pink minimap dot.
+- Outfits: vrm.js `dress(vrm,outfit)` recolors Tops/Shoes and adds a skinned pleated skirt (waist on hips, hem on thighs). RECEP_OUTFITS in game.js (office, red, plaid, pink, black), one per day; only applied to the sample model (dressIf), own exports keep their outfits.
+- VRM 0.x models: normalized-bone x/z rotations flipped in VRMKit.animate.
+- Voices: status shows the real load error and MB downloaded; Retry button on the title screen; first (warm-up) line no longer counts toward "too slow".

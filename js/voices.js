@@ -14,21 +14,26 @@ K.VOICES={
 };
 K.load=function(){
   if(K.loading||!K.on)return K.loading;
+  K.err=null;
   K.loading=import(LIB).then(async mod=>{
-    const files={},prog=p=>{if(p.status==="progress"&&p.total){files[p.file]=[p.loaded,p.total];let a=0,b=0;for(const k in files){a+=files[k][0];b+=files[k][1]}K.progress=a/b}};
+    // some hosts don't send a file size, so count megabytes too: "downloading 0%" forever looked like a hang
+    const files={},prog=p=>{if(p.status==="progress"){files[p.file]=[p.loaded||0,p.total||0];let a=0,b=0;for(const k in files){a+=files[k][0];b+=files[k][1]}K.mb=a/1048576;K.progress=b?a/b:0}};
     let tts=null;
     // WebGPU is much faster, but only if the browser can actually get a GPU adapter
     let gpu=null;try{gpu=navigator.gpu&&await navigator.gpu.requestAdapter()}catch(e){}
-    if(gpu)try{tts=await mod.KokoroTTS.from_pretrained(MODEL,{dtype:"fp32",device:"webgpu",progress_callback:prog})}catch(e){tts=null}
+    if(gpu)try{tts=await mod.KokoroTTS.from_pretrained(MODEL,{dtype:"fp32",device:"webgpu",progress_callback:prog})}catch(e){console.warn("Kokoro WebGPU failed, trying WASM",e);tts=null}
     if(!tts)tts=await mod.KokoroTTS.from_pretrained(MODEL,{dtype:"q8",device:"wasm",progress_callback:prog});
     K.tts=tts;K.ready=true;K.progress=1;return tts;
-  }).catch(e=>{K.failed=true;K.loading=null;throw e});
+  }).catch(e=>{K.failed=true;K.loading=null;K.err=String(e&&e.message||e).slice(0,140);console.warn("Natural voices failed to load",e);throw e});
   K.loading.catch(()=>{});
   return K.loading;
 };
+// Try again from scratch (after a failed download, or to give a slow computer another shot).
+K.retry=function(){K.failed=K.slow=false;K.slowHits=0;K.warm=false;K.loading=null;K.on=true;try{localStorage.setItem("bobsVoices","1")}catch(e){}return K.load()};
 K.setOn=function(on){K.on=on;try{localStorage.setItem("bobsVoices",on?"1":"0")}catch(e){}if(on)K.load();else K.stop()};
 K.usable=()=>K.on&&K.ready&&!K.failed&&!K.slow;
-K.status=()=>!K.on?"off":K.failed?"couldn't load":K.slow?"too slow on this computer, using standard voices":K.ready?"ready":K.loading?`downloading ${Math.round(K.progress*100)}% (first time only)`:"waiting";
+K.status=()=>!K.on?"off":K.failed?`couldn't load (${K.err||"unknown error"})`:K.slow?"too slow on this computer, using standard voices":K.ready?"ready":
+  K.loading?(K.progress?`downloading ${Math.round(K.progress*100)}%`:`downloading ${Math.round(K.mb||0)} MB of ~90`)+" (first time only)":"waiting";
 
 function ctx(){if(!K.ac)K.ac=new (window.AudioContext||window.webkitAudioContext)();if(K.ac.state==="suspended")K.ac.resume();return K.ac}
 K.stop=function(){K.seq++;K.chain=Promise.resolve();if(K.src){try{K.src.stop()}catch(e){}K.src=null}};
@@ -41,7 +46,7 @@ K.say=function(text,voice,speed,queue){
   const parts=String(text).replace(/\*[^*]*\*/g,"").match(/[^.!?]+[.!?]*/g)||[];
   // time each line: if this computer generates speech much slower than real time, fall back to standard voices
   const gens=parts.map(p=>p.trim()).filter(Boolean).map(p=>async()=>{const t0=performance.now(),a=await K.tts.generate(p,{voice,speed:speed||1}),gen=(performance.now()-t0)/1000,dur=a.audio.length/a.sampling_rate;
-    if(gen>dur*2.2&&gen>2.5){K.slowHits=(K.slowHits||0)+1;if(K.slowHits>=2&&!K.slow){K.slow=true;if(K.onSlow)K.onSlow()}}return a});
+    if(!K.warm){K.warm=true}else if(gen>dur*2.2&&gen>2.5){K.slowHits=(K.slowHits||0)+1;if(K.slowHits>=2&&!K.slow){K.slow=true;if(K.onSlow)K.onSlow()}}return a});
   let pending=gens.map(g=>null);
   K.chain=K.chain.then(async()=>{
     for(let i=0;i<gens.length;i++){

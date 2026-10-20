@@ -12,7 +12,7 @@ const K={ready:true,models:[]};
 function bytes(url){return files[url]||(files[url]=fetch(url).then(r=>{if(!r.ok)throw new Error(url+" "+r.status);return r.arrayBuffer()}))}
 // url may be a list: the first file that loads wins (your own export first, the sample as a fallback).
 async function make(url){
-  if(Array.isArray(url)){let err;for(const x of url){try{return await make(x)}catch(e){err=e}}throw err}
+  if(Array.isArray(url)){let err;for(const x of url){try{const v=await make(x);v.src=x;return v}catch(e){err=e}}throw err}
   const buf=await bytes(url);
   const gltf=await new Promise((res,rej)=>loader.parse(buf.slice(0),"",res,rej));
   const vrm=gltf.userData.vrm;
@@ -22,6 +22,46 @@ async function make(url){
   return vrm;
 }
 const N=(vrm,b)=>vrm.humanoid.getNormalizedBoneNode(b);
+
+// ---------- outfits ----------
+// For a stock VRoid body (materials named Tops_/Bottoms_): recolor the top and give her a short pleated skirt.
+// The skirt is a skinned mesh: the waist follows the hips, the hem follows the thighs, so it moves when she walks.
+const toonRamp=(()=>{let t;return()=>t||(t=(()=>{const d=new Uint8Array([90,170,255]);const x=new THREE.DataTexture(d,3,1,THREE.RedFormat);x.minFilter=x.magFilter=THREE.NearestFilter;x.needsUpdate=true;return x})())})();
+function plaid(a,b,c){const cv=document.createElement("canvas");cv.width=cv.height=128;const g=cv.getContext("2d");
+  g.fillStyle=a;g.fillRect(0,0,128,128);g.globalAlpha=.55;g.fillStyle=b;[0,64].forEach(o=>{g.fillRect(o+8,0,22,128);g.fillRect(0,o+8,128,22)});
+  g.globalAlpha=.8;g.fillStyle=c;[0,64].forEach(o=>{g.fillRect(o+44,0,3,128);g.fillRect(0,o+44,128,3)});
+  const t=new THREE.CanvasTexture(cv);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(6,1.2);return t}
+function dress(vrm,o){
+  let bottoms=null;
+  const tint=(mt,c,sh)=>{mt.color.set(c);if(mt.shadeColorFactor)mt.shadeColorFactor.set(sh!=null?sh:c)};
+  vrm.scene.traverse(m=>{if(!m.isMesh||!m.material)return;const mt=Array.isArray(m.material)?m.material[0]:m.material,n=mt.name||"";   // [main, outline]
+    if(/Tops_/.test(n)&&o.top!=null)tint(mt,o.top,o.shade);
+    if(/Bottoms_/.test(n)&&m.isSkinnedMesh)bottoms=m;
+    if(/Shoes_/.test(n)&&o.shoes!=null)tint(mt,o.shoes)});
+  if(!bottoms||!o.skirt)return;
+  vrm.scene.updateMatrixWorld(true);
+  const toScene=new THREE.Matrix4().copy(vrm.scene.matrixWorld).invert();
+  const box=bottoms.geometry.boundingBox||(bottoms.geometry.computeBoundingBox(),bottoms.geometry.boundingBox);
+  const bb=box.clone().applyMatrix4(new THREE.Matrix4().multiplyMatrices(toScene,bottoms.matrixWorld));
+  const R=b=>vrm.humanoid.getRawBoneNode(b),hips=R("hips"),lL=R("leftUpperLeg"),rL=R("rightUpperLeg");
+  const lp=new THREE.Vector3().setFromMatrixPosition(lL.matrixWorld).applyMatrix4(toScene);
+  const cx=(bb.min.x+bb.max.x)/2,cz=(bb.min.z+bb.max.z)/2,rx=(bb.max.x-bb.min.x)/2*1.04,rz=(bb.max.z-bb.min.z)/2*1.1;
+  const top=bb.max.y-.005,hem=bb.min.y-(o.length||.025),side=Math.sign(lp.x-cx)||1,SEG=64,ROWS=7;
+  const pos=[],uv=[],si=[],sw=[],idx=[];
+  for(let r=0;r<=ROWS;r++){const f=r/ROWS,y=top+(hem-top)*f,flare=1+f*(o.flare||.3);
+    for(let k=0;k<=SEG;k++){const a=k/SEG*Math.PI*2,pl=1+f*.05*Math.abs(Math.sin(a*12));   // knife pleats deepen toward the hem
+      const x=cx+Math.sin(a)*rx*flare*pl,z=cz+Math.cos(a)*rz*flare*pl;pos.push(x,y,z);uv.push(k/SEG,1-f);
+      const leg=.75*Math.pow(f,1.4),sL=THREE.MathUtils.smoothstep((x-cx)/rx*side,-.7,.7);
+      si.push(0,1,2,0);sw.push(1-leg,leg*sL,leg*(1-sL),0)}}
+  for(let r=0;r<ROWS;r++)for(let k=0;k<SEG;k++){const a=r*(SEG+1)+k,b=a+SEG+1;idx.push(a,b,a+1,a+1,b,b+1)}
+  const geo=new THREE.BufferGeometry();geo.setIndex(idx);geo.setAttribute("position",new THREE.Float32BufferAttribute(pos,3));geo.setAttribute("uv",new THREE.Float32BufferAttribute(uv,2));
+  geo.setAttribute("skinIndex",new THREE.Uint16BufferAttribute(si,4));geo.setAttribute("skinWeight",new THREE.Float32BufferAttribute(sw,4));geo.computeVertexNormals();
+  const mat=new THREE.MeshToonMaterial({color:o.skirt==="plaid"?0xffffff:o.skirt,map:o.skirt==="plaid"?plaid(...(o.plaid||["#7a1020","#1a1a22","#e8c040"])):null,gradientMap:toonRamp(),side:THREE.DoubleSide});
+  const sk=new THREE.SkinnedMesh(geo,mat);sk.name="Skirt";sk.castShadow=true;sk.frustumCulled=false;
+  vrm.scene.add(sk);sk.updateMatrixWorld(true);sk.bind(new THREE.Skeleton([hips,lL,rL]),sk.matrixWorld);
+  // the shorts underneath take the skirt's colour so nothing peeks out
+  tint(Array.isArray(bottoms.material)?bottoms.material[0]:bottoms.material,o.skirt==="plaid"?0x1a1a22:o.skirt,o.skirt==="plaid"?0x101014:null);
+}
 
 // Put a VRoid character inside a game person group (returned at once; the model pops in when loaded).
 K.attach=function(g,url,o){
@@ -35,13 +75,15 @@ K.attach=function(g,url,o){
     const sprung=new Set();try{(vrm.springBoneManager?vrm.springBoneManager.joints:[]).forEach(j=>sprung.add(j.bone))}catch(e){}
     u.bust=[];vrm.scene.traverse(o=>{if(o.isBone&&/bust1$/i.test(o.name)&&!sprung.has(o))u.bust.push({b:o,q:o.quaternion.clone()})});
     u.sway={x:0,v:0,drive:0};
+    if(o&&o.outfit&&(!o.dressIf||String(vrm.src||url).includes(o.dressIf)))try{dress(vrm,o.outfit)}catch(e){console.warn("outfit",e)}
   }).catch(e=>{u.vrmLoading=false;u.vrmFailed=String(e);console.warn("VRM load failed",e)});
 };
 // Walk, sit, wave, talk: the same signals the blocky people use (see animatePerson in world.js).
 const MOODEXP={happy:["happy",.8],angry:["angry",.9],worried:["sad",.7],shocked:["surprised",.9],confused:["sad",.35],neutral:null};
 K.animate=function(g,moving,t,armsUp,talk){
   const u=g.userData,vrm=u.vrm;if(!vrm)return;
-  const s=moving?Math.sin(t*9)*.55:0,set=(b,x,y,z)=>{const n=N(vrm,b);if(n)n.rotation.set(x||0,y||0,z||0)};
+  const v0=vrm.meta&&vrm.meta.metaVersion==="0"?-1:1;   // VRM 0.x models are turned around, so x/z bends flip
+  const s=moving?Math.sin(t*9)*.55:0,set=(b,x,y,z)=>{const n=N(vrm,b);if(n)n.rotation.set((x||0)*v0,y||0,(z||0)*v0)};
   if(u.sit&&!moving){
     g.position.y=.52-u.hipY+.06;
     set("leftUpperLeg",-1.45,0,.05);set("rightUpperLeg",-1.45,0,-.05);set("leftLowerLeg",1.45);set("rightLowerLeg",1.45);
