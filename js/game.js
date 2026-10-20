@@ -158,7 +158,7 @@ function startShift(){
   openDay();
   G.phase="open";G.t=0;G.ended=false;
   G.stats={p0:S.profit,front0:S.front,back0:S.back,sp:0,spGross:0,mgr:0,mgrGross:0,lost:0,comm:0,cave:0,timeouts:0,released:0,wasted:0};
-  G.sales.forEach(s=>{s.deals=0;s.gross=0;s.drift=driftTime(s)*.7});
+  G.sales.forEach(s=>{s.deals=0;s.gross=0;s.drift=driftTime(s)*rnd(.9,1.6)});
   const n=S.cust.length;
   G.cust=S.cust.map((u,i)=>({u,mesh:null,path:[],speed:1.5,state:"wait",arrive:(i+.3)*(SHIFT_SECONDS*.8/n)+Math.random()*6,pat:0,patMax:45,sp:null,ph:Math.random()*6}));
   W.setOpen(true);Sfx.chime();
@@ -820,7 +820,7 @@ function stepFlirt(s,dt,arrived){
     if(s.drift<=0&&!G.lotWalk&&!G.sales.some(o=>o.state==="flirt"&&o.flirt>40)){   // one at a time hangs around for long
       const spot=[-8.2,-7.5,-6.8].find(x=>!G.sales.some(o=>o.state==="flirt"&&o.spot===x));
       if(spot===undefined||G.sales.filter(o=>o.state==="flirt").length>=2){s.drift=rnd(15,30);return}   // never more than two at her desk
-      s.state="flirt";s.spot=spot;s.flirt=0;s.said=0;s.speed=1.6;s.path=[P(s.mesh.position.x,-16.4),P(spot,-15.85)];
+      s.state="flirt";s.spot=spot;s.flirt=0;s.said=0;s.lineAt=ri(0,5);s.speed=1.6;s.path=[P(s.mesh.position.x,-16.4),P(spot,-15.85)];
       say3(`😍 ${s.def.name} wandered over to ${RECEP_NAME}'s desk instead of working.`,"#ffb6e1");
       if(G.tut&&!G.tutFlirt&&!G.talk){G.tutFlirt=true;setTimeout(()=>tutSay(`Ugh. ${s.def.name}'s hanging around my desk again. While they're here, nobody's helping customers. Walk over and press E to send them back. Please.`),3500)}}
     return}
@@ -828,7 +828,7 @@ function stepFlirt(s,dt,arrived){
   s.flirt+=dt;if(!arrived)return;
   s.mesh.rotation.y=Math.atan2(G.recep.mesh.position.x-s.mesh.position.x,G.recep.mesh.position.z-s.mesh.position.z);
   const d=Math.hypot(G.px-s.mesh.position.x,G.pz-s.mesh.position.z),bik=laundryDay(S.day),lines=(bik&&FLIRT_BIKINI[s.def.name])||FLIRT[s.def.name]||[["So... you come here often?","I work here."]];
-  if(s.said<(bik?3:2)&&s.flirt>(s.said?(bik?11:14):2)&&!G.talk&&d<14){const L=lines[s.said%lines.length];s.said++;
+  if(s.said<(bik?3:2)&&s.flirt>(s.said?(bik?11:14):2)&&!G.talk&&d<14){const L=lines[(s.said+(s.lineAt||0))%lines.length];s.said++;   // start somewhere different each visit
     if(s.said===1||bik)popup(bik?"😍🔥":"😍",s.mesh.position,"#ff7ab8");crewSay(s,L[0]);G.recep.cool=0;G.recep.mesh.userData.mood="neutral";recepSay(L[1],true);
     if(L[2])setTimeout(()=>{if(s.state==="flirt")crewSay(s,L[2])},4500);   // some bits get a last word
     setTimeout(()=>{if(G.recep)G.recep.mesh.userData.mood="happy"},4000)}
