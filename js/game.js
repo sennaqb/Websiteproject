@@ -460,7 +460,12 @@ function pairNear(){
 }
 // ---------- Tiffany, the receptionist (a VRoid model) ----------
 // Drop your own VRoid Studio export at models/receptionist.vrm; until then she's the three-vrm sample girl.
-// Outfit changes: export extra outfits as models/receptionist-day1.vrm, -day2, -day3; she rotates through them daily.
+// Outfit rotation: each look is its own VRoid export in models/ (.vrm, or .b64.txt for the artifact copy).
+// Days cycle through RECEP_LOOKS; a look whose file isn't there yet falls back to the main model.
+const RECEP_LOOKS=[{file:"receptionist"},
+  {file:"receptionist-beach",event:"Beach Day",lines:["Bob declared it Beach Day. The AC's been broken since June, so honestly? Fair.","It's Beach Day! Bob says it 'moves convertibles'. We don't have any convertibles.","Beach Day. Frenchy brought a tiny umbrella for his drink. He doesn't have a drink."]}];
+const recepLook=()=>RECEP_LOOKS[((S?S.day:1)-1)%RECEP_LOOKS.length];
+const lookFiles=l=>[`models/${l.file}.vrm`,`models/${l.file}.b64.txt`];
 const RECEP_NAME="Tiffany",RECEP_MODELS=["models/receptionist.vrm","models/receptionist.b64.txt","https://cdn.jsdelivr.net/gh/pixiv/three-vrm@dev/packages/three-vrm/examples/models/VRM1_Constraint_Twist_Sample.vrm"];
 const RECEP_HI=["Welcome to Bargain Bob's! Someone will be right with you. Probably.","Hiii! Help yourself to a mint. Nobody else has, since 2009.","Welcome in! Please don't touch the Kia, it's load-bearing.","Hi! The coffee's free. The bathroom is a hundred dollars.",
   "Welcome to Bargain Bob's, where every car has a story, and most of them are crimes.","Oh my gosh, a customer! Okay, act natural, everybody.","Hi there! Sign in here. Pen's on a chain. We've lost eleven pens.","Welcome! If you hear crying, that's just the manager. Totally normal."];
@@ -476,7 +481,7 @@ const RECEP_OUTFITS=[{name:"office",top:0xffffff,shade:0xc9ccd8,skirt:0x1d2747,s
 const recepOutfit=()=>RECEP_OUTFITS[((S?S.day:1)-1)%RECEP_OUTFITS.length];
 function makeRecep(){
   const g=new THREE.Group();g.userData={isVRM:true,brows:[],hipY:.8,sex:"f",mood:"neutral",moodScale:.45,keep:true};
-  const day=S?S.day:1;VRMKit.attach(g,[`models/receptionist-day${(day-1)%3+1}.vrm`].concat(RECEP_MODELS),{outfit:recepOutfit(),dressIf:"VRM1_Constraint",adult:{lips:0xc0283c}});
+  const day=S?S.day:1;VRMKit.attach(g,lookFiles(recepLook()).concat(RECEP_MODELS),{outfit:recepOutfit(),dressIf:"VRM1_Constraint",adult:{lips:0xc0283c}});
   g.position.set(W.reception.x,0,W.reception.z);g.rotation.y=Math.PI;W.scene.add(g);
   G.recep={mesh:g,cool:0,said:{},day};
 }
@@ -567,6 +572,7 @@ function recepChat(){
   if(G.phase==="open"&&G.minis===0)list.push("Mini Miguel's on his break. He's sitting in the cup holder of the Civic, sulking.");
   try{const wk=weekOf(S0.day),got=S0.profit-S0.weekStart,q=quota(wk);list.push(got>=q?"You hit quota! Bob said 'good job' and then immediately said 'don't get used to it.'":`You need ${$f(q-got)} more this week for quota. No pressure. Except from Bob. And the bank.`)}catch(e){}
   if(!G.recep.toldOutfit){G.recep.toldOutfit=true;G.recep.mesh.userData.wave=1.2;const v=G.recep.mesh.userData.vrm,stock=v&&String(v.src).includes("VRM1_Constraint");
+    const lk=recepLook();if(lk.lines&&v&&String(v.src).includes(lk.file))return recepSay(pick(lk.lines),true);
     return recepSay(stock?recepOutfit().line:pick(["Like the suit? Bob said I look like I work at a real dealership. Nicest thing anyone's ever said about this place.","New glasses. I can finally read the fine print on our contracts. I wish I couldn't.","The suit's for the customers. The glasses are so Frenchy thinks I'm busy."]),true)}
   list.push(recepPick(RECEP_JOKES));
   G.recep.mesh.userData.wave=1.2;recepSay(pick(list.slice(0,2).concat(list.slice(-1))),true);

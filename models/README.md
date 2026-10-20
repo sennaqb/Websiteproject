@@ -8,3 +8,5 @@ In VRoid Studio: Outfit tab for the blouse/skirt (skirt length is a slider), Bod
 Bust "Sway" (spring bones) for physics. If the export has no bust spring bones the game adds a soft sway itself.
 
 Current: receptionist.vrm is Tiffany as made in VRoid Studio (source project in source/Dealership_Receptionist.vroid). Open the .vroid in VRoid Studio to edit her, then re-export.
+
+Outfit rotation: receptionist.vrm on odd days, receptionist-beach.vrm (Beach Day) on even days. Add more looks to RECEP_LOOKS in js/game.js.
