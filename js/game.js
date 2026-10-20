@@ -805,7 +805,7 @@ const FLIRT={Frenchy:[["Tiffany, mon chéri. Your eyes are like two headlights o
   Juanny:[["Tiffany, eres más bonita que un Camry con cero millas.","Gracias? I think? Is that a car thing?"],["¿Quieres ir a comer tacos después del trabajo?","I don't know what you said but I heard tacos, and yes."]]};
 // Laundry days (she's in the bikini): the crew turns it up. Three tries each, and they hang around longer.
 const FLIRT_BIKINI={Frenchy:[["Tiffany. Ze laundry gods have smiled on me today.","They're about to frown on you, Frenchy."],["In France, zis is called 'business casual'.","In America it's called 'my washer broke'."],["Shall I hold ze sunscreen? For safety?","There's no sun. We're indoors. Go sell a car."]],
-  Sam:[["So, uh, I washed my car today too. We have that in common.","We have nothing in common, Sam."],["Nice, uh... weather. In here. Today.","It's raining, Sam."],["I could give you a ride to the laundromat. In a car I haven't sold.","I'll take the bus."]],
+  Sam:[["So, uh, I washed my car today too. We have that in common.","We have nothing in common, Sam."],["Nice, uh... weather. In here. Today.","We're indoors, Sam."],["I could give you a ride to the laundromat. In a car I haven't sold.","I'll take the bus."]],
   Andres:[["From down here, you look like a giant golden goddess.","From up here, you look like you have a customer waiting."],["I'm on the lifeguard list at my apartment pool.","The pool's been drained since 2019, Andres."],["Want me to stand guard? I'm small, but I'm loud.","You're both. Go."]],
   Riccardo:[["Tiffany. I'm not saying it's fate that your laundry broke. But it's fate.","It's a broken washer, Riccardo."],["You know, I own a boat. Well. A raft. It's a pool float.","Is it a flamingo?","It's a flamingo."],["I'd buy a car from you right now. Full sticker.","You work here, Riccardo."]],
   Mario:[["Mamma mia. I'm calling my mother to tell her about this.","Please do not call your mother about this."],["I brought you a towel. And a meatball. Beach essentials.","...Leave the towel. Take the meatball."],["You know I'm single, right?","Everyone knows, Mario. Your mom put it on the sign."]],
@@ -818,7 +818,8 @@ function stepFlirt(s,dt,arrived){
   if(!G.recep||G.ended)return;
   if(s.state==="idle"){s.drift=(s.drift===undefined?driftTime(s):s.drift)-dt;
     if(s.drift<=0&&!G.lotWalk&&!G.sales.some(o=>o.state==="flirt"&&o.flirt>40)){   // one at a time hangs around for long
-      const spot=[-8.2,-7.5,-6.8].find(x=>!G.sales.some(o=>o.state==="flirt"&&o.spot===x));if(spot===undefined){s.drift=10;return}
+      const spot=[-8.2,-7.5,-6.8].find(x=>!G.sales.some(o=>o.state==="flirt"&&o.spot===x));
+      if(spot===undefined||G.sales.filter(o=>o.state==="flirt").length>=2){s.drift=rnd(15,30);return}   // never more than two at her desk
       s.state="flirt";s.spot=spot;s.flirt=0;s.said=0;s.speed=1.6;s.path=[P(s.mesh.position.x,-16.4),P(spot,-15.85)];
       say3(`😍 ${s.def.name} wandered over to ${RECEP_NAME}'s desk instead of working.`,"#ffb6e1");
       if(G.tut&&!G.tutFlirt&&!G.talk){G.tutFlirt=true;setTimeout(()=>tutSay(`Ugh. ${s.def.name}'s hanging around my desk again. While they're here, nobody's helping customers. Walk over and press E to send them back. Please.`),3500)}}
@@ -850,7 +851,7 @@ function recepChat(){
   try{const wk=weekOf(S0.day),got=S0.profit-S0.weekStart,q=quota(wk);list.push(got>=q?"You hit quota! Bob said 'good job' and then immediately said 'don't get used to it.'":`You need ${$f(q-got)} more this week for quota. No pressure. Except from Bob. And the bank.`)}catch(e){}
   if(!G.recep.toldOutfit){G.recep.toldOutfit=true;G.recep.mesh.userData.wave=1.2;const v=G.recep.mesh.userData.vrm,stock=v&&String(v.src).includes("VRM1_Constraint");
     const lk=recepLook();if(lk.lines&&v&&(lk.swim||String(v.src).includes(lk.file)))return recepSay(pick(lk.lines),true);
-    return recepSay(stock?recepOutfit().line:pick(["Like the suit? Bob said I look like I work at a real dealership. Nicest thing anyone's ever said about this place.","New glasses. I can finally read the fine print on our contracts. I wish I couldn't.","The suit's for the customers. The glasses are so Frenchy thinks I'm busy."]),true)}
+    return recepSay(stock?recepOutfit().line:pick(["Like the blouse? Bob said I look like I work at a real dealership. Nicest thing anyone's ever said about this place.","New glasses. I can finally read the fine print on our contracts. I wish I couldn't.","The skirt's for the customers. The glasses are so Frenchy thinks I'm busy.","Pencil skirt, glasses, coffee. I'm the only professional thing on this lot."]),true)}
   list.push(recepPick(RECEP_JOKES));
   G.recep.mesh.userData.wave=1.2;recepSay(pick(list.slice(0,2).concat(list.slice(-1))),true);
 }
