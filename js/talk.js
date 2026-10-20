@@ -47,7 +47,7 @@ function closeTalk(){
   if(T)try{logTalk()}catch(e){}
   hush();if(window.Sfx&&Sfx.duck)Sfx.duck(false);if(window.Whisper)Whisper.cancel();
   try{rec&&rec.abort()}catch(e){}
-  T=null;$("talk").innerHTML="";$("subs").innerHTML="";$("subs").className="";
+  T=null;$("talk").innerHTML="";$("subs").innerHTML="";$("subs").className="";$("deal").innerHTML="";$("deal").className="";document.body.classList.remove("talking");
   if(window.G3&&G3.talkClosed)G3.talkClosed();
 }
 
@@ -68,9 +68,24 @@ function flush(){
       .catch(()=>{if(!T||T.uid!==uid)return;T.busy=false;show(text)});
   }else show(text);
 }
+// The mime turns every line into a silent gesture (keeping any price as a sign held up).
+function mimeify(text,m){
+  const $=(text.match(/\$[\d,]+/g)||[]).pop();
+  if(/I'm out|look elsewhere|leaving|Bye|out\./i.test(text))return "*pretends to walk against a strong wind, all the way out the door*";
+  if(T.sold)return "*silently shakes your hand, then mimes driving away happily*";
+  if($)return pick([`*silently holds up a sign: ${$}*`,`*mimes counting invisible money: ${$}*`,`*draws ${$} in the air with one finger*`]);
+  const G={happy:["*gives a silent, enthusiastic thumbs up*","*mimes a big heart with both hands*","*does a tiny silent happy dance*"],
+    angry:["*shakes a tiny invisible fist*","*mimes slamming an invisible door*","*crosses arms and stomps one foot, silently*"],
+    worried:["*mimes being trapped inside an invisible box*","*bites invisible fingernails*"],
+    confused:["*shrugs dramatically and taps an invisible watch*","*scratches head, then points at the price tag*"],
+    shocked:["*mimes a jaw dropping to the floor*","*clutches chest and staggers backward*"],
+    neutral:["*mimes looking at the car through an invisible window*","*pretends to lean on an invisible wall*","*mimes pulling an invisible rope toward you*","*mimes opening an invisible umbrella*","*pretends to honk an invisible horn*","*waves hello with exaggerated slowness*"]}[m]||[];
+  const said=T.said||(T.said=new Set()),pool=G.length?G:[],fresh=pool.filter(x=>!said.has(x)),v=pick(fresh.length?fresh:pool.length?pool:["*stares at you in silence*"]);said.add(v);return v;
+}
 function show(text){
+  {const cu=S.cust.find(x=>x.id==T.uid);if(cu&&persona(cu).silent){T.forceMood=T.forceMood||mood(text);text=mimeify(text,T.forceMood);T.silentLine=true}else T.silentLine=false}
   if(T.over&&T.inWorld&&!T.closing){const uid=T.uid;T.closing=setTimeout(()=>{if(T&&T.uid===uid)closeTalk()},6000)}
-  T.lines.push({who:"c",text});renderTalk();speak(text);if(window.G3&&G3.speaking)G3.speaking(Math.min(6,1+text.length/14),mood(text))}
+  T.mood=mood(text);T.lines.push({who:"c",text});renderTalk();speak(text);if(window.G3&&G3.speaking)G3.speaking(Math.min(6,1+text.length/14),T.mood)}
 // Pick the customer's eyebrows from the engine's state, with the line itself as a tiebreaker.
 function mood(text){
   if(T.forceMood){const m=T.forceMood;T.forceMood=null;return m}
@@ -112,7 +127,7 @@ function speakLine(text,seed,pitch,rate,queue,lang){
 }
 function hush(){clearTimeout(speakTimer);speakSeq++;speakPend=[];try{window.speechSynthesis&&speechSynthesis.cancel()}catch(e){}}
 function speak(text){
-  if(T.mute||!window.speechSynthesis)return;
+  if(T.mute||T.silentLine||!window.speechSynthesis)return;
   try{
     const cu=S.cust.find(x=>x.id==T.uid),pv=persona(cu).voice,q=T.queueNext;T.queueNext=false;
     const fem=cu.sex==="f"&&pv[0]<1.2?1.28:1;   // women's voices up, unless the personality already set one
@@ -217,18 +232,18 @@ function runIntent(u,I){
     return say(pick(["So are we all set? Anything else, or shall we sign?","Are we signing or what? My parking meter's running.","Is there more? Please say no."]));
   }
   if((I.type==="offer"||I.type==="middle")&&!T.warm&&!T.coldDone){   // a price before any warm-up: they push back once
-    T.coldDone=true;bump(u,-.03);T.forceMood="angry";return say(line(u,"cold"))}
+    T.coldDone=true;T.event="cold";bump(u,-.03);T.forceMood="angry";return say(line(u,"cold"))}
   switch(I.type){
     case"sizzle":{   // selling the car's features: real ones build value, fake ones are lies
       T.warm++;giveFeats(c);
       const has=I.which.filter(k=>c.feats.includes(k)),fake=I.which.filter(k=>FEATS[k]&&!c.feats.includes(k)),fresh=has.filter(k=>!T.pitched[k]);
       if(fake.length){
-        T.lies++;bump(u,-.03);T.forceMood="angry";const f=FEATS[fake[0]].n;
+        T.lies++;T.event="lie";bump(u,-.03);T.forceMood="angry";const f=FEATS[fake[0]].n;
         if(T.lies>=2&&tire(u,2,line(u,"sizzleLie",{f})+" Twice now. I'm out."))return;
         return say(line(u,"sizzleLie",{f}));
       }
       if(!fresh.length)return say(line(u,"sizzleAgain",{f:FEATS[has[0]].n}));
-      let hit=false;
+      let hit=false;T.event="good";
       fresh.forEach(k=>{T.pitched[k]=1;const h=FEATS[k].hot===u.hot;if(h)hit=true;T.value+=h?2:1;bump(u,h?.045:.022,null,1.35)});
       T.forceMood="happy";
       return say(line(u,hit?"sizzleHot":"sizzleYes",{f:fresh.map(k=>FEATS[k].n).join(" and ")}));
@@ -236,18 +251,18 @@ function runIntent(u,I){
     case"needs":{
       const h=HOT[u.hot]||HOT.deal;
       if(T.knowNeed)return say(line(u,"needsAgain",{need:pick(h.need)}));
-      T.knowNeed=true;T.warm++;bump(u,.01,"needs");T.forceMood="happy";
+      T.knowNeed=true;T.warm++;T.event="good";bump(u,.01,"needs");T.forceMood="happy";
       return say(`${pick(["Ah, finally, somebody asks.","Okay, real talk.","Glad you asked."])} ${pick(h.need)}`);
     }
     case"hot":{
       T.warm++;
       if(I.which!==u.hot)return say(line(u,"hotNo"));
       if(T.hotHit)return say(pick(["Yeah, you said. I like it.","Right, right. That's the good stuff."]));
-      T.hotHit=true;bump(u,.06);T.rapport=Math.min(3,T.rapport+1);T.forceMood="happy";
+      T.hotHit=true;T.event="good";bump(u,.06);T.rapport=Math.min(3,T.rapport+1);T.forceMood="happy";
       return say(line(u,"hotYes"));
     }
     case"rapport":T.warm++;
-      if(T.rapport<3&&bump(u,.015*f,"r"+T.rapport)){T.rapport++;return say(Math.random()<.4?RAPPORT[u.type][T.rapport%2]:line(u,"rapport"))}
+      if(T.rapport<3&&bump(u,.015*f,"r"+T.rapport)){T.rapport++;T.event="good";return say(Math.random()<.4?RAPPORT[u.type][T.rapport%2]:line(u,"rapport"))}
       return say(line(u,"numbers"));
     case"pitch_miles":
       if(c.miles<70000){bump(u,.02*f,"miles");return say(line(u,"milesYes"))}
@@ -302,18 +317,18 @@ function offerPrice(u,price){
   T.lastAsk=price;
   if(price<=u.reserve)return agree(u,price);
   // a big number with no value built: they want to hear why it's worth it (once)
-  if(!T.value&&!T.justified&&price>u.reserve*1.08){T.justified=true;T.forceMood="confused";return say(line(u,"justify",{p:$f(price)}))}
+  if(!T.value&&!T.justified&&price>u.reserve*1.08){T.justified=true;T.event="justify";T.forceMood="confused";return say(line(u,"justify",{p:$f(price)}))}
   const hopeless=u.reserve<=T.car.cost*1.05;
   if(price>u.reserve*1.3&&!hopeless)return walk(u,pick(["That's way out of my range.","Way, WAY too much.","Not even close."])+" "+line(u,"walk"));
   T.rounds++;
   if(tire(u,1,line(u,"walk")))return;
   const step=Math.min(1,T.rounds/Math.max(2,T.maxPat-1));
   T.counter=Math.max(T.counter,Math.round((u.offer+(u.reserve-u.offer)*step)/50)*50);
-  const far=price>u.reserve*1.1;
+  const far=price>u.reserve*1.1;T.event=far?"far":"close";
   say(`${line(u,far?"far":"close")} ${line(u,"counter",{n:$f(T.counter)})}`);
 }
 function agree(u,p){
-  T.agreed=p;
+  T.agreed=p;T.event="agreed";
   if(u.married&&!T.wifeDone&&!T.gunned&&Math.random()<.5){
     const C=caller(u);
     T.wife=true;T.wifeDone=true;T.forceMood="worried";
@@ -430,6 +445,39 @@ function renderTalk(){
 }
 
 // ---------- first-person conversation: subtitles, push-to-talk, typing fallback ----------
+// What the customer is doubting right now, if anything, and what to try.
+function doubt(u){
+  if(T.over)return null;
+  if(T.wife)return {icon:"📞",col:"purple",cls:"d-wife",title:`On the phone with their ${caller(u).who}`,why:"The deal is on hold until they're convinced.",tip:"Charm them: small talk, pitch the car, or cry."};
+  if(!T.agreed&&T.pat<=1)return {icon:"⏳",col:"red",cls:"d-walk",title:"About to walk!",why:"They're out of patience.",tip:"Close now: meet them, split the difference, or let them go."};
+  if(T.event==="lie")return {icon:"😠",col:"red",cls:"d-trust",title:"Doesn't trust you",why:"You claimed a feature this car doesn't have.",tip:"Only sell what's really there. Build rapport back."};
+  if(T.event==="justify")return {icon:"🤔",col:"",cls:"d-price",title:"In doubt about the price",why:"They don't see why it's worth that much.",tip:"Sell the sizzle: pitch the car's features."};
+  if(T.event==="cold")return {icon:"❄️",col:"blue",cls:"d-cold",title:"Put off",why:"You went straight to numbers.",tip:"Small talk first, then ask what they need."};
+  if(T.event==="far")return {icon:"🤔",col:"",cls:"d-price",title:"Thinks you're too high",why:"Your number is well above what they'll pay.",tip:T.value<3?"Build more value, or come down a bit.":"Come down a little, or split the difference."};
+  return null;
+}
+const MOODS={happy:["😄","Happy"],neutral:["😐","Neutral"],angry:["😠","Annoyed"],worried:["😟","Worried"],shocked:["😲","Shocked"],confused:["🤔","Unsure"]};
+function renderDeal(u,c,best,back,dbt){
+  const el=$("deal");if(!el)return;el.className="on";
+  const md=MOODS[T.mood||"neutral"]||MOODS.neutral,pct=(v,m)=>Math.max(0,Math.min(100,Math.round(v/m*100)));
+  const bar=(v,col)=>`<div class=bar><i style="width:${v}%;background:${col}"></i></div>`;
+  const trust=Math.max(0,Math.min(5,1+T.rapport-T.lies*2)),warm=T.warm>=2?"🔥 Warmed up":T.warm===1?"🙂 Warming up":"❄️ Cold";
+  const hot=HOT[u.hot]||HOT.deal,tips=[];
+  if(!T.agreed){
+    if(T.warm<1)tips.push("Break the ice: ask about their day.");
+    else if(!T.knowNeed)tips.push("Ask what they're looking for.");
+    else if((c.feats||[]).some(k=>!T.pitched[k]))tips.push("Pitch the features"+(T.hotHit?"":" (and what they care about)")+".");
+    else tips.push("Name your price. Hold firm or split the difference.");
+  }else tips.push("Offer add-ons (1-4), then press F to sign.");
+  el.innerHTML=`<div class=dp-head><div class=dp-face>${md[0]}</div><div><div class=dp-name>${esc(u.name)}</div><div class=dp-sub>${esc(persona(u).tag)} · ${esc(label(c))}</div><div class=dp-mood>${md[1]} · ${warm}</div></div></div>
+   ${dbt?`<div class="dp-doubt ${dbt.cls}">${dbt.icon} ${esc(dbt.title)}<div class=w>${esc(dbt.why)}</div><div class=w>👉 ${esc(dbt.tip)}</div></div>`:T.agreed?`<div class=dp-good>🤝 Agreed at ${$f(T.agreed)}${back?` · +${$f(back)} back-end`:""}</div>`:""}
+   <div class=m><span>Patience</span>${bar(pct(T.pat,T.maxPat),T.pat<=1?"#f0524a":T.pat<=2?"#ffb81c":"#4cc569")}
+     <span>Trust</span>${bar(pct(trust,5),trust<=1?"#f0524a":"#6ac8ff")}
+     <span>Value built</span>${bar(pct(T.value,6),"#ffc93a")}</div>
+   ${T.agreed?"":`<div class=px><span>Your ask<br><b>${$f(T.lastAsk||c.price)}</b></span><span style="text-align:right">Their offer<br><b>${best?$f(best):"–"}</b>${best&&best<c.cost?`<br><span class=bad>under cost</span>`:""}</span></div>`}
+   <div class=chips>${(c.feats||[]).map(k=>`<span class="chip${T.pitched[k]?" on":""}${T.knowNeed&&FEATS[k].hot===u.hot?" hot":""}">${T.pitched[k]?"✔ ":""}${esc(FEATS[k].n)}</span>`).join("")}</div>
+   <div class=tipline>${T.knowNeed?`❤️ Cares about <b>${esc(hot.n)}</b>${T.hotHit?" ✔":""}<br>`:""}👉 ${esc(tips[0])}</div>`;
+}
 function renderSubs(){
   const u=S.cust.find(x=>x.id==T.uid),c=T.car,box=$("subs"),old=($("tin")||{}).value||"";
   const rev=T.lines.slice().reverse(),lastC=rev.find(l=>l.who==="c"),lastP=rev.find(l=>l.who==="p");
@@ -438,11 +486,9 @@ function renderSubs(){
   const back=T.addons.reduce((s,k)=>s+ADDONS[k].price-ADDONS[k].cost,0)+(T.financed&&!T.addons.includes("finance")?ADDONS.finance.price:0);
   const dl=window.Whisper&&micMode==="whisper"&&!Whisper.ready?` · downloading speech model (first time only) ${Math.round(Whisper.progress*100)}%`:"";
   const status=T.transcribing?(dl?"✍️ Getting ready"+dl:"✍️ Working out what you said…"):T.ptt&&T.pttLatch?"🎙️ Listening… tap <b>V</b> again to send":T.ptt||T.listening?"🎙️ Listening…"+dl:T.busy?`${esc(u.name)} is thinking…`:"";
-  box.className="on";
-  const warmth=T.agreed?"":T.warm>=2?" · 🔥 warmed up":T.warm===1?" · 🙂 warming up":" · ❄️ cold";
-  const hotTag=T.knowNeed?` · cares about <b>${esc((HOT[u.hot]||HOT.deal).n)}</b>${T.hotHit?" ✔":""}`:"";
-  box.innerHTML=`<div class=subhead><b>${esc(u.name)}</b>${warmth}${hotTag} · ${esc(label(c))} · cost ${$f(c.cost)} · ask ${$f(c.price)} · patience ${pat} · rapport ${"♥".repeat(T.rapport)||"–"}${best&&!T.agreed?` · their best ${$f(best)}${best<c.cost?" <span class=bad>(under cost)</span>":""}`:""}${T.agreed?` · <span class=good>agreed ${$f(T.agreed)} · back-end ${$f(back)}</span>`:""}${window.AI&&AI.on()?` · <span class=good>${AI.who()}</span>`:""}</div>
-  ${T.agreed?"":`<div class=subhead>🚗 Sell it: ${(c.feats||[]).map(k=>T.pitched[k]?`<span class=good>✔ ${esc(FEATS[k].n)}</span>`:esc(FEATS[k].n)).join(" · ")} · value built ${"★".repeat(Math.min(5,T.value))||"–"}</div>`}
+  box.className="on";document.body.classList.add("talking");
+  const dbt=doubt(u);renderDeal(u,c,best,back,dbt);
+  box.innerHTML=`${dbt&&!T.over?`<div class="doubt ${dbt.col}">${dbt.icon} ${esc(dbt.title)}</div>`:""}
   ${T.crew&&performance.now()<T.crew.until?`<div class="sub s"><b>${esc(T.crew.name)}:</b> ${esc(T.crew.text)}</div>`:""}
   ${lastC?`<div class="sub c"><b>${esc(u.name)}</b> <span class=tag>(${esc(persona(u).tag)})</span><b>:</b> ${esc(lastC.text)}</div>`:""}
   ${T.interim?`<div class="sub p"><b>You:</b> <i>${esc(T.interim)}…</i></div>`:lastP?`<div class="sub p dimmed"><b>You:</b> ${esc(lastP.text)}</div>`:""}
