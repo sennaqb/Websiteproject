@@ -78,7 +78,8 @@ function swim(vrm,o){
   const img=body&&body.map&&body.map.image;if(!img)return;
   // a ready-made skin with the swimsuit on it (from a VRoid "inner top" item): just swap the body texture
   if(o.texture){new THREE.TextureLoader().load(o.texture,t=>{t.colorSpace=body.map.colorSpace;t.flipY=body.map.flipY;t.wrapS=body.map.wrapS;t.wrapT=body.map.wrapT;
-    if(body.shadeMultiplyTexture===body.map)body.shadeMultiplyTexture=t;body.map=t;body.needsUpdate=true});return}
+    // the shade texture is a separate copy of the same skin image: swap it too, or the old underwear shows wherever she's in shadow
+    const sh=body.shadeMultiplyTexture;if(sh&&(sh===body.map||sh.image===img))body.shadeMultiplyTexture=t;body.map=t;body.needsUpdate=true});return}
   const W=img.width,H=img.height,cv=document.createElement("canvas");cv.width=W;cv.height=H;const g=cv.getContext("2d");g.drawImage(img,0,0);
   const d=g.getImageData(0,0,W,H),px=d.data,mask=new Uint8Array(W*H);
   for(let i=0;i<W*H;i++){const r=px[i*4],gg=px[i*4+1],b=px[i*4+2];if(px[i*4+3]>10&&r+gg+b<150)mask[i]=1}
@@ -91,7 +92,7 @@ function swim(vrm,o){
     const edge=!m2[i-1]||!m2[i+1]||!m2[i-W]||!m2[i+W],c=edge?T:C,dots=o.dots&&((x>>4)+(y>>4))%3===0&&(x&15)>5&&(x&15)<11&&(y&15)>5&&(y&15)<11;
     px[i*4]=dots?T[0]:c[0];px[i*4+1]=dots?T[1]:c[1];px[i*4+2]=dots?T[2]:c[2];px[i*4+3]=255}
   g.putImageData(d,0,0);const t=new THREE.CanvasTexture(cv);t.colorSpace=body.map.colorSpace;t.flipY=body.map.flipY;t.wrapS=body.map.wrapS;t.wrapT=body.map.wrapT;
-  body.map=t;if(body.shadeMultiplyTexture===img||body.shadeMultiplyTexture===body.map)body.shadeMultiplyTexture=t;body.needsUpdate=true;
+  const sh=body.shadeMultiplyTexture;if(sh&&(sh===body.map||sh.image===img))body.shadeMultiplyTexture=t;body.map=t;body.needsUpdate=true;
 }
 
 // Put a VRoid character inside a game person group (returned at once; the model pops in when loaded).
