@@ -2,7 +2,7 @@
 // First-person 3D lot. You are the manager: prep in your office, open the lot, then save the deals your salespeople can't close.
 (function(){
 const SHIFT_SECONDS=480, OPEN_MIN=540, CLOSE_MIN=1080, LANE_Z=0;
-const G={phase:"title",on:false,t:0,anim:0,yaw:Math.PI,pitch:0,px:0,pz:-17,keys:{},vx:0,vz:0,bob:0,bobAmt:0,sprint:false,fov:72,shake:0,flash:0,box:0,pops:[],cashShown:0,cust:[],sales:[],cars:{},drives:[],stats:null,feed:[],talk:null,ended:false,acc:0,drag:false,lastSky:-1,boardKey:""};
+const G={phase:"title",on:false,t:0,anim:0,yaw:Math.PI,pitch:0,px:0,pz:-17,keys:{},vx:0,vz:0,bob:0,bobAmt:0,sprint:false,fov:72,shake:0,flash:0,box:0,pops:[],cashShown:0,cust:[],sales:[],cars:{},drives:[],minis:0,miniBots:[],stats:null,feed:[],talk:null,ended:false,acc:0,drag:false,lastSky:-1,boardKey:""};
 let W,canvas,last=0;
 const P=(x,z)=>({x,z});
 
@@ -32,7 +32,8 @@ function showTitle(){
     <div class=btnrow>${hasSave()?`<button class=go onclick="Game.start(false)">Continue</button>`:""}<button class="${hasSave()?"b":"go"}" onclick="Game.start(true)">New game</button></div>
     <div class=aibox>${aiRow}<div class=dim id=ainote>${esc(ai.note||"")}</div>
       <div class=dim style="margin-top:6px">${!window.claude&&navigator.mediaDevices?"🎙️ Voice is ready: walk up to a customer and hold <b>V</b> to talk. <button class=b onclick=\"Game.micTest()\">Test mic</button> <span id=micres></span>":"🎙️ This page can't use your microphone, so you'll type (press <b>T</b>). For voice, play the hosted version in Chrome or Edge."}</div></div>
-    <div class=keys><b>WASD</b> move · <b>Shift</b> sprint · <b>Mouse</b> look (click and drag if it won't lock) · <b>←/→</b> turn · <b>E</b> use / take over · <b>C</b> see yourself · <b>M</b> mute · <b>Esc</b> pause</div>
+      <div class=dim style="margin-top:6px"><label><input type=checkbox ${window.Voices&&Voices.on?"checked":""} onchange="Voices.setOn(this.checked)"> 🗣️ <b>Natural voices</b></label> <span id=vstat>${window.Voices?esc(Voices.status()):""}</span></div>
+    <div class=keys><b>WASD</b> move · <b>Shift</b> sprint · <b>Mouse</b> look (click and drag if it won't lock) · <b>←/→</b> turn · <b>E</b> use / take over · <b>Q</b> send Mini Miguel to a T.O. (2 a day) · <b>C</b> see yourself · <b>M</b> mute · <b>Esc</b> pause</div>
   </div>`;
   el("title").style.display="flex";
 }
@@ -92,6 +93,7 @@ const CREW_LINES={
   Mario:["It's-a you, Miguel! Sorry. I always wanted to say that.","I've got nothing, boss. I tried my best. My best is not good."],
   Juanny:["¡Jefe! ¡No entiendo nada de lo que dice este señor! ¡Ayúdame, por favor!","Le dije que el carro es muy bonito. Creo que se enojó. Te toca a ti, Miguel.","Miguel, este cliente habla muy rápido. Yo solo sonreí y dije que sí a todo."]
 };
+const CREW_KVOICE={Frenchy:"bm_lewis",Andres:"am_puck",Sam:"am_michael",Riccardo:"bm_george",Mario:"am_adam"};
 const CREW_VOICES={Frenchy:[.75,.86],Andres:[1.45,1.25],Sam:[.95,1],Riccardo:[1,1.05],Mario:[1.2,1.12],Juanny:[1.3,1.3]};
 // The posters get harder to ignore as the days go by.
 function posterGag(){
@@ -141,6 +143,7 @@ function start(newGame){
 }
 function startShift(){
   if(G.phase!=="prep")return;
+  G.minis=2;(G.miniBots||[]).forEach(b=>W.scene.remove(b.mesh));G.miniBots=[];
   TALK_LOG.length=0;G.ownerSeen=false;(G.drives||[]).forEach(d=>W.scene.remove(d.m));G.drives=[];G.wiggleAt=rnd(50,90);if(G.owner){W.scene.remove(G.owner.mesh);G.owner=null}
   if(!S.inv.length)restock();
   openDay();
@@ -264,7 +267,7 @@ function customerWalks(c,msg,rep){
 function stall(c){
   const sp=c.sp;c.state="stuck";c.pat=c.patMax;sp.armsUp=true;sp.state="stuck";
   c.to=W.sprite("T.O.!","#fff","#c01818",1.1,.32);c.to.position.y=2.65;c.mesh.add(c.to);addBar(c);
-  say3(`${sp.def.name} needs a T.O. on the ${label(carOf(c))}!`,"#ff7070");Sfx.alert();G.flash=1;G.shake=.25;addRing(c);
+  say3(`${sp.def.name} needs a T.O. on the ${label(carOf(c))}!`,"#ff7070");Sfx.alert();G.shake=.1;addRing(c);
 }
 function commission(sp,front){
   const com=Math.max(50,Math.round(front*.25/10)*10);
@@ -327,12 +330,12 @@ function sim(dt){
   // only as many customers as the crew can greet, plus one, so nobody stands around ignored
   const onLot=G.cust.filter(c=>c.mesh&&!["gone","wait","delivery","leave","pass"].includes(c.state)).length;
   G.cust.forEach(c=>{if(c.state==="wait"&&G.t>=c.arrive){if(onLot>=Math.max(2,G.sales.length+1))c.arrive=G.t+3+Math.random()*4;else spawn(c)}});
-  stepBob(dt);stepWiggle();stepDrives(dt);
+  stepBob(dt);stepWiggle();stepDrives(dt);stepMinis(dt);
   G.cust.forEach(c=>{
     if(!c.mesh||c.state==="gone"||c.state==="talk")return;
     const arrived=stepNpc(c,dt,["working","stuck","greet"].includes(c.state));
     if(c.to)c.to.position.y=2.65+Math.sin(G.anim*6)*.06;
-    if(["browse","greet","todesk","working","stuck"].includes(c.state)){
+    if(["browse","greet","todesk","working","stuck","mini"].includes(c.state)){
       const car=carOf(c);
       if(!car||c.u.done){say3(`${c.u.name} left. The car's gone.`,"#bbb");finishLeave(c,false);return}
     }
@@ -473,7 +476,7 @@ function takeover(c){
   let crew=null;
   if(sp){sp.armsUp=false;if(!sp.mesh.userData.sit)sp.mesh.position.x+=1.1;   // the salesperson steps aside (or stays seated), with a word
     const n=sp.def.name,v=CREW_VOICES[n]||[1,1];crew={name:n,text:pick(CREW_LINES[n]||["All yours, boss."])};
-    speakLine(crew.text,n.length*13+sp.def.id,v[0],v[1],false,sp.def.quirk==="spanish"?"es":"en")}
+    speakLine(crew.text,n.length*13+sp.def.id,v[0],v[1],false,sp.def.quirk==="spanish"?"es":"en",CREW_KVOICE[n]||"am_eric")}
   // Openers are small talk, not numbers: the customer warms up (or doesn't) depending on how Miguel plays it.
   const car2=label(car);
   openTalk(u.id,{patFrac:frac,inWorld:true,crew,intro:sp&&sp.def.quirk==="spanish"?`${pick(["Your guy only speaks Spanish. I think he offered me a car? Or a sandwich?","Dude, I took French in school. I have no idea what that man said for twenty minutes.","He kept smiling and saying 'sí'. Did I already buy something?"])} ${posterGag()}`
@@ -509,6 +512,42 @@ function pcClosed(){
   syncCars();boardUpdate(true);save();resume();
 }
 
+// ---------- Mini Miguel ----------
+// Twice a day Miguel can send a pint-sized version of himself to take a T.O. He closes about 60% of the time.
+function sendMini(){
+  if(G.phase!=="open"||G.talk||G.ended)return;
+  if(!(G.minis>0))return say3("Mini Miguel is done for today.","#fd8");
+  const taken=new Set(G.miniBots.map(b=>b.c));
+  const c=G.cust.filter(c=>c.state==="stuck"&&!taken.has(c)).sort((a,b)=>a.pat-b.pat)[0];
+  if(!c)return say3("No T.O. for Mini Miguel right now.","#bbb");
+  G.minis--;
+  const m=W.person({shirt:0xa9b8d8,pants:0x2b2f3a,skinColor:0xd6a483,hair:0x2a1c14,hairStyle:"short",tie:0x24345e,badge:true,face:W.miguelFaceTex(),bigHead:1.6,height:.55});
+  m.position.set(-6.5,0,-22.7);W.scene.add(m);
+  const p=c.mesh.position;
+  G.miniBots.push({mesh:m,c,path:[P(-6.5,-21.6),P(-6.5,-17.4),P(p.x+.45,-17.4),P(p.x+.45,p.z+.6)],speed:2.8,state:"go",t:0,ph:0});
+  c.state="mini";if(c.to){c.mesh.remove(c.to);c.to=null}removeBar(c);
+  say3(`Mini Miguel is on his way to ${c.u.name}!`,"#9cf");Sfx.click();
+}
+function stepMinis(dt){
+  for(let i=G.miniBots.length-1;i>=0;i--){
+    const b=G.miniBots[i],c=b.c,arrived=stepNpc(b,dt,b.state==="work");
+    if(b.state==="go"&&arrived){b.state="work";b.t=3.5;b.mesh.rotation.y=Math.atan2(c.mesh.position.x-b.mesh.position.x,c.mesh.position.z-b.mesh.position.z)}
+    else if(b.state==="work"){b.t-=dt;b.mesh.userData.talkLeft=b.t;c.mesh.userData.talkLeft=b.t%1.6>.8?1:0;
+      if(b.t<=0){miniResolve(c);b.state="home";const q=b.mesh.position;b.path=[P(q.x,-17.4),P(-6.5,-17.4),P(-6.5,-22.7)]}}
+    else if(b.state==="home"&&arrived){W.scene.remove(b.mesh);G.miniBots.splice(i,1)}
+  }
+}
+function miniResolve(c){
+  const car=carOf(c),u=c.u;
+  if(!car||u.done){finishLeave(c,false);return}
+  if(tier(c)!=="hopeless"&&Math.random()<.6){
+    const price=Math.min(u.reserve,Math.round((u.offer+(u.reserve-u.offer)*.7)/50)*50);
+    claimCar(c);finishSale(u,car,S.inv.indexOf(car),price,[]);
+    G.stats.mgr++;G.stats.mgrGross+=price-car.cost;c.mesh.userData.mood="happy";
+    say3(`Mini Miguel closed ${u.name} for ${$f(price)}!`,"#9f9");popup("Mini Miguel +"+$f(price-car.cost),c.mesh.position,"#ffd24a",true);Sfx.cash();syncCars();startDelivery(c);
+  }else{c.mesh.userData.mood="angry";customerWalks(c,`${u.name} walked out on Mini Miguel.`,.5)}
+}
+
 // ---------- Bob, the owner ----------
 // Once a shift he may pull up and walk the lot. Sell under cost in front of him: strike. Use the gun: he's proud.
 function stepBob(dt){
@@ -519,7 +558,7 @@ function stepBob(dt){
       m.position.set(0,0,GATE_IN);W.scene.add(m);
       G.owner={mesh:m,path:[P(0,13),P(0,LANE_Z)],speed:1.3,ph:0,until:G.t+75};G.ownerSeen=true;
       say3("Bob just pulled up. Don't give anything away while he's watching.","#f99");
-      if(!G.talk)speakLine(pick(["Miguel! Why is your face on my dumpster?","Miguel! Numbers! I want numbers!","Don't mind me. I'm just watching. Always watching."]),77,.62,.9);
+      if(!G.talk)speakLine(pick(["Miguel! Why is your face on my dumpster?","Miguel! Numbers! I want numbers!","Don't mind me. I'm just watching. Always watching."]),77,.62,.9,false,"en","am_onyx");
     }
     return;
   }
@@ -531,8 +570,8 @@ function stepBob(dt){
 }
 function bobJudges(u){
   if(!G.owner||G.owner.leaving)return;
-  if(u.gunned){S.cash+=500;say3("Bob saw the gun thing. He's... proud? He slipped you a $500 'bonus'.","#ffd24a");speakLine("That's my boy!",77,.62,.9);return}
-  if(u.front<0){S.strikes++;say3(`Bob saw you sell under cost. That's a strike (${S.strikes} of 2).`,"#f66");speakLine("Under cost? In front of me? Strike, Miguel.",77,.62,.9);Sfx.lose()}
+  if(u.gunned){S.cash+=500;say3("Bob saw the gun thing. He's... proud? He slipped you a $500 'bonus'.","#ffd24a");speakLine("That's my boy!",77,.62,.9,false,"en","am_onyx");return}
+  if(u.front<0){S.strikes++;say3(`Bob saw you sell under cost. That's a strike (${S.strikes} of 2).`,"#f66");speakLine("Under cost? In front of me? Strike, Miguel.",77,.62,.9,false,"en","am_onyx");Sfx.lose()}
 }
 // Mr. Wiggle the tube man breaks loose now and then and lands on a customer.
 function stepWiggle(){
@@ -636,7 +675,11 @@ function hud(){
   const gross=open&&G.stats?S.profit-G.stats.p0:0,wk=weekOf(S.day);
   el("hudTop").innerHTML=`<b>Day ${S.day}</b> · ${clock} · Bank <b>${$f(G.cashShown)}</b>${open?` · Gross today <b class="${gross>=0?"good":"bad"}">${$f(gross)}</b>`:""} · Wk ${wk} quota ${$f(Math.max(0,S.profit-S.weekStart))}/${$f(quota(wk))}${Sfx.muted?" · 🔇":""}`;
   const stuck=G.cust.filter(c=>c.state==="stuck");
-  el("alerts").innerHTML=stuck.map(c=>{const d=Math.round(Math.hypot(c.mesh.position.x-G.px,c.mesh.position.z-G.pz));return `<div class=al>T.O.! ${c.sp?esc(c.sp.def.name):""} · ${esc(c.u.name)} · ${esc(label(carOf(c)||{year:"",make:"",model:""}))} · ${Math.ceil(c.pat)}s · ${d}m</div>`}).join("");
+  // small chips across the top: who needs a T.O., how long they'll wait, how far away
+  el("alerts").innerHTML=G.talk?"":stuck.slice(0,3).map(c=>{const d=Math.round(Math.hypot(c.mesh.position.x-G.px,c.mesh.position.z-G.pz));return `<div class=al>🚨 T.O. ${c.sp?esc(c.sp.def.name)+" · ":""}${esc(c.u.name)} · ${Math.ceil(c.pat)}s · ${d}m</div>`}).join("")
+    +(stuck.length>3?`<div class=al>+${stuck.length-3} more</div>`:"")
+    +(stuck.length&&G.minis>0?`<div class="al mini">Q: send Mini Miguel (${G.minis} left)</div>`:"")
+    +G.miniBots.map(b=>`<div class="al mini">🧒 Mini Miguel → ${esc(b.c.u.name)}</div>`).join("");
   el("feed").innerHTML=G.feed.filter(f=>G.anim-f.t<14).map(f=>`<div style="color:${f.col}">${esc(f.msg)}</div>`).join("");
   const n=nearest(),free=document.pointerLockElement!==canvas&&!overlayOpen()&&!G.mouseDown;
   el("prompt").textContent=n?n.label:free&&!G.talk?"Click to look around":"";
@@ -736,6 +779,7 @@ addEventListener("keydown",e=>{
   G.keys[e.code]=true;
   if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Space"].includes(e.code))e.preventDefault();
   if(e.code==="KeyC"&&!T){G.third=!G.third;return}
+  if(e.code==="KeyQ"){sendMini();return}
   if(e.code==="KeyE"){const n=nearest();if(n){Sfx.click();n.act()}}
 });
 addEventListener("keyup",e=>{G.keys[e.code]=false;if((e.code==="KeyV"||e.code==="Space")&&T&&T.inWorld)pttStop(e.timeStamp)});
@@ -769,6 +813,9 @@ function boot(){
   W.scene.add(G.miguel);
   W.resize();G.on=true;last=performance.now();
   AI.init().then(()=>{if(G.phase==="title")showTitle()});
+  // natural voices: start the one-time download now; keep the title screen's status line current
+  if(window.Voices){Voices.onSlow=()=>say3("Natural voices are too slow on this computer, so the game switched to standard voices.","#fd8");
+    if(Voices.on)Voices.load();setInterval(()=>{const v=el("vstat");if(v)v.textContent=Voices.status()},700)}
   showTitle();loop();return true;
 }
 

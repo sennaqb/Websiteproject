@@ -107,7 +107,12 @@ function voicePool(lang){
   const base=local.length?local:all,nice=base.filter(v=>/natural|neural|premium|enhanced/i.test(v.name));
   return nice.length>=2?nice:base;
 }
-function speakLine(text,seed,pitch,rate,queue,lang){
+// Natural (Kokoro) voice per personality; others get one picked by seed and sex.
+const KVOICE={grandma:"bf_isabella",mj:"af_sky",elvis:"am_onyx",arnold:"am_fenrir",hungry:"am_onyx",flirt:"af_bella",karen:"af_nicole",walken:"bm_lewis",
+  borat:"am_puck",mrt:"am_fenrir",sparrow:"bm_fable",prepper:"am_fenrir",crypto:"am_puck",conspiracy:"am_echo",influencer:"af_nova",pokemon:"am_liam"};
+function kvoiceFor(u){const k=KVOICE[u&&u.persona];if(k)return k;const list=Voices.VOICES[u&&u.sex==="f"?"f":"m"];return list[((u&&u.id)||0)*7%list.length]}
+function speakLine(text,seed,pitch,rate,queue,lang,kv){
+  if(window.Voices&&Voices.usable()&&lang!=="es"&&kv){try{window.speechSynthesis&&speechSynthesis.cancel()}catch(e){}return Voices.say(text,kv,Math.max(.8,Math.min(1.2,rate||1)),queue)}
   if(!window.speechSynthesis)return null;
   try{
     const ut=new SpeechSynthesisUtterance(text);
@@ -125,13 +130,13 @@ function speakLine(text,seed,pitch,rate,queue,lang){
     return ut;
   }catch(e){return null}
 }
-function hush(){clearTimeout(speakTimer);speakSeq++;speakPend=[];try{window.speechSynthesis&&speechSynthesis.cancel()}catch(e){}}
+function hush(){if(window.Voices)Voices.stop();clearTimeout(speakTimer);speakSeq++;speakPend=[];try{window.speechSynthesis&&speechSynthesis.cancel()}catch(e){}}
 function speak(text){
   if(T.mute||T.silentLine||!window.speechSynthesis)return;
   try{
     const cu=S.cust.find(x=>x.id==T.uid),pv=persona(cu).voice,q=T.queueNext;T.queueNext=false;
     const fem=cu.sex==="f"&&pv[0]<1.2?1.28:1;   // women's voices up, unless the personality already set one
-    const ut=speakLine(text,cu.id*7+cu.name.length,pv[0]*fem*(.94+(cu.id%4)*.04),pv[1]*1.04,q);if(!ut)return;
+    const ut=speakLine(text,cu.id*7+cu.name.length,pv[0]*fem*(.94+(cu.id%4)*.04),pv[1]*1.04,q,"en",kvoiceFor(cu));if(!ut)return;
     ut.onend=()=>{if(T&&T.hands&&!T.over&&!T.busy)listen()};
   }catch(e){}
 }

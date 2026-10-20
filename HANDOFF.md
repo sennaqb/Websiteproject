@@ -28,6 +28,9 @@ First-person 3D used-car dealership game ("Bargain Bob's Auto Mart"). You play M
 - Selling psychology: customers open with small talk; a price before warm-up gets a cold brush-off once (-3%); asking needs reveals the hidden hot button (`HOT`, `u.hot`: safety, mpg, looks, reliable, space, deal); pitching it is +6% and rapport. Subtitle header shows cold/warming/warmed up and the hot button once known.
 - Deal panel (`#deal`, `renderDeal`, `doubt()` in talk.js): mood face, doubt alert with reason and tip (driven by `T.event`), patience/trust/value bars, ask vs offer, feature chips, next-move tip.
 - Customer dialogue lives in `js/lines.js`: `line(u,kind,vars)` with general (`ANY`) and per-personality (`BY`) banks for intro, far, close, counter, refuse, agree, walk, rapport, numbers, unclear, greet, thanks, release, add-ons; no repeats within a conversation (`T.said`). Mid-deal caller depends on personality (`CALLERS`).
+- Natural voices: `js/voices.js` runs Kokoro (kokoro-js 1.2.1, onnx-community/Kokoro-82M-v1.0-ONNX, ~90 MB cached) in the page; WebGPU if an adapter is available, else WASM q8. `speakLine(...,kv)` routes to it when ready; voices per persona (`KVOICE`), crew (`CREW_KVOICE`), Bob am_onyx; Spanish (Juanny) stays on browser voices. Falls back automatically if generation is >2.2x slower than real time (`K.slow`). Title-screen toggle + status.
+- Mini Miguel (Q): twice a day, a small photo-faced Miguel walks from the office to a stuck customer and closes ~60% (`sendMini`, `stepMinis`, `miniResolve`). T.O. alerts are small chips at top center (`#alerts`); the stall screen flash is gone.
+- Cars rebuilt (`buildCar`): curved beveled profiles, cabin + glass, clear-coat MeshPhysical paint with a PMREM sky env (`W0.carEnv`), spoked wheels, lights, grille, bumpers, trim, contact shadow, visible features (sunroof, rims, hitch, roof rails).
 - Mic: errors explained (`MIC_ERR`), Test mic button on the title screen.
 - Signs auto-fit their text (`fitFont`); the banner is a real vinyl banner texture.
 - Miguel's photo (`js/miguel.js`, data URI): 12 employee-of-the-month posters, plus office, windows, fence and dumpster. Customers recognize him.
@@ -58,6 +61,7 @@ First-person 3D used-car dealership game ("Bargain Bob's Auto Mart"). You play M
 ## Key files
 - `index.html`: shell, CSS, script order.
 - `js/data.js`: cars, customers, crew, economy, quota, saves.
+- `js/voices.js`: in-page Kokoro natural voices.
 - `js/whisper.js`: in-page Whisper speech-to-text (Brave/Firefox fallback).
 - `js/lines.js`: what customers say (personality line banks).
 - `js/talk.js`: negotiation engine, subtitles, push-to-talk, TTS.
