@@ -468,15 +468,15 @@ const RECEP_JOKES=["Bob asked me to answer the phone 'Bargain Bob's, how can I l
   "I put 'Do not lean on the Corolla' on a sign and someone leaned on the sign and the sign broke the Corolla.","Juanny told me something really sweet today. I think. It was in Spanish. Might have been a sandwich order.",
   "Frenchy keeps calling me 'mon petit croissant'. HR is me. I'm HR. I said it's fine.","The phone rang four times today. Three were Bob's mom.","Sam's goatee has its own Instagram. It has more followers than the dealership."];
 // Her outfits (generated on the sample body): one per day, in rotation.
-const RECEP_OUTFITS=[{name:"office",top:0xffffff,shade:0xc9ccd8,skirt:0x1d2747,shoes:0x111111,line:"White blouse, navy skirt. Bob says it's 'the dealership look'. Bob wears cargo shorts."},
-  {name:"red",top:0xc8203c,shade:0x7a1024,skirt:0xb81630,shoes:0x111111,line:"Red dress day! Studies say red sells cars. I made that study up. It works anyway."},
+const RECEP_OUTFITS=[{name:"office",top:0xffffff,shade:0xc9ccd8,skirt:0x1d2747,shoes:0x111111,flare:.06,length:.06,line:"White blouse, navy skirt. Bob says it's 'the dealership look'. Bob wears cargo shorts."},
+  {name:"red",top:0xc8203c,shade:0x7a1024,skirt:0xb81630,shoes:0x111111,flare:.08,length:.07,line:"Red dress day! Studies say red sells cars. I made that study up. It works anyway."},
   {name:"plaid",top:0x26262e,shade:0x121216,skirt:"plaid",shoes:0x2a1a12,line:"Plaid Wednesday. Don't tell Frenchy it's Wednesday, he gets weird."},
-  {name:"pink",top:0xff9ccc,shade:0xc8689a,skirt:0xf2efe8,shoes:0xf2efe8,line:"Pink top, white skirt. Mario said I look like a strawberry milkshake. I'm choosing to take that as a compliment."},
-  {name:"black",top:0x18181c,shade:0x0c0c0e,skirt:0x18181c,shoes:0x111111,flare:.28,line:"All black. Not for a funeral. Yet. Depends how the numbers look today."}];
+  {name:"pink",top:0xff9ccc,shade:0xc8689a,skirt:0xf2efe8,shoes:0xf2efe8,flare:.06,length:.06,line:"Pink top, white skirt. Mario said I look like a strawberry milkshake. I'm choosing to take that as a compliment."},
+  {name:"black",top:0x18181c,shade:0x0c0c0e,skirt:0x18181c,shoes:0x111111,flare:.06,length:.07,line:"All black. Not for a funeral. Yet. Depends how the numbers look today."}];
 const recepOutfit=()=>RECEP_OUTFITS[((S?S.day:1)-1)%RECEP_OUTFITS.length];
 function makeRecep(){
-  const g=new THREE.Group();g.userData={isVRM:true,brows:[],hipY:.8,sex:"f",mood:"happy",keep:true};
-  const day=S?S.day:1;VRMKit.attach(g,[`models/receptionist-day${(day-1)%3+1}.vrm`].concat(RECEP_MODELS),{outfit:recepOutfit(),dressIf:"VRM1_Constraint"});
+  const g=new THREE.Group();g.userData={isVRM:true,brows:[],hipY:.8,sex:"f",mood:"neutral",moodScale:.45,keep:true};
+  const day=S?S.day:1;VRMKit.attach(g,[`models/receptionist-day${(day-1)%3+1}.vrm`].concat(RECEP_MODELS),{outfit:recepOutfit(),dressIf:"VRM1_Constraint",adult:{lips:0xc0283c}});
   g.position.set(W.reception.x,0,W.reception.z);g.rotation.y=Math.PI;W.scene.add(g);
   G.recep={mesh:g,cool:0,said:{},day};
 }
@@ -490,7 +490,7 @@ function recepPick(list){const r=G.recep;let t=pick(list);for(let i=0;i<4&&r.sai
 function stepRecep(dt){
   if(G.recep&&S&&G.recep.day!==S.day&&G.phase==="prep"){W.scene.remove(G.recep.mesh);G.recep=null}   // new day, maybe a new outfit
   if(!G.recep){if(window.VRMKit&&W&&W.reception)makeRecep();return}
-  const r=G.recep,m=r.mesh,u=m.userData,p=m.position;r.cool-=dt;u.wave=(u.wave||0)-dt;u.talkLeft=(u.talkLeft||0)-dt;
+  const r=G.recep,m=r.mesh,u=m.userData,p=m.position;r.cool-=dt;u.wave=(u.wave||0)-dt;if(u.mood==="neutral"||u.mood==="happy")u.mood=u.wave>0?"happy":"neutral";u.talkLeft=(u.talkLeft||0)-dt;
   // she watches you when you're close, otherwise eyes front
   const d=Math.hypot(G.px-p.x,G.pz-p.z);let want=0;
   if(d<7){want=Math.atan2(G.px-p.x,G.pz-p.z)-m.rotation.y;want=Math.atan2(Math.sin(want),Math.cos(want));want=Math.max(-1,Math.min(1,want))}

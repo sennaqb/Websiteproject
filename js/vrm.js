@@ -48,8 +48,8 @@ function dress(vrm,o){
   const cx=(bb.min.x+bb.max.x)/2,cz=(bb.min.z+bb.max.z)/2,rx=(bb.max.x-bb.min.x)/2*1.04,rz=(bb.max.z-bb.min.z)/2*1.1;
   const top=bb.max.y-.005,hem=bb.min.y-(o.length||.025),side=Math.sign(lp.x-cx)||1,SEG=64,ROWS=7;
   const pos=[],uv=[],si=[],sw=[],idx=[];
-  for(let r=0;r<=ROWS;r++){const f=r/ROWS,y=top+(hem-top)*f,flare=1+f*(o.flare||.3);
-    for(let k=0;k<=SEG;k++){const a=k/SEG*Math.PI*2,pl=1+f*.05*Math.abs(Math.sin(a*12));   // knife pleats deepen toward the hem
+  for(let r=0;r<=ROWS;r++){const f=r/ROWS,y=top+(hem-top)*f,flare=(o.flare||.3)<.15?1.13-.05*f+f*o.flare:1+f*(o.flare||.3);   // pencil skirts sit over the blouse (tucked-in look)
+    for(let k=0;k<=SEG;k++){const a=k/SEG*Math.PI*2,pl=1+f*.05*Math.min(1,(o.flare||.3)/.3)*Math.abs(Math.sin(a*12));   // knife pleats deepen toward the hem
       const x=cx+Math.sin(a)*rx*flare*pl,z=cz+Math.cos(a)*rz*flare*pl;pos.push(x,y,z);uv.push(k/SEG,1-f);
       const leg=.75*Math.pow(f,1.4),sL=THREE.MathUtils.smoothstep((x-cx)/rx*side,-.7,.7);
       si.push(0,1,2,0);sw.push(1-leg,leg*sL,leg*(1-sL),0)}}
@@ -75,9 +75,27 @@ K.attach=function(g,url,o){
     const sprung=new Set();try{(vrm.springBoneManager?vrm.springBoneManager.joints:[]).forEach(j=>sprung.add(j.bone))}catch(e){}
     u.bust=[];vrm.scene.traverse(o=>{if(o.isBone&&/bust1$/i.test(o.name)&&!sprung.has(o))u.bust.push({b:o,q:o.quaternion.clone()})});
     u.sway={x:0,v:0,drive:0};
-    if(o&&o.outfit&&(!o.dressIf||String(vrm.src||url).includes(o.dressIf)))try{dress(vrm,o.outfit)}catch(e){console.warn("outfit",e)}
+    const stock=!o||!o.dressIf||String(vrm.src||url).includes(o.dressIf);
+    if(o&&o.outfit&&stock)try{dress(vrm,o.outfit)}catch(e){console.warn("outfit",e)}
+    if(o&&o.adult&&stock)try{adult(vrm,g,o.adult)}catch(e){console.warn("adult",e)}
   }).catch(e=>{u.vrmLoading=false;u.vrmFailed=String(e);console.warn("VRM load failed",e)});
 };
+// Grown-up proportions for a stock VRoid body: smaller head, longer neck and legs, taller overall,
+// calmer eyes and lipstick. (The default VRoid look reads young; Tiffany is a grown woman.)
+function adult(vrm,g,o){
+  const R=b=>vrm.humanoid.getRawBoneNode(b),foot=R("leftFoot");vrm.scene.updateMatrixWorld(true);
+  const y0=new THREE.Vector3().setFromMatrixPosition(foot.matrixWorld).y;
+  const head=R("head");if(head)head.scale.setScalar(o.head||.86);
+  const neck=R("neck");if(neck)neck.scale.set(1,o.neck||1.25,1);
+  const leg=o.leg||1.1;["Left","Right"].forEach(sd=>{const a=R(`${sd.toLowerCase()}UpperLeg`),b=R(`${sd.toLowerCase()}LowerLeg`),f=R(`${sd.toLowerCase()}Foot`);
+    if(a)a.scale.set(1,leg,1);if(b)b.scale.set(1,leg,1);if(f)f.scale.set(1,1/(leg*leg),1)});
+  vrm.scene.updateMatrixWorld(true);vrm.scene.position.y+=y0-new THREE.Vector3().setFromMatrixPosition(foot.matrixWorld).y;   // feet back on the floor
+  g.scale.setScalar(o.scale||1.07);
+  g.userData.relax=o.relax!=null?o.relax:.3;
+  vrm.scene.traverse(m=>{if(!m.isMesh||!m.material)return;const mt=Array.isArray(m.material)?m.material[0]:m.material,n=mt.name||"";
+    if(/FaceMouth/.test(n)&&o.lips){mt.color.set(o.lips);if(mt.shadeColorFactor)mt.shadeColorFactor.set(o.lips)}
+    if(/FaceEyeline|FaceEyelash/.test(n)){mt.color.set(0x2a1418);if(mt.shadeColorFactor)mt.shadeColorFactor.set(0x1a0a0e)}});
+}
 // Walk, sit, wave, talk: the same signals the blocky people use (see animatePerson in world.js).
 const MOODEXP={happy:["happy",.8],angry:["angry",.9],worried:["sad",.7],shocked:["surprised",.9],confused:["sad",.35],neutral:null};
 K.animate=function(g,moving,t,armsUp,talk){
@@ -104,7 +122,7 @@ K.animate=function(g,moving,t,armsUp,talk){
   // face: mood, blinking, lip sync while a line is being spoken
   const em=vrm.expressionManager;if(!em)return;
   ["happy","angry","sad","surprised","relaxed"].forEach(k=>em.setValue(k,0));
-  const me=MOODEXP[u.mood];if(me)em.setValue(me[0],me[1]);
+  const me=MOODEXP[u.mood];if(me)em.setValue(me[0],me[1]*(u.moodScale||1));else if(u.relax)em.setValue("relaxed",u.relax);
   const speaking=u.talkLeft>0||(talk&&!u.talkLeft&&Math.sin(t*1.6)>.1);
   em.setValue("aa",speaking?Math.abs(Math.sin(t*14))*.8:0);em.setValue("oh",speaking?Math.max(0,Math.sin(t*9))*.3:0);
   const bl=(t+(u.blinkAt||0))%3.6;em.setValue("blink",bl<.12?1:0);
