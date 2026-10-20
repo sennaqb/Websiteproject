@@ -6,3 +6,5 @@ Until a file is here the game uses the three-vrm sample model.
 
 In VRoid Studio: Outfit tab for the blouse/skirt (skirt length is a slider), Body > Bust for size, and
 Bust "Sway" (spring bones) for physics. If the export has no bust spring bones the game adds a soft sway itself.
+
+Current: receptionist.vrm is Tiffany as made in VRoid Studio (source project in source/Dealership_Receptionist.vroid). Open the .vroid in VRoid Studio to edit her, then re-export.
