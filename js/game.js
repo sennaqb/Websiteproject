@@ -153,7 +153,7 @@ function startShift(){
   if(S.tiff&&S.tiff.aff>=8){G.coffee=true;G.coffeeT=60;setTimeout(()=>say3("☕ Tiffany left you a coffee. You walk faster for a minute, and your next T.O. starts with more patience.","#ffd6a0"),3000)}
   if(S.tiff&&S.tiff.aff>=18&&G.recep){G.recep.mesh.userData.wave=2.5;setTimeout(()=>say3("💘 Tiffany waved at you first this morning.","#ff9ad0"),1500)}
   G.offAsk=null;G.offAt=S.day>1&&G.sales.length>1&&Math.random()<.4?rnd(60,300):null;(G.miniBots||[]).forEach(b=>W.scene.remove(b.mesh));G.miniBots=[];
-  TALK_LOG.length=0;G.ownerSeen=false;(G.drives||[]).forEach(d=>W.scene.remove(d.m));G.drives=[];G.wiggleAt=rnd(50,90);if(G.owner){W.scene.remove(G.owner.mesh);G.owner=null}
+  TALK_LOG.length=0;G.ownerSeen=Math.random()>.4;(G.drives||[]).forEach(d=>W.scene.remove(d.m));G.drives=[];G.wiggleAt=rnd(120,400);if(G.owner){W.scene.remove(G.owner.mesh);G.owner=null}
   if(!S.inv.length)restock();
   openDay();
   G.phase="open";G.t=0;G.ended=false;
@@ -322,7 +322,7 @@ function stepDrives(dt){
 // Midway through a desk deal the salesperson may take the customer for a lap of the lot in their car.
 // One thing happens on the way (smooth ride, bumper falls off, donuts, Mr. Wiggle, a joyride out the gate),
 // and it nudges how likely the deal is to close. Then they park and go back to the desk.
-const TD_EVENTS=[["smooth",3],["bumper",2],["donuts",2],["wiggle",2],["joyride",2]];
+const TD_EVENTS=[["smooth",3],["bumper",2],["donuts",2],["wiggle",1],["joyride",2]];
 function startTestDrive(c){
   const o=G.cars[c.u.car],sp=c.sp;if(!o||!sp||G.drives.some(d=>d.m===o.mesh))return false;
   c.mesh.userData.sit=false;sp.mesh.userData.sit=false;sp.armsUp=false;
@@ -345,7 +345,7 @@ function beginDrive(c){
 }
 function tdEvent(c){
   const d=c.td,u=c.u,n=c.sp.def.name,m=d.m,near=Math.hypot(G.px-m.position.x,G.pz-m.position.z)<16;d.fired=true;
-  if(d.ev==="smooth"){c.tdBonus=.15;popup("😍",m.position,"#8dffa8");say3(`${u.name} loves how it drives. ${n} is already picking out a pen for the paperwork.`,"#8dffa8")}
+  if(d.ev==="smooth"){c.tdBonus=.2;popup("😍",m.position,"#8dffa8");say3(`${u.name} loves how it drives. ${n} is already picking out a pen for the paperwork.`,"#8dffa8")}
   if(d.ev==="bumper"){c.tdBonus=-.12;if(W.dropBumper(m))popup("💥",m.position,"#ff8a8a");say3(`The bumper fell off mid test drive. ${n}: "That's a feature. It's... modular."`,"#fd8");if(near)G.shake=.2}
   if(d.ev==="donuts"){c.tdBonus=.1;d.spin=1.6;popup("🌀",m.position,"#ffe08a");say3(`${u.name} is doing donuts in the lot. ${n} is screaming. ${u.name} is having the time of their life.`,"#ffe08a")}
   if(d.ev==="wiggle"){c.tdBonus=.05;W.launchTube(m.position.x+rnd(-6,6),m.position.z-rnd(4,8),()=>{});popup("🎈",m.position,"#ffe08a");say3(`${u.name} clipped Mr. Wiggle. He's airborne. Again.`,"#fd8");if(near)G.shake=.25}
@@ -427,7 +427,7 @@ function sim(dt){
           c.state="working";c.sp.state="work";c.work=c.tdDone?rnd(5,8):rnd(10,16);c.work0=c.work;
         }break;
       case"working":c.work-=dt;
-        if(!c.tdDone&&!c.tdNo&&c.work<c.work0*.55){if(Math.random()<.45&&startTestDrive(c))break;c.tdNo=true}
+        if(!c.tdDone&&!c.tdNo&&c.work<c.work0*.55){if(Math.random()<.36&&startTestDrive(c))break;c.tdNo=true}
         if(c.work<=0)resolveWork(c);break;
       case"td_walk":
         if(arrived&&c.sp&&!c.sp.path.length)beginDrive(c);break;
@@ -976,7 +976,7 @@ function miniResolve(c){
 // Once a shift he may pull up and walk the lot. Sell under cost in front of him: strike. Use the gun: he's proud.
 function stepBob(dt){
   if(!G.owner){
-    if(!G.ownerSeen&&G.t>35&&G.t<SHIFT_SECONDS-60&&Math.random()<dt/70){
+    if(!G.ownerSeen&&G.t>35&&G.t<SHIFT_SECONDS-60&&Math.random()<dt/180){
       const m=W.person({build:"fat",top:"hawaii",shirt:0xd84a2a,shirt2:0xffe0a0,pants:0x34363c,skin:0,hair:0x9a9a9a,hat:"cap",hatColor:0xb01010,beard:true,height:1.08,glasses:"sun",chain:true,age:true});
       const tag=W.sprite("BOB (owner)","#fff","rgba(150,0,0,.75)");tag.position.y=2.25;m.add(tag);
       m.position.set(0,0,GATE_IN);W.scene.add(m);
@@ -1001,7 +1001,7 @@ function bobJudges(u){
 // Mr. Wiggle the tube man breaks loose now and then and lands on a customer.
 function stepWiggle(){
   if(G.t<G.wiggleAt)return;
-  G.wiggleAt=G.t+rnd(70,120);
+  G.wiggleAt=G.t+rnd(420,700);   // about once a shift, so it stays funny
   const c=pick(G.cust.filter(c=>c.mesh&&["browse","working","stuck"].includes(c.state)));if(!c)return;
   const pos=c.mesh.position;
   W.launchTube(pos.x,pos.z,()=>{

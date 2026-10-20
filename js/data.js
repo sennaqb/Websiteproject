@@ -143,7 +143,7 @@ const MAX_CREW=6;
 
 let S;
 const wageOf=c=>Math.round(30+c.skill*100);
-const quota=wk=>10000+2500*(wk-1);
+const quota=wk=>wk<=2?10000+2500*(wk-1):12500+1500*(wk-2);   // gentler from week 3: 14k, 15.5k, 17k…
 const weekOf=d=>Math.ceil(d/7);
 
 function logMsg(m){S.log.unshift("Day "+S.day+": "+m);S.log=S.log.slice(0,60)}
