@@ -63,9 +63,24 @@ const PERSONAS=[
    quips:["My ex took the Corolla. And the dog. And my will to live.","Do you think a car can love you back, Miguel?"]},
   {id:"prepper",tag:"doomsday prepper",who:"buying a car for the apocalypse and asks about zombie readiness",soft:false,voice:[.8,1],
    quips:["How does it handle in a zombie situation?","I need room in the trunk for forty cans of beans."]},
+  {id:"mj",tag:"Michael Jackson impersonator",who:"a Michael Jackson impersonator who never breaks character: says hee-hee and shamone, quotes his songs, and moonwalks",soft:true,voice:[1.5,1.05],
+   quips:["Hee-hee!","Shamone!","Annie, are you okay? Are you okay, Annie? Sorry. Habit."]},
+  {id:"hungry",tag:"the big hungry guy",who:"a big guy who is starving and steers every conversation back to food",soft:true,voice:[.75,.95],
+   quips:["Do you guys have a vending machine? Asking for me.","Does the cup holder fit a sixty-four ounce soda?"]},
+  {id:"flirt",tag:"the flirt",who:"a glamorous woman who flirts shamelessly with Miguel to get a better price",soft:false,voice:[1.3,.98],
+   quips:["Miguel, you're even cuter than your posters.","Is it hot in here, or is it this Buick?"]},
   {id:"normal",tag:"regular person",who:"a regular person who is weirded out by this lot",soft:true,voice:[1,1],
    quips:["Why is there a tube man staring at me?","Is this place always like this?"]}
 ];
+// Hot buttons: the one thing a customer secretly cares about most. Find it (ask what they need), then pitch it.
+const HOT={
+  safety:{n:"safety",re:/\bsafe|airbag|crash|brakes|secure|protect/,need:["I've got kids. If it's not safe, I don't want it.","My last car's airbags were held in with duct tape. I need safe."]},
+  mpg:{n:"gas mileage",re:/\bgas\b|mpg|mileage on gas|fuel|economical|cheap to run|efficient|miles per gallon/,need:["I drive like ninety miles a day. Gas is killing me.","Honestly I just need something that sips gas."]},
+  looks:{n:"looks",re:/look(s|ing)? (good|great|sharp|amazing|hot|fly)|stylish|sexy|turn heads|head turner|so cool|clean lines|the color/,need:["I want people to look when I pull up. Is that shallow? Yes. Do I care? No.","My ex said I drive an ugly car. I need to look good."]},
+  reliable:{n:"reliability",re:/reliab|dependab|last forever|never break|won't break|runs great|starts every time|bulletproof|engine is (solid|strong)/,need:["My last car died on the freeway. Twice. I need something that just starts.","I need it to run. That's it. Just run every single morning."]},
+  space:{n:"space",re:/\bspace|room|trunk|cargo|seats|haul|tow|fits? (everything|everyone)|big enough/,need:["I've got three kids and a dog the size of a horse. I need room.","I haul a lot of stuff. Equipment. Don't ask what kind."]},
+  deal:{n:"a good deal",re:/great deal|good deal|steal|bargain|best price in town|save you|savings|value/,need:["I just want to feel like I won. Like I beat the system.","I'm not leaving here unless I feel like I got a steal."]}
+};
 const persona=u=>PERSONAS.find(p=>p.id===(u&&u.persona))||PERSONAS[PERSONAS.length-1];
 const URGENCY={haggler:.02,researcher:0,fan:.04,budget:.01,rusher:.05,tirekicker:0};
 const EVENTS=[
@@ -206,7 +221,7 @@ function openDay(){
   const pool=["haggler","haggler","researcher","fan","budget","rusher","rusher","tirekicker","tirekicker"].concat(ev.bias||[]);
   for(let i=0;i<n;i++){
     S.cust.push({id:i,name:pick(NAMES),body:pick(["any","any","any","sedan","suv","truck","coupe"]),
-      budget:Math.round(rnd(1500,9000)*ev.bud/100)*100,type:pick(pool),need:pick(NEEDS),persona:pick(PERSONAS).id,married:Math.random()<.5,done:false,msg:""});
+      budget:Math.round(rnd(1500,9000)*ev.bud/100)*100,type:pick(pool),need:pick(NEEDS),persona:pick(PERSONAS).id,hot:pick(Object.keys(HOT)),married:Math.random()<.5,done:false,msg:""});
   }
   matchCustomers();
 }

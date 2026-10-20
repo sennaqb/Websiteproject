@@ -148,7 +148,9 @@ const INTENTS=`{"type":"offer","price":N}  the manager names a price they would 
 {"type":"middle"}  proposes splitting the difference
 {"type":"accept"}  accepts the customer's number or says deal
 {"type":"refuse"}  says no or holds firm
-{"type":"rapport"}  friendly talk, or asks about the customer's needs, job or family
+{"type":"needs"}  asks what the customer needs, is looking for, or cares about in a car
+{"type":"hot","which":"safety"|"mpg"|"looks"|"reliable"|"space"|"deal"}  pitches a benefit: safety, gas mileage, looks/style, reliability, space/room, or what a great deal it is
+{"type":"rapport"}  friendly small talk: the customer's day, job, family, hobbies, compliments
 {"type":"pitch_miles"}  claims the car has low mileage
 {"type":"pitch_cond"}  claims the car is clean, in great shape, serviced
 {"type":"urgency"}  says other buyers want it or it's going fast
@@ -159,7 +161,7 @@ const INTENTS=`{"type":"offer","price":N}  the manager names a price they would 
 {"type":"greet"}  hello
 {"type":"chat","reply":"..."}  anything else. reply is the customer's short in-character answer with no prices and no agreement to buy
 {"type":"unclear"}`;
-const OK=new Set(["offer","middle","accept","refuse","rapport","pitch_miles","pitch_cond","urgency","ask","addon","finalize","release","greet","chat","unclear"]);
+const OK=new Set(["needs","hot","offer","middle","accept","refuse","rapport","pitch_miles","pitch_cond","urgency","ask","addon","finalize","release","greet","chat","unclear"]);
 
 AI.classify=function({T,u,said}){
   const c=T.car;
@@ -179,6 +181,7 @@ Reply with JSON only, like {"intents":[...]}.`;
       if(!I||!OK.has(I.type))continue;
       if(I.type==="offer"){const p=Math.round(+I.price);if(!(p>=100&&p<=99999))continue;out.push({type:"offer",price:p})}
       else if(I.type==="ask"){if(["miles","year","condition"].includes(I.topic))out.push({type:"ask",topic:I.topic})}
+      else if(I.type==="hot"){if(["safety","mpg","looks","reliable","space","deal"].includes(I.which))out.push({type:"hot",which:I.which})}
       else if(I.type==="addon"){if(["warranty","gap","acc","finance"].includes(I.which))out.push({type:"addon",which:I.which})}
       else if(I.type==="chat"){
         const r=String(I.reply||"").trim().slice(0,unhinged()?280:200);

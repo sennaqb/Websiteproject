@@ -31,8 +31,8 @@ function openTalk(uid,opts={}){
   T={uid,car:c,lines:[],pat:Math.max(1,Math.round(ty.pat*(opts.patFrac||1))),maxPat:ty.pat,rapport:0,used:{},rounds:0,
      hands:!!SR&&!opts.noMic&&!opts.inWorld,listening:false,over:false,counter:0,lastAsk:0,agreed:0,addons:[],asked:{},declines:0,err:"",summary:"",
      stated:!!opts.intro,buf:[],busy:false,financed:false,interim:"",mute:false,sold:null,lastSaid:"",inWorld:!!opts.inWorld,typing:false,ptt:false,pttBuf:"",
-     cried:false,wife:false,wifeDone:false,forceMood:null,crew:opts.crew?Object.assign({until:performance.now()+8000},opts.crew):null,queueNext:!!opts.crew};
-  T.buf.push(opts.intro?`${opts.intro} ${ty.intro} ${line(u,"intro")}`:`Hi, I'm ${u.name}. ${line(u,"intro")} ${ty.intro} I'm looking at that ${label(c)}. What's your price?`);
+     warm:0,knowNeed:false,hotHit:false,coldDone:false,cried:false,wife:false,wifeDone:false,forceMood:null,crew:opts.crew?Object.assign({until:performance.now()+8000},opts.crew):null,queueNext:!!opts.crew};
+  T.buf.push(opts.intro?`${opts.intro} ${ty.intro} ${line(u,"intro")}`:`Hi, I'm ${u.name}. ${line(u,"intro")} ${ty.intro} I'm looking at that ${label(c)}. ${pick(["What's the story with it?","Is it any good?","Tell me about it."])}`);
   flush();
 }
 // Every conversation Miguel had today, for the end-of-day reviews.
@@ -115,7 +115,8 @@ function speak(text){
   if(T.mute||!window.speechSynthesis)return;
   try{
     const cu=S.cust.find(x=>x.id==T.uid),pv=persona(cu).voice,q=T.queueNext;T.queueNext=false;
-    const ut=speakLine(text,cu.id*7+cu.name.length,pv[0]*(.94+(cu.id%4)*.04),pv[1]*1.04,q);if(!ut)return;
+    const fem=cu.sex==="f"&&pv[0]<1.2?1.28:1;   // women's voices up, unless the personality already set one
+    const ut=speakLine(text,cu.id*7+cu.name.length,pv[0]*fem*(.94+(cu.id%4)*.04),pv[1]*1.04,q);if(!ut)return;
     ut.onend=()=>{if(T&&T.hands&&!T.over&&!T.busy)listen()};
   }catch(e){}
 }
@@ -185,6 +186,8 @@ function rulesParse(s){
     if(/\b(done|that's all|that is all|finalize|sign|paperwork|close|deal|sold|shake|agreed|ok|okay|yes|sure|fine)\b/.test(t))return{type:"finalize"};
     return{type:"unclear"};
   }
+  if(/what (are you|do you|you) (looking for|need|want)|what's important|what matters|what brings you|tell me about (yourself|you)|what do you use|what will you use|how will you use|what are you driving|your current car|what happened to your|priorit|what are you after|what kind of car/.test(t))return{type:"needs"};
+  for(const k in HOT)if(HOT[k].re.test(t))return{type:"hot",which:k};
   if(/looking for|tell me about|what do you need|what brings|family|commute|kids|nice to meet|welcome|congrat|how are you|how's it going|how you doing|how's your|your day|weather|sunny|hot today|cold today|what do you do|for work|your job|where are you from|where you from|love your|like your|nice (shirt|hat|shoes|jacket|glasses)|you look|weekend|hobby|sports|game last night|your team|pets?|dog|cat|wife|husband|girlfriend|boyfriend|thank you for coming|appreciate you|good to see/.test(t))return{type:"rapport"};
   if(/low mile|few miles|low-mile/.test(t))return{type:"pitch_miles"};
   if(/(great|excellent|good|clean) (shape|condition)|reconditioned|serviced|inspected|new tires|detailed|spotless/.test(t))return{type:"pitch_cond"};
@@ -211,8 +214,23 @@ function runIntent(u,I){
     if(I.type==="accept")return finalize(u);
     return say(pick(["So are we all set? Anything else, or shall we sign?","Are we signing or what? My parking meter's running.","Is there more? Please say no."]));
   }
+  if((I.type==="offer"||I.type==="middle")&&!T.warm&&!T.coldDone){   // a price before any warm-up: they push back once
+    T.coldDone=true;bump(u,-.03);T.forceMood="angry";return say(line(u,"cold"))}
   switch(I.type){
-    case"rapport":
+    case"needs":{
+      const h=HOT[u.hot]||HOT.deal;
+      if(T.knowNeed)return say(line(u,"needsAgain",{need:pick(h.need)}));
+      T.knowNeed=true;T.warm++;bump(u,.01,"needs");T.forceMood="happy";
+      return say(`${pick(["Ah, finally, somebody asks.","Okay, real talk.","Glad you asked."])} ${pick(h.need)}`);
+    }
+    case"hot":{
+      T.warm++;
+      if(I.which!==u.hot)return say(line(u,"hotNo"));
+      if(T.hotHit)return say(pick(["Yeah, you said. I like it.","Right, right. That's the good stuff."]));
+      T.hotHit=true;bump(u,.06);T.rapport=Math.min(3,T.rapport+1);T.forceMood="happy";
+      return say(line(u,"hotYes"));
+    }
+    case"rapport":T.warm++;
       if(T.rapport<3&&bump(u,.015*f,"r"+T.rapport)){T.rapport++;return say(Math.random()<.4?RAPPORT[u.type][T.rapport%2]:line(u,"rapport"))}
       return say(line(u,"numbers"));
     case"pitch_miles":
@@ -246,7 +264,7 @@ function runIntent(u,I){
     case"refuse":
       if(tire(u,1,line(u,"walk")))return;
       return say(line(u,"refuse",{n:$f(T.counter||u.offer)}));
-    case"greet":return say(line(u,"greet"));
+    case"greet":T.warm=Math.max(T.warm,0);return say(line(u,"greet"));
     case"chat":return say(I.reply||line(u,"unclear"));
     default:return say(line(u,"unclear"));
   }
@@ -286,7 +304,7 @@ function agree(u,p){
 }
 // Who calls mid-deal, by personality (a grandma's grandson, a dumped customer's ex...).
 const CALLERS={grandma:["grandson","He","he","him"],mom:["dad","He","he","him"],dumped:["ex","She","she","her"],karen:["husband","He","he","him"]};
-function caller(u){const c=CALLERS[u.persona]||["wife","She","she","her"];return {who:c[0],She:c[1],she:c[2],her:c[3]}}
+function caller(u){const c=CALLERS[u.persona]||(u.sex==="f"?["husband","He","he","him"]:["wife","She","she","her"]);return {who:c[0],She:c[1],she:c[2],her:c[3]}}
 // The wife (or whoever) is on the phone: charm her or the price drops.
 function wifeTalk(u,I){
   const C=caller(u);
@@ -402,7 +420,9 @@ function renderSubs(){
   const dl=window.Whisper&&micMode==="whisper"&&!Whisper.ready?` · downloading speech model (first time only) ${Math.round(Whisper.progress*100)}%`:"";
   const status=T.transcribing?(dl?"✍️ Getting ready"+dl:"✍️ Working out what you said…"):T.ptt&&T.pttLatch?"🎙️ Listening… tap <b>V</b> again to send":T.ptt||T.listening?"🎙️ Listening…"+dl:T.busy?`${esc(u.name)} is thinking…`:"";
   box.className="on";
-  box.innerHTML=`<div class=subhead><b>${esc(u.name)}</b> · ${esc(label(c))} · cost ${$f(c.cost)} · ask ${$f(c.price)} · patience ${pat} · rapport ${"♥".repeat(T.rapport)||"–"}${best&&!T.agreed?` · their best ${$f(best)}${best<c.cost?" <span class=bad>(under cost)</span>":""}`:""}${T.agreed?` · <span class=good>agreed ${$f(T.agreed)} · back-end ${$f(back)}</span>`:""}${window.AI&&AI.on()?` · <span class=good>${AI.who()}</span>`:""}</div>
+  const warmth=T.agreed?"":T.warm>=2?" · 🔥 warmed up":T.warm===1?" · 🙂 warming up":" · ❄️ cold";
+  const hotTag=T.knowNeed?` · cares about <b>${esc((HOT[u.hot]||HOT.deal).n)}</b>${T.hotHit?" ✔":""}`:"";
+  box.innerHTML=`<div class=subhead><b>${esc(u.name)}</b>${warmth}${hotTag} · ${esc(label(c))} · cost ${$f(c.cost)} · ask ${$f(c.price)} · patience ${pat} · rapport ${"♥".repeat(T.rapport)||"–"}${best&&!T.agreed?` · their best ${$f(best)}${best<c.cost?" <span class=bad>(under cost)</span>":""}`:""}${T.agreed?` · <span class=good>agreed ${$f(T.agreed)} · back-end ${$f(back)}</span>`:""}${window.AI&&AI.on()?` · <span class=good>${AI.who()}</span>`:""}</div>
   ${T.crew&&performance.now()<T.crew.until?`<div class="sub s"><b>${esc(T.crew.name)}:</b> ${esc(T.crew.text)}</div>`:""}
   ${lastC?`<div class="sub c"><b>${esc(u.name)}</b> <span class=tag>(${esc(persona(u).tag)})</span><b>:</b> ${esc(lastC.text)}</div>`:""}
   ${T.interim?`<div class="sub p"><b>You:</b> <i>${esc(T.interim)}…</i></div>`:lastP?`<div class="sub p dimmed"><b>You:</b> ${esc(lastP.text)}</div>`:""}

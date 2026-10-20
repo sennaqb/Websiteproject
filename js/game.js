@@ -101,12 +101,18 @@ function posterGag(){
   return pick(["Is this a cult? Are you the leader? Blink if you need help.","My kid has nightmares about your posters now. Thanks.","Do you print those yourself? Be honest."]);
 }
 // How specific salespeople look, whatever desk they sit at.
-const CREW_LOOKS={Frenchy:{height:1.09},Andres:{hairStyle:"bald",beard:false,glasses:false,height:.86},Sam:{hairStyle:"short",goatee:true,beard:false,glasses:false,height:.98}};
+const CREW_LOOKS={
+  Frenchy:{height:1.09,hat:"beret",hatColor:0x111111,top:"stripes",shirt:0xf2f2f2,shirt2:0x1a2a6a,mustache:true,hairStyle:"short",glasses:false,beard:false},
+  Andres:{hairStyle:"bald",beard:false,glasses:false,height:.86,build:"fat"},
+  Sam:{hairStyle:"short",goatee:true,beard:false,glasses:false,height:.98,build:"muscle"},
+  Juanny:{hairStyle:"slick",mustache:true,beard:false,glasses:false,skin:1,height:.96},
+  Riccardo:{hairStyle:"slick",chain:true,tie:null,top:"shirt",beard:false,stubble:true,glasses:false},
+  Mario:{hat:"cap",hatColor:0xc01010,mustache:true,beard:false,glasses:false,build:"fat",height:.94}};
 function spawnCrew(){
   G.sales.forEach(s=>W.scene.remove(s.mesh));G.sales=[];
   S.crew.forEach((d,i)=>{
     const home=P(W.desks[i],-18.6);
-    const look=Object.assign({hairStyle:["short","cap","short","bald"][i%4],glasses:i===2,beard:i===3,height:[1,.97,1.04,.99][i%4]},CREW_LOOKS[d.name]);
+    const look=Object.assign({hairStyle:["short","short","curly","bald"][i%4],glasses:i===2,beard:i===3,height:[1,.97,1.04,.99][i%4],top:"shirt"},CREW_LOOKS[d.name]);
     const m=W.person(Object.assign({shirt:d.shirt,pants:0x2a2a35,skin:d.skin,hair:0x2a1a10,cap:0x333333,tie:0x202020,badge:true},look));m.userData.tagged=true;
     m.position.set(home.x,0,home.z);m.rotation.y=Math.PI;
     const tag=W.sprite(d.name,"#fff","rgba(0,0,0,.55)");tag.position.y=2.15;m.add(tag);
@@ -182,18 +188,40 @@ function stepNpc(n,dt,talk){
     n.blocked=d<(n.lastD===undefined?1e9:n.lastD)-.01?0:(n.blocked||0)+dt;n.lastD=d;
     // corners can be cut; the last spot is exact
     if(d<=Math.max(st,n.path.length>1?.5:.15)||n.blocked>3){if(!n.path[1]){m.position.x=p.x;m.position.z=p.z}n.path.shift();n.blocked=0;n.lastD=undefined}
-    else{m.position.x+=dx/d*st;m.position.z+=dz/d*st;m.rotation.y=Math.atan2(dx,dz);moving=true}
+    else{m.position.x+=dx/d*st;m.position.z+=dz/d*st;m.rotation.y=Math.atan2(dx,dz)+(m.userData.moonwalk?Math.PI:0);moving=true}
   }
   W.animatePerson(n.mesh,moving,G.anim+(n.ph||0),n.armsUp,talk&&!moving);
   return !n.path.length;
 }
 const carOf=c=>S.inv.find(x=>x.id==c.u.car);
-function makeCustomerMesh(){
-  return W.person({shirt:pick([0x4a6a8a,0x6a4a4a,0x4a7a5a,0x8a8a4a,0x7a4a8a,0xaaaaaa,0x3a3a3a]),pants:pick([0x30343c,0x4a3a2a,0x20262e,0x44506a]),
-    skin:ri(0,3),hair:pick([0x1a1a1a,0x5a3a1a,0xb0a080,0x777777]),hairStyle:pick(["short","short","long","cap","bald"]),cap:pick([0x2a4a7a,0x7a2a2a,0x2a5a3a]),wide:Math.random()<.25,beard:Math.random()<.2,glasses:Math.random()<.25,height:.93+Math.random()*.13});
+// What each personality looks like. Every customer also gets a random skin tone, height and eye color.
+const COLORS=[0x4a6a8a,0x6a4a4a,0x4a7a5a,0x8a8a4a,0x7a4a8a,0xaaaaaa,0x3a3a3a,0xc06a2a,0x2a7a8a,0xd0c0a0];
+const HAIRS=[0x1a1a1a,0x3a2210,0x5a3a1a,0x8a5a2a,0xd8b878,0x777777];
+const LOOKS={
+  conspiracy:()=>({top:"hoodie",shirt:pick([0x3a3a3a,0x4a5a3a,0x5a4a3a]),hat:"tinfoil",stubble:true,hairStyle:"messy",build:pick(["slim","avg"])}),
+  karen:()=>({sex:"f",top:"cardigan",shirt:pick([0xe8d8c0,0xb8c8e0,0xe0b8c8]),shirt2:0xf2f2f2,hairStyle:"bob",hair:pick([0xe8d090,0xd8b878,0xb08850]),glasses:Math.random()<.5?"sun":false,lipstick:"#b04050",pants:0xd8d0c0,earrings:true}),
+  pokemon:()=>({top:"tee",print:"ball",shirt:pick([0x3a7a80,0x5a5a9a,0xd0c050]),glasses:"square",hairStyle:"messy",build:"slim",bowtie:Math.random()<.5?0xc00000:null,freckles:Math.random()<.5,bottom:"shorts",socks:true,pants:0x8a7a5a}),
+  grandma:()=>({sex:"f",top:"cardigan",shirt:pick([0x8a9ab8,0xb88aa0,0x9ab88a]),shirt2:0x5a5a6a,hairStyle:"bun",hair:0xc8c8c8,glasses:"round",age:true,bottom:"skirt",pants:0x4a4a52,height:.9,lipstick:"rgba(170,80,90,.8)"}),
+  mom:()=>({top:"hoodie",shirt:pick([0x8a2a2a,0x2a4a8a,0x2a6a4a]),hat:"cap",hatColor:pick([0x2a2a2a,0x1a3a6a]),hairStyle:"short",build:pick(["slim","avg"]),freckles:Math.random()<.3}),
+  influencer:()=>Math.random()<.6?{sex:"f",top:"jacket",shirt:0xf0d0e0,shirt2:0xd080a8,hairStyle:"ponytail",hair:pick([0xe8c070,0x2a1a10,0x8a2a6a]),glasses:"sun",lipstick:"#e0507a",makeup:"#c080d0",bottom:"skirt",pants:0x222222,earrings:true}
+                                 :{top:"hoodie",shirt:0xf0f0f0,hairStyle:"slick",glasses:"sun",chain:true,build:"slim"},
+  crypto:()=>({top:"hoodie",shirt:pick([0x111111,0x2a2a3a]),hairStyle:"slick",hair:pick([0x2a1a10,0xd8b878]),glasses:"sun",chain:true,build:pick(["slim","muscle"])}),
+  dumped:()=>({sex:Math.random()<.4?"f":"m",top:pick(["hoodie","tee"]),shirt:pick([0x6a6a6a,0x5a6a7a]),hairStyle:"messy",stubble:true,pants:0x5a5a5a}),
+  prepper:()=>({top:"camo",shirt:0x4a5a32,hat:"boonie",hatColor:0x5a5a3a,beard:true,build:"muscle",pants:0x4a4a3a}),
+  mj:()=>({top:"thriller",shirt:0xc01818,hat:"fedora",hatColor:0x111111,hairStyle:"mjcurls",hair:0x111111,glove:true,socks:true,build:"slim",pants:0x111111,moonwalk:true,skin:pick([1,2]),shoe:0x080808}),
+  hungry:()=>({build:"fat",top:pick(["flannel","hawaii","tee"]),shirt:pick([0xa01818,0x2a5a8a,0x3a7a3a]),shirt2:pick([0x222222,0xf0e040]),hat:Math.random()<.5?"cap":null,hatColor:0x333333,beard:Math.random()<.5,suspenders:Math.random()<.3,hairStyle:pick(["short","balding","buzz"])}),
+  flirt:()=>({sex:"f",top:"dress",shirt:pick([0xc01020,0x101010,0x7a1a8a]),hairStyle:"long",hair:pick([0x2a1a10,0x8a2a10,0xe8c070]),lipstick:"#c0182a",makeup:"#6a3a7a",earrings:true,build:"slim",shoe:0x1a0a0a}),
+  normal:()=>{const f=Math.random()<.5;return f?{sex:"f",top:pick(["tee","jacket","cardigan","polo"]),shirt:pick(COLORS),shirt2:pick(COLORS),hairStyle:pick(["long","ponytail","bob","bun","curly"]),hair:pick(HAIRS),bottom:pick(["pants","skirt"]),pants:pick([0x30343c,0x2a3a5a,0x4a3a2a]),lipstick:Math.random()<.5?"#b0405a":null,glasses:Math.random()<.2}
+    :{top:pick(["tee","polo","flannel","jacket","stripes"]),shirt:pick(COLORS),shirt2:pick(COLORS),hairStyle:pick(["short","short","buzz","bald","curly","afro","slick"]),hair:pick(HAIRS),build:pick(["avg","avg","slim","fat","muscle"]),beard:Math.random()<.2,mustache:Math.random()<.15,glasses:Math.random()<.2,hat:Math.random()<.2?"cap":null,hatColor:pick(COLORS)}}
+};
+function makeCustomerMesh(u){
+  const look=Object.assign({skin:ri(0,3),height:.93+Math.random()*.13,pants:pick([0x30343c,0x4a3a2a,0x20262e,0x44506a])},(LOOKS[u&&u.persona]||LOOKS.normal)());
+  if(look.height&&look.sex==="f")look.height*=.95;
+  if(u)u.sex=look.sex||"m";
+  return W.person(look);
 }
 function spawn(c){
-  c.mesh=makeCustomerMesh();c.mesh.position.set(rnd(-1.5,1.5),0,GATE_IN);W.scene.add(c.mesh);
+  c.mesh=makeCustomerMesh(c.u);c.mesh.position.set(rnd(-1.5,1.5),0,GATE_IN);W.scene.add(c.mesh);
   const slot=c.u.car?carSlot(c.u.car):-1;c.slot=slot;
   if(slot>=0&&!c.u.done){c.path=routeIn(slot,-1);c.state="enter"}
   else{c.path=[P(IN,9),P(OUT,9),P(OUT,GATE_OUT)];c.state="pass"}
@@ -439,7 +467,11 @@ function takeover(c){
   if(sp){sp.armsUp=false;if(!sp.mesh.userData.sit)sp.mesh.position.x+=1.1;   // the salesperson steps aside (or stays seated), with a word
     const n=sp.def.name,v=CREW_VOICES[n]||[1,1];crew={name:n,text:pick(CREW_LINES[n]||["All yours, boss."])};
     speakLine(crew.text,n.length*13+sp.def.id,v[0],v[1],false,sp.def.quirk==="spanish"?"es":"en")}
-  openTalk(u.id,{patFrac:frac,inWorld:true,crew,intro:sp&&sp.def.quirk==="spanish"?`${pick(["Your guy only speaks Spanish. I think he offered me a car? Or a sandwich?","Dude, I took French in school. I have no idea what that man said for twenty minutes.","He kept smiling and saying 'sí'. Did I already buy something?"])} I'm at ${$f(u.offer)}. ${posterGag()} I need something ${u.need}.`:sp?`${sp.def.name} has me at ${$f(car.price)}, and I'm at ${$f(u.offer)}. ${posterGag()} I need something ${u.need}. Can you do any better?`:`${Math.random()<.5?posterGag()+" ":""}I need something ${u.need}. What's your best price?`});
+  // Openers are small talk, not numbers: the customer warms up (or doesn't) depending on how Miguel plays it.
+  const car2=label(car);
+  openTalk(u.id,{patFrac:frac,inWorld:true,crew,intro:sp&&sp.def.quirk==="spanish"?`${pick(["Your guy only speaks Spanish. I think he offered me a car? Or a sandwich?","Dude, I took French in school. I have no idea what that man said for twenty minutes.","He kept smiling and saying 'sí'. Did I already buy something?"])} ${posterGag()}`
+    :sp?`${pick(["Hey, you must be the manager.","Oh, the boss is here.","Hi. Are you the guy in charge?"])} ${posterGag()} ${sp.def.name} and I have been going back and forth on this ${car2}.`
+    :`${pick(["Hi there.","Hey.","Oh, hello."])} ${Math.random()<.6?posterGag()+" ":""}I'm just looking at this ${car2}.`});
 }
 // called by talk.js when the panel closes
 function talkClosed(){
@@ -475,7 +507,7 @@ function pcClosed(){
 function stepBob(dt){
   if(!G.owner){
     if(!G.ownerSeen&&G.t>35&&G.t<SHIFT_SECONDS-60&&Math.random()<dt/70){
-      const m=W.person({shirt:0xd84a2a,pants:0x34363c,skin:0,hair:0x9a9a9a,hairStyle:"cap",cap:0xb01010,beard:true,wide:true,height:1.08,glasses:true});
+      const m=W.person({build:"fat",top:"hawaii",shirt:0xd84a2a,shirt2:0xffe0a0,pants:0x34363c,skin:0,hair:0x9a9a9a,hat:"cap",hatColor:0xb01010,beard:true,height:1.08,glasses:"sun",chain:true,age:true});
       const tag=W.sprite("BOB (owner)","#fff","rgba(150,0,0,.75)");tag.position.y=2.25;m.add(tag);
       m.position.set(0,0,GATE_IN);W.scene.add(m);
       G.owner={mesh:m,path:[P(0,13),P(0,LANE_Z)],speed:1.3,ph:0,until:G.t+75};G.ownerSeen=true;
@@ -733,5 +765,5 @@ function gun(){
   G.gunEnd=performance.now()+3200;G.shake=.25;Sfx.click();
   if(G.talk&&G.talk.c.mesh)G.talk.c.mesh.userData.handsUp=4;
 }
-window.G3={gun,cry,speaking:(s,mood)=>{if(G.talk&&G.talk.c.mesh){const u=G.talk.c.mesh.userData;u.talkLeft=s;if(mood)u.mood=mood}},fx,popup,on:()=>G.phase==="open"&&!G.ended,elapse,waiting,talkClosed,step,sim,draw,hud,takeover,endShift,startShift,state:G,world:()=>W,tier,syncCars,enterPrep};
+window.G3={gun,cry,makeCustomerMesh,speaking:(s,mood)=>{if(G.talk&&G.talk.c.mesh){const u=G.talk.c.mesh.userData;u.talkLeft=s;if(mood)u.mood=mood}},fx,popup,on:()=>G.phase==="open"&&!G.ended,elapse,waiting,talkClosed,step,sim,draw,hud,takeover,endShift,startShift,state:G,world:()=>W,tier,syncCars,enterPrep};
 })();

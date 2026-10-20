@@ -23,6 +23,10 @@ const ANY={
   milesYes:["Those are low miles. That's a plus.","Low miles? Okay, okay. I see you."],
   milesNo:["That's not low miles to me.","Low? That odometer has seen things."],
   condYes:["It does look sharp. I like that.","Yeah, it cleans up nice. Like me."],
+  cold:["Whoa. Slow down. I just got here. You don't even know what I need.","Numbers already? Buy me a coffee first, Miguel.","Easy, tiger. Ask me something about me first.","Do you say 'hi' to people, or do you just throw prices at them?"],
+  hotYes:["That's... exactly what I needed to hear.","Okay. Now you're speaking my language.","You get it. You actually get it.","See, THAT'S why I came here."],
+  hotNo:["Eh. I don't really care about that.","Cool, but that's not really my thing.","Mm, not a big deal for me."],
+  needsAgain:["I told you, man. {need}","Like I said: {need}"],
   condNo:["I'm not seeing that. Looks rough to me.","Sharp? There's a raccoon living in the trunk."]
 };
 const BY={
@@ -116,6 +120,36 @@ const BY={
     unclear:["Speak clearly. In a crisis, there's no time to repeat.","What? Was that a code?"],
     thanks:["Thanks. See you on the other side.","Pleasure. I'll radio you when it starts."],
     refuse:["{n}. Plus forty cans of beans. Final.","Still {n}. I'm rationing my money."]},
+  mj:{
+    intro:["Hee-hee! I'm bad, I'm bad, you know it. Also I need a car.","Shamone! The way you make me feel... is like I need a sedan."],
+    far:["That price is a Thriller, Miguel. And not in a good way.","Hoo! Beat it! Just beat it! That number, I mean."],
+    close:["Ooh, we're getting closer. Like the man in the mirror.","Hee-hee! Almost. Don't stop 'til you get enough."],
+    agree:["{p}! Hee-hee! I'm starting with the man in the mirror, and he's buying a car.","{p}. Shamone! This is history."],
+    walk:["Just beat it. I'm beating it. Moonwalking out of here.","You are not alone, Miguel. But I'm leaving. Hoo!"],
+    rapport:["You're smooth, Miguel. Smooth criminal.","Hee-hee! You've got that rock-with-you energy."],
+    unclear:["Shamone? Say that again.","Annie, are you okay? I didn't catch that."],
+    thanks:["Hee-hee! Thank you, Miguel. This is it.","Shamone! I'm off the wall! And on the road."],
+    refuse:["{n}. I'm bad. I'm bad, you know it.","{n}. Billie Jean is not my lover, and that's my final offer."]},
+  hungry:{
+    intro:["Before we start, is that a hot dog cart across the street?","I haven't eaten in like forty minutes. Let's make this quick."],
+    far:["For that price I could eat at the buffet every day for a year.","That's a lot of tacos, Miguel. A LOT of tacos."],
+    close:["Okay, closer. Is there food in the showroom?","Almost. My stomach just growled in agreement."],
+    agree:["{p}! Let's celebrate. You're buying lunch.","{p}. Does it come with a free pizza? No? Still deal."],
+    walk:["I'm going to get a burrito and think about my choices.","Too much. I'm leaving. The hot dog cart understands me."],
+    rapport:["You like food? We're gonna be friends, Miguel.","You seem like a guy who knows a good wing spot."],
+    unclear:["Sorry, I was thinking about nachos. Say again?","Huh? I'm low on blood sugar."],
+    thanks:["Thanks! First stop: drive-thru.","Pleasure! I'm naming the car Big Mac."],
+    refuse:["{n}. And that's my lunch money too.","Still {n}. A man's gotta eat."]},
+  flirt:{
+    intro:["Well, hello. You must be the famous Miguel. You're taller than your posters.","Hi, handsome. I hear you're the man who makes deals happen."],
+    far:["Oh, Miguel. You don't really want to charge ME that, do you?","That's cute. Now give me the real number, sweetheart."],
+    close:["Mm, now you're being sweet.","Closer. I like a man who listens."],
+    agree:["{p}. You're a doll, Miguel.","{p}. I knew you'd come around, handsome."],
+    walk:["Shame. I thought you were a gentleman. Bye, Miguel.","You just lost the best customer you'll ever have. Ciao."],
+    rapport:["Aren't you charming.","Oh, stop. No, go on."],
+    unclear:["Say that again, slower. I like your voice.","Hm? You lost me, handsome."],
+    thanks:["Thank you, Miguel. Call me if the warranty breaks.","Pleasure doing business. Don't blush."],
+    refuse:["{n}, darling. That's my number.","Still {n}. Don't make me pout."]},
   normal:{
     intro:["Hi. Is it normal that the tube man was staring at me?","Okay, just so I know: why are there so many posters of you?"],
     far:["Yikes. No thanks.","Is that real? That can't be real."],
