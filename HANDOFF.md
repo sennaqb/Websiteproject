@@ -88,3 +88,4 @@ First-person 3D used-car dealership game ("Bargain Bob's Auto Mart"). You play M
 - Outfit rotation: RECEP_LOOKS in game.js (receptionist / receptionist-beach 'Beach Day' with its own lines), alternating by day; missing files fall back to the main model.
 - Beach Day (even days): vrm.js swim() hides the outfit and recolors the painted-on underwear into a red bikini (dilated, white trim). A real receptionist-beach.vrm overrides it. Crew drifts to reception twice as often that day.
 - Beach Day now uses models/tiffany-beach-skin.png (Golden Summer bikini, Booth 4778162, composited on her body texture with the old underwear inpainted away); swim({texture}) swaps the body map.
+- Beach Day replaced by random Laundry Days (~30% of days, never day 1, hashed from the day number so reloads match): bikini + laundry excuses; crew still twice as distractible.

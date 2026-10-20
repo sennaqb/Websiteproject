@@ -461,10 +461,18 @@ function pairNear(){
 // ---------- Tiffany, the receptionist (a VRoid model) ----------
 // Drop your own VRoid Studio export at models/receptionist.vrm; until then she's the three-vrm sample girl.
 // Outfit rotation: each look is its own VRoid export in models/ (.vrm, or .b64.txt for the artifact copy).
-// Days cycle through RECEP_LOOKS; a look whose file isn't there yet falls back to the main model.
+// Most days she's in the blouse and skirt. On random days (about 1 in 3, never day 1) her outfit is
+// "in the laundry" and she shows up in the bikini. Picked from the day number, so it stays the same on reload.
 const RECEP_LOOKS=[{file:"receptionist"},
-  {file:"receptionist-beach",event:"Beach Day",swim:{texture:"models/tiffany-beach-skin.png"},lines:["Bob declared it Beach Day. The AC's been broken since June, so honestly? Fair.","It's Beach Day! Bob says it 'moves convertibles'. We don't have any convertibles.","Beach Day. Frenchy brought a tiny umbrella for his drink. He doesn't have a drink.","Gold stripes. Bob says I look like a bumblebee. Bob is wearing socks with sandals."]}];
-const recepLook=()=>RECEP_LOOKS[((S?S.day:1)-1)%RECEP_LOOKS.length];
+  {file:"receptionist-beach",event:"Laundry Day",swim:{texture:"models/tiffany-beach-skin.png"},lines:[
+    "Don't. My work clothes are in the laundry. This was the only clean thing I own. It's fine. Everything's fine.",
+    "Laundromat ate my blouse. Bob said 'dress code is whatever sells cars'. So. Here we are.",
+    "My outfit's in the dryer. The dryer is in my car. My car is in the shop. Don't ask.",
+    "Laundry day. Frenchy has asked me four times if I'm 'going to ze beach'. I'm going to HR. I'm HR.",
+    "Yes, it's a bikini. Yes, my clothes are in the wash. No, Mario, I don't need your jacket. It smells like meatballs.",
+    "The washer flooded my apartment, so this is what I've got. Bob's calling it 'Summer Savings Event'. It's November."]}];
+const laundryDay=d=>{if(d<2)return false;let h=Math.imul(d^0x5bd1e995,374761393);h=Math.imul(h^h>>>13,1274126177);h^=h>>>16;return (h>>>0)/4294967296<.3};
+const recepLook=()=>RECEP_LOOKS[laundryDay(S?S.day:1)?1:0];
 const lookFiles=l=>[`models/${l.file}.vrm`,`models/${l.file}.b64.txt`];
 const RECEP_NAME="Tiffany",RECEP_MODELS=["models/receptionist.vrm","models/receptionist.b64.txt","https://cdn.jsdelivr.net/gh/pixiv/three-vrm@dev/packages/three-vrm/examples/models/VRM1_Constraint_Twist_Sample.vrm"];
 const RECEP_HI=["Welcome to Bargain Bob's! Someone will be right with you. Probably.","Hiii! Help yourself to a mint. Nobody else has, since 2009.","Welcome in! Please don't touch the Kia, it's load-bearing.","Hi! The coffee's free. The bathroom is a hundred dollars.",
