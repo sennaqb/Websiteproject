@@ -81,3 +81,4 @@ First-person 3D used-car dealership game ("Bargain Bob's Auto Mart"). You play M
 - Outfits: vrm.js `dress(vrm,outfit)` recolors Tops/Shoes and adds a skinned pleated skirt (waist on hips, hem on thighs). RECEP_OUTFITS in game.js (office, red, plaid, pink, black), one per day; only applied to the sample model (dressIf), own exports keep their outfits.
 - VRM 0.x models: normalized-bone x/z rotations flipped in VRMKit.animate.
 - Voices: status shows the real load error and MB downloaded; Retry button on the title screen; first (warm-up) line no longer counts toward "too slow".
+- Day-one tutorial (game.js TUT / stepTut): Tiffany talks you through walking, the computer, opening, the first T.O., Mini Miguel and the gun; goal shows in the tip line; K skips; runs once per browser (localStorage bobsTut).

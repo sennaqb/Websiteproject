@@ -129,6 +129,7 @@ function enterPrep(){
   W.setTime(0);G.lastSky=0;W.setOpen(false);setPlayerStart();G.feed=[];
   S.phase="prep";boardUpdate(true);G.cashShown=S.cash;
   titleCard("DAY "+S.day,S.event.name);
+  G.usedPC=false;G.tut=S.day===1&&!tutDone()?{i:0,t:0,said:-1}:null;
 }
 
 // ---------- start / shift ----------
@@ -440,7 +441,7 @@ function move(dx,dz){
     if(!hit){G.px=nx;G.pz=nz}
   }
 }
-function step(dt){G.anim+=dt;if(!overlayOpen())movePlayer(dt);if(G.phase==="open")sim(dt);else if(G.phase==="prep")idleCrew(dt);if(G.phase!=="title")stepRecep(dt);W.update(dt,G.anim)}
+function step(dt){G.anim+=dt;if(!overlayOpen())movePlayer(dt);if(G.phase==="open")sim(dt);else if(G.phase==="prep")idleCrew(dt);if(G.phase!=="title"){stepRecep(dt);stepTut(dt)}W.update(dt,G.anim)}
 function elapse(sec){if(G.phase!=="open"||G.ended)return;for(let i=0;i<Math.round(sec/.25);i++)sim(.25)}
 function waiting(){
   const w=G.cust.filter(c=>c.state==="stuck");
@@ -498,6 +499,28 @@ function stepRecep(dt){
   if(G.phase==="open")G.cust.forEach(c=>{if(c.mesh&&!c.hiRecep&&c.mesh.position.z<-13.6&&c.state==="todesk"){c.hiRecep=true;u.wave=2.4;recepSay(recepPick(RECEP_HI))}});
   W.animatePerson(m,false,G.anim,false,u.talkLeft>0);
 }
+// ---------- day-one tutorial, run by Tiffany ----------
+// One small goal chip at a time; she talks you through it. K skips. Runs once per browser.
+const tutDone=()=>{try{return localStorage.getItem("bobsTut")==="1"}catch(e){return false}};
+function tutEnd(){G.tut=null;try{localStorage.setItem("bobsTut","1")}catch(e){}}
+const nearDesk=()=>W.reception&&Math.hypot(G.px-W.reception.x,G.pz-(W.reception.z-1.2))<2.4;
+const TUT=[
+  {say:"Hi Miguel! I'm Tiffany, the receptionist. Bob said to show you the ropes. Come over to my desk, by the front door.",goal:"Walk to Tiffany's desk (WASD to walk, mouse to look)",done:()=>nearDesk()},
+  {say:"Hi! Okay. Your office is the glass box in the back. The computer in there is where you buy cars, set prices and check the books.",goal:"Use the computer in your office (E)",done:()=>G.usedPC&&!overlayOpen()},
+  {say:"When the lot looks good, flip the switch by the front door. Then customers come in. God help us.",goal:"Open the lot: the switch by the door (E)",done:()=>G.phase==="open"},
+  {say:"The crew greets customers and takes them to a desk. Most deals close themselves. When one gets stuck, a red T.O. chip pops up. That means you.",goal:"Wait for a 🚨 T.O., walk over and press E",done:()=>!!G.talk},
+  {goal:null,done:()=>!G.talk},
+  {say:"Nice! Two tricks. Q sends Mini Miguel to do a T.O. for you, twice a day. And G is... the gun. Three per career. Don't tell HR. I'm HR.",goal:"Next time someone's stuck, try Q (optional)",done:t=>G.minis<2||t>40},
+  {say:"Last thing. Hold V to talk to customers, or T to type. C to see yourself. X if you need to cry. That's it. Go sell some cars!",goal:null,done:t=>t>9}];
+function tutSay(text){if(G.recep){G.recep.cool=0;G.recep.mesh.userData.wave=1.5;recepSay(text,true)}else{say3(`💁 ${RECEP_NAME}: ${text}`,"#ffc8e8");speakLine(text,77,1.14,1.03,true,"en","af_heart")}}
+function stepTut(dt){
+  const t=G.tut;if(!t)return;
+  if(S.day!==1||G.ended){tutEnd();return}
+  t.t+=dt;const st=TUT[t.i];
+  if(t.said!==t.i&&t.t>1.2&&(G.recep&&G.recep.mesh.userData.vrm||t.t>6)){t.said=t.i;if(st.say&&!G.talk)tutSay(st.say)}
+  if(t.said===t.i&&st.done(t.t)){t.i++;t.t=0;if(t.i>=TUT.length)tutEnd()}
+}
+const tutGoal=()=>G.tut&&G.tut.said===G.tut.i&&TUT[G.tut.i].goal;
 // ---------- the crew gets distracted by Tiffany ----------
 // An idle salesperson drifts over to the reception desk to flirt. While they're there they don't greet anyone,
 // so customers on the lot go unhelped. Walk over and press E to send them back. Some are worse than others.
@@ -518,7 +541,8 @@ function stepFlirt(s,dt,arrived){
     if(s.drift<=0&&!G.sales.some(o=>o.state==="flirt"&&o.flirt>40)){   // one at a time hangs around for long
       const spot=[-8.2,-7.5,-6.8].find(x=>!G.sales.some(o=>o.state==="flirt"&&o.spot===x));if(spot===undefined){s.drift=10;return}
       s.state="flirt";s.spot=spot;s.flirt=0;s.said=0;s.speed=1.6;s.path=[P(s.mesh.position.x,-16.4),P(spot,-15.85)];
-      say3(`😍 ${s.def.name} wandered over to ${RECEP_NAME}'s desk instead of working.`,"#ffb6e1")}
+      say3(`😍 ${s.def.name} wandered over to ${RECEP_NAME}'s desk instead of working.`,"#ffb6e1");
+      if(G.tut&&!G.tutFlirt&&!G.talk){G.tutFlirt=true;setTimeout(()=>tutSay(`Ugh. ${s.def.name}'s hanging around my desk again. While they're here, nobody's helping customers. Walk over and press E to send them back. Please.`),3500)}}
     return}
   if(s.state!=="flirt")return;
   s.flirt+=dt;if(!arrived)return;
@@ -551,7 +575,7 @@ function nearest(){
     if(f)return{label:`[E] Back to your desk, ${f.def.name}!`,act:()=>sendBack(f,true)}}
   if(G.recep&&!G.talk){const p=G.recep.mesh.position;if(Math.hypot(G.px-p.x,G.pz-(p.z-.9))<1.8)return{label:`[E] Talk to ${RECEP_NAME}`,act:recepChat}}
   if(G.phase==="prep"){
-    if(Math.hypot(G.px-W.pc.x,G.pz-W.pc.z)<1.7)return{label:"[E] Use the computer: prices, crew, upgrades, books",act:()=>PC.open()};
+    if(Math.hypot(G.px-W.pc.x,G.pz-W.pc.z)<1.7)return{label:"[E] Use the computer: prices, crew, upgrades, books",act:()=>{G.usedPC=true;PC.open()}};
     if(Math.hypot(G.px-W.sw.x,G.pz-W.sw.z)<1.7)return{label:S.inv.length?"[E] Open the lot":"[E] Open the lot (buy cars first)",act:startShift};
   }
   if(G.phase==="open"&&!G.talk){
@@ -750,6 +774,7 @@ function boardUpdate(force){
   W.setBoard(`DAY ${S.day}  ${S.event.name.toUpperCase()}`,rows.slice(0,6),foot);
 }
 function tip(){
+  if(G.tut){const g=tutGoal();return g?`📋 ${g}   ·   K to skip the tutorial`:""}
   if(S.day>2)return G.phase==="prep"?`Today: ${S.event.name}. ${S.event.desc}`:"";
   if(G.phase==="prep"){
     return "Bob's trucks already stocked the lot. Walk to the OPEN switch by the front door and press E. The computer in your office handles prices, crew and upgrades.";
@@ -873,6 +898,7 @@ addEventListener("keydown",e=>{
   if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Space"].includes(e.code))e.preventDefault();
   if(e.code==="KeyC"&&!T){G.third=!G.third;return}
   if(e.code==="KeyQ"){sendMini();return}
+  if(e.code==="KeyK"&&G.tut){tutEnd();say3("Tutorial skipped. Tiffany's at her desk if you need her (E).","#9cf");return}
   if(e.code==="KeyE"){const n=nearest();if(n){Sfx.click();n.act()}}
 });
 addEventListener("keyup",e=>{G.keys[e.code]=false;if((e.code==="KeyV"||e.code==="Space")&&T&&T.inWorld)pttStop(e.timeStamp)});
