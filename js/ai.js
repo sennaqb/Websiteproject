@@ -6,6 +6,12 @@ const MODEL="claude-haiku-5-5", KEY="bobsApiKey", FLAG="bobsAI";
 // Gemini models to try in order; a model this key can't use (404) falls through to the next.
 const GEMINI=["gemini-3.5-flash-lite","gemini-3.1-flash-lite","gemini-flash-lite-latest","gemini-2.5-flash-lite"];
 let gemIdx=0,gemAuth=0;
+// Gemini 3 models think at "high" by default, which is far too slow for a conversation. Ask for the least thinking each
+// model accepts; if a model rejects that setting, step down the list. What worked is remembered in this browser.
+const THINK=[{thinkingLevel:"minimal"},{thinkingLevel:"low"},{thinkingBudget:0},null];
+let gemThink={};
+try{const g=JSON.parse(localStorage.getItem("bobsGem")||"{}");gemIdx=Math.min(g.i|0,GEMINI.length-1);gemAuth=g.a|0;gemThink=g.t||{}}catch(e){}
+const gemSave=()=>{try{localStorage.setItem("bobsGem",JSON.stringify({i:gemIdx,a:gemAuth,t:gemThink}))}catch(e){}};
 // Gemini customers are unhinged: loosest filters for swearing and roasts, still no slurs or sexual content.
 const GEM_SAFETY=[["HARASSMENT","BLOCK_NONE"],["DANGEROUS_CONTENT","BLOCK_NONE"],["HATE_SPEECH","BLOCK_ONLY_HIGH"],["SEXUALLY_EXPLICIT","BLOCK_ONLY_HIGH"]]
   .map(([c,t])=>({category:"HARM_CATEGORY_"+c,threshold:t}));
@@ -55,7 +61,7 @@ AI.setEnabled=async function(on){
   if(!on){AI.enabled=false;store.set(FLAG,"0");return true}
   if(AI.mode==="rules"){AI.note="No AI available here. Paste an API key to use your own.";return false}
   try{
-    await call("Reply with the single word OK.",6000);
+    await call("Reply with the single word OK.",25000);
     AI.enabled=true;store.set(FLAG,"1");return true;
   }catch(e){
     AI.enabled=false;store.set(FLAG,"0");
@@ -71,7 +77,7 @@ function keyProblem(e){
 }
 function problem(e){
   const st=e&&e.status,m=String((e&&e.message)||"");
-  if(e&&e.name==="AbortError")return "Anthropic didn't answer in time. Check your connection and try again.";
+  if(e&&e.name==="AbortError")return (AI.provider()==="gemini"?"Google":"Anthropic")+" didn't answer in time. Try again; the first reply after a new key can be slow.";
   if(AI.provider()==="gemini")return geminiProblem(st,m);
   if(!st)return "Couldn't reach Anthropic from this page. Play from the GitHub Pages link, not a saved file or the claude.ai page.";
   if(st===401)return "Anthropic says the key is invalid. Copy it again from console.anthropic.com (it starts with sk-ant-) and paste only the key.";
@@ -96,19 +102,22 @@ function geminiProblem(st,m){
 async function callGemini(prompt,signal){
   let first=null;
   for(;;){
-    const [url,auth]=GEM_AUTH[gemAuth](`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI[gemIdx]}:generateContent`,store.get(KEY)||"");
+    const model=GEMINI[gemIdx],ti=gemThink[model]|0,think=THINK[ti];
+    const [url,auth]=GEM_AUTH[gemAuth](`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,store.get(KEY)||"");
     const r=await fetch(url,{
       method:"POST",signal,
       headers:Object.assign({"content-type":"application/json"},auth),
-      body:JSON.stringify({contents:[{role:"user",parts:[{text:prompt}]}],safetySettings:GEM_SAFETY,generationConfig:{maxOutputTokens:1024,temperature:1.1}})
+      body:JSON.stringify({contents:[{role:"user",parts:[{text:prompt}]}],safetySettings:GEM_SAFETY,
+        generationConfig:Object.assign({maxOutputTokens:1024,temperature:1.1},think?{thinkingConfig:think}:{})})
     });
-    if(r.status===404&&gemIdx<GEMINI.length-1){gemIdx++;continue}
+    if(r.status===404&&gemIdx<GEMINI.length-1){gemIdx++;gemSave();continue}
     if(!r.ok){
       let m="";try{const e=await r.json();m=(e&&e.error&&e.error.message)||""}catch(e){}
+      if(r.status===400&&/think/i.test(m)&&ti<THINK.length-1){gemThink[model]=ti+1;gemSave();continue}   // that thinking setting isn't allowed here: try the next
       const err=new Error(m||"api "+r.status);err.status=r.status;
       if([400,401,403].includes(r.status)&&/key|credential|authenticat/i.test(m)){
         if(!first)first=err;
-        if(gemAuth<GEM_AUTH.length-1){gemAuth++;continue}
+        if(gemAuth<GEM_AUTH.length-1){gemAuth++;gemSave();continue}
         gemAuth=0;throw first;   // every way failed: report Google's answer to the plain key header
       }
       throw err;
@@ -173,7 +182,7 @@ ${INTENTS}
 For a chat reply, the customer's personality: ${persona(u).who}.${unhinged()?" Voice: "+UNHINGED:""}
 Manager said: ${JSON.stringify(said)}
 Reply with JSON only, like {"intents":[...]}.`;
-  return guard(call(prompt,5000).then(text=>{
+  return guard(call(prompt,9000).then(text=>{
     const a=text.indexOf("{"),b=text.lastIndexOf("}");
     if(a<0||b<a)throw new Error("no json");
     const o=JSON.parse(text.slice(a,b+1));
@@ -205,7 +214,7 @@ Rules: keep every dollar amount exactly as written. Keep the meaning and the dec
 The manager just said: ${JSON.stringify(said||"")}
 Your reply: ${JSON.stringify(text)}
 Rewritten reply:`;
-  return guard(call(prompt,4000).then(out=>{
+  return guard(call(prompt,8000).then(out=>{
     out=String(out||"").trim().replace(/^["'\s]+|["'\s]+$/g,"").replace(/\s*\n+\s*/g," ");
     if(!out||out.length>(unhinged()?320:240))return null;
     const nums=(text.match(/\d[\d,]{2,}/g)||[]).map(n=>n.replace(/,/g,""));
@@ -220,7 +229,7 @@ AI.reviews=function(entries){
   const prompt=`Write funny one-to-two sentence online reviews of a run-down used car lot called Bargain Bob's Auto Mart, written by customers about the manager, Miguel (his face is on every employee-of-the-month poster, even the dumpster). One review per customer below, in that customer's personality, based on what happened. Stars 1 to 5 to match how it went.${unhinged()?" "+UNHINGED:""}
 ${entries.map((e,i)=>`${i}. ${e.name}, ${e.who}. Car: ${e.car}. Outcome: ${e.out}${e.price?" for $"+e.price:""}.${e.cried?" Miguel cried during the deal.":""}${e.wife?" The customer's wife talked to Miguel on the phone.":""} Last lines: ${e.said}`).join("\n")}
 Reply with JSON only: {"reviews":[{"i":0,"stars":1,"text":"..."}]}`;
-  return call(prompt,9000).then(text=>{
+  return call(prompt,15000).then(text=>{
     const a=text.indexOf("{"),b=text.lastIndexOf("}");if(a<0||b<a)throw new Error("no json");
     const o=JSON.parse(text.slice(a,b+1)),out=[];
     (o.reviews||[]).forEach(r=>{const i=r.i|0,st=Math.max(1,Math.min(5,Math.round(+r.stars||3))),t=String(r.text||"").trim().slice(0,260);if(entries[i]&&t)out[i]={stars:st,text:t}});

@@ -91,3 +91,4 @@ First-person 3D used-car dealership game ("Bargain Bob's Auto Mart"). You play M
 - Beach Day replaced by random Laundry Days (~30% of days, never day 1, hashed from the day number so reloads match): bikini + laundry excuses; crew still twice as distractible.
 - Laundry days: FLIRT_BIKINI lines per salesman (3 tries each, optional last word L[2]), linger up to 100 s, 😍🔥 pops.
 - Rules brain: new intents testdrive/trade/history/budget; unrecognized lines and questions get echo() replies that quote the player's topic instead of 'say a number'. Voices: first spoken chunk cut short (comma/conjunction) so replies start sooner.
+- Gemini: thinkingConfig minimal→low→budget 0→none per model (steps down on a 400 about thinking), model/auth/thinking choice saved in localStorage bobsGem; key test waits 25 s; in-game calls 8-15 s; timeout message names the right provider.
