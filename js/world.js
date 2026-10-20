@@ -1,11 +1,14 @@
 "use strict";
 // Builds the 3D world: sky, lot, showroom, props, cars and people.
 (function(){
-const SLOT_DX=3.2, ROW_Z=8, STAND_Z=4.6, COL_ORDER=[4,5,3,6,2,7,1,8,0,9];
+const SLOT_DX=3.2, COL_ORDER=[4,5,3,6,2,7,1,8,0,9], AISLE=.6;
+// Three rows of ten. z: the row, stand: where a buyer stands to look, lane: the walking/driving lane in front, rot: car heading.
+const ROWS=[{z:-8,stand:-4.6,lane:0,rot:0},{z:8,stand:4.6,lane:0,rot:Math.PI},{z:18,stand:13.4,lane:13,rot:Math.PI}];
+const colX=c=>(c-4.5)*SLOT_DX+(c>=5?AISLE:-AISLE);   // a wider center aisle so cars can drive out to the gate
 const SKIN=[0xf1c9a5,0xd9a273,0x9c6b43,0x6b4426];
 const PAINT=[0x7a2020,0x20406a,0x555a52,0xa8a89a,0x2f5a3a,0x6a5a20,0x3a2a4a,0x8a8a8a,0x1d1d1d,0xa04a20,0x9a9a30,0x3a6a7a];
-const slotPos=i=>{const row=i%2,col=COL_ORDER[Math.floor(i/2)%10];return {x:(col-4.5)*SLOT_DX,z:row?ROW_Z:-ROW_Z,row}};
-const standZ=i=>slotPos(i).row?STAND_Z:-STAND_Z;
+const slotPos=i=>{const row=i<20?i%2:2,col=COL_ORDER[(i<20?Math.floor(i/2):i-20)%10],R=ROWS[row];return {x:colX(col),z:R.z,row,stand:R.stand,lane:R.lane,rot:R.rot}};
+const standZ=i=>slotPos(i).stand;
 
 const M=(c,o)=>new THREE.MeshStandardMaterial(Object.assign({color:c,roughness:.9,metalness:.02,flatShading:true},o||{}));
 const B=(c,o)=>new THREE.MeshBasicMaterial(Object.assign({color:c},o||{}));
@@ -169,13 +172,19 @@ function person(o){
   mergeChildren(g,[]);[u.legL,u.legR,u.legL.userData.knee,u.legR.userData.knee,u.armL,u.armR,u.armL.userData.fa,u.armR.userData.fa].forEach(p=>mergeChildren(p));
   mergeChildren(hd,(u.mouth?[u.mouth]:[]).concat(u.brows));if(u.top)mergeChildren(u.top,u.brows);
   if(o.height)g.scale.setScalar(o.height);
+  u.hipY=.93*(o.height||1);
   g.userData=u;return g;
 }
 const BROWS={neutral:[0,0],happy:[.2,.016],angry:[-.75,-.008],worried:[.6,.006],shocked:[.15,.03],confused:[-.45,-.006,.3,.024]};
 function animatePerson(g,moving,t,armsUp,talk){
   const u=g.userData,s=moving?Math.sin(t*9)*.6:0;
-  u.legL.rotation.x=s;u.legR.rotation.x=-s;
-  u.legL.userData.knee.rotation.x=moving?Math.max(0,Math.sin(t*9+1.6))*.8:0;u.legR.userData.knee.rotation.x=moving?Math.max(0,-Math.sin(t*9+1.6))*.8:0;
+  if(u.sit&&!moving){   // seated: thighs forward, shins down, hips on the seat
+    g.position.y=.6-u.hipY;
+    [u.legL,u.legR].forEach((l,i)=>{l.rotation.x=-1.45;l.rotation.z=(i?-1:1)*.06;l.userData.knee.rotation.x=1.45});
+  }else{g.position.y=0;u.legL.rotation.z=u.legR.rotation.z=0}
+  if(!(u.sit&&!moving)){u.legL.rotation.x=s;u.legR.rotation.x=-s;
+  // the knee bends while that leg swings forward (sin falling), straight while it pushes back
+  u.legL.userData.knee.rotation.x=moving?Math.max(0,-Math.cos(t*9))*.9:0;u.legR.userData.knee.rotation.x=moving?Math.max(0,Math.cos(t*9))*.9:0;}
   if(armsUp){
     u.armL.rotation.x=-2.7+Math.sin(t*10)*.25;u.armR.rotation.x=-2.7+Math.sin(t*10+1)*.25;
     u.armL.userData.fa.rotation.x=-.3;u.armR.userData.fa.rotation.x=-.3;
@@ -186,7 +195,8 @@ function animatePerson(g,moving,t,armsUp,talk){
     u.armL.rotation.x=moving?-s*.7:Math.sin(t*1.5)*.04;u.armR.rotation.x=moving?s*.7:-Math.sin(t*1.5)*.04;
     u.armL.userData.fa.rotation.x=moving?-.35:-.15;u.armR.userData.fa.rotation.x=moving?-.35:-.15;
   }
-  const tk=u.talkLeft>0;
+  // talking: when the game says so (a line being spoken), or taking turns in a conversation we watch from afar
+  const tk=u.talkLeft>0||(talk&&!u.talkLeft&&Math.sin(t*1.6)>.1);
   const flap=tk&&u.top;
   if(u.top)u.top.rotation.x=flap?-Math.abs(Math.sin(t*11))*.6:0;
   u.head.rotation.x=tk&&!flap?Math.sin(t*5)*.06:0;
@@ -473,7 +483,8 @@ function create(canvas){
   }
   // slot paint
   const lm=B(0xcfcf9f);
-  for(let r=0;r<2;r++)for(let c=0;c<=10;c++){const m=new THREE.Mesh(new THREE.PlaneGeometry(.08,4.6),lm);m.rotation.x=-Math.PI/2;m.position.set((c-5)*SLOT_DX,.02,r?ROW_Z:-ROW_Z);scene.add(m)}
+  ROWS.forEach(R=>{for(let c=0;c<=10;c++)[-1,1].forEach(side=>{if((side<0&&c>5)||(side>0&&c<5))return;
+    const m=new THREE.Mesh(new THREE.PlaneGeometry(.08,4.6),lm);m.rotation.x=-Math.PI/2;m.position.set((c-5)*SLOT_DX+side*AISLE,.02,R.z);scene.add(m)})});
   // fence with a gate opening
   const fm=new THREE.MeshBasicMaterial({map:fenceTex(),transparent:true,side:THREE.DoubleSide,depthWrite:false}),postM=M(0x666a70);
   const fence=(cx,cz,len,rot)=>{
@@ -626,7 +637,7 @@ function create(canvas){
   }
   box(.15,4.2,.15,M(0x555555),-26,2.1,0,{noShadow:true});box(.15,4.2,.15,M(0x555555),26,2.1,0,{noShadow:true});
   // tube man
-  const tm=new THREE.Group();tm.position.set(14,0,16);scene.add(tm);let par=tm;W.tubeMan=tm;
+  const tm=new THREE.Group();tm.position.set(23,0,23);scene.add(tm);let par=tm;W.tubeMan=tm;
   for(let i=0;i<6;i++){const seg=new THREE.Group();seg.position.y=i?.9:0;par.add(seg);const cy=new THREE.Mesh(new THREE.CylinderGeometry(.32,.36,.9,8),M(i%2?0xff2020:0xffee20));cy.position.y=.45;cy.castShadow=true;seg.add(cy);W.tube.push(seg);par=seg}
   // balloons
   [[-18,-8],[18,-8],[-18,8],[18,8],[-21,-5],[21,5],[-4.5,25.5],[4.5,25.5],[-21,10],[21,-10]].forEach(([bx,bz],i)=>{
@@ -693,7 +704,7 @@ function create(canvas){
       fly.t+=dt;const k=Math.min(1,fly.t/fly.dur);
       if(k<1){tm.position.set(fly.fx+(fly.x-fly.fx)*k,Math.sin(k*Math.PI)*8,fly.fz+(fly.z-fly.fz)*k);tm.rotation.x+=dt*7;tm.rotation.z+=dt*4}
       else if(!fly.landed){fly.landed=true;tm.position.set(fly.x,.4,fly.z);tm.rotation.set(Math.PI/2,Math.random()*6,0);if(fly.onLand)fly.onLand()}
-      if(fly.t>fly.dur+4.5){tm.position.set(14,0,16);tm.rotation.set(0,0,0);fly=null}
+      if(fly.t>fly.dur+4.5){tm.position.set(23,0,23);tm.rotation.set(0,0,0);fly=null}
     }
     for(let i=falling.length-1;i>=0;i--){const f=falling[i];f.v+=dt*9;f.m.position.y=Math.max(.07,f.m.position.y-f.v*dt);f.m.rotation.x=Math.min(.6,f.m.rotation.x+dt*3);f.m.position.z+=dt*.25;if(f.m.position.y<=.07)falling.splice(i,1)}
     clouds.rotation.y+=dt*.004;

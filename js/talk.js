@@ -85,21 +85,26 @@ function mood(text){
 // One speaker at a time: a new line cuts off the old one unless queue is set. Chrome's "Google" voices
 // stream from the network and can keep talking after cancel(), so they're avoided when others exist.
 let speakTimer=0,speakSeq=0,speakPend=[];
-function voicePool(){
-  const all=speechSynthesis.getVoices().filter(v=>/^en/i.test(v.lang)),local=all.filter(v=>!/google/i.test(v.name));
+function voicePool(lang){
+  const re=new RegExp("^"+(lang||"en"),"i"),all=speechSynthesis.getVoices().filter(v=>re.test(v.lang)),local=all.filter(v=>!/google/i.test(v.name));
   const base=local.length?local:all,nice=base.filter(v=>/natural|neural|premium|enhanced/i.test(v.name));
   return nice.length>=2?nice:base;
 }
-function speakLine(text,seed,pitch,rate,queue){
+function speakLine(text,seed,pitch,rate,queue,lang){
   if(!window.speechSynthesis)return null;
   try{
     const ut=new SpeechSynthesisUtterance(text);
-    const vs=voicePool();if(vs.length)ut.voice=vs[Math.abs(seed|0)%vs.length];
+    const vs=voicePool(lang);if(vs.length)ut.voice=vs[Math.abs(seed|0)%vs.length];if(lang)ut.lang=lang==="es"?"es-MX":"en-US";
     ut.pitch=Math.max(.1,Math.min(2,pitch));ut.rate=Math.max(.5,Math.min(2,rate));
     if(queue){if(speakPend.length)speakPend.push(ut);else speechSynthesis.speak(ut);return ut}
     const my=++speakSeq;clearTimeout(speakTimer);speechSynthesis.cancel();speakPend=[ut];
-    // Chrome sometimes drops or doubles a line spoken in the same tick as cancel(); wait a beat
-    speakTimer=setTimeout(()=>{if(my!==speakSeq)return;speechSynthesis.cancel();const q=speakPend;speakPend=[];q.forEach(u=>speechSynthesis.speak(u))},80);
+    // Never start a voice while another is still audible: cancel, then wait until the browser reports silence
+    // (some voices keep going for a moment after cancel()). Give up waiting after 1.5 s.
+    const t0=performance.now();
+    const go=()=>{if(my!==speakSeq)return;
+      if((speechSynthesis.speaking||speechSynthesis.pending)&&performance.now()-t0<1500){speechSynthesis.cancel();speakTimer=setTimeout(go,60);return}
+      const q=speakPend;speakPend=[];q.forEach(u=>speechSynthesis.speak(u))};
+    speakTimer=setTimeout(go,80);
     return ut;
   }catch(e){return null}
 }

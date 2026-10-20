@@ -77,12 +77,14 @@ const EVENTS=[
   {id:"kickers",name:"Tire-kicker Tuesday",desc:"Lots of lookers. Not many buyers.",cust:1.3,bud:.8,bias:["tirekicker","tirekicker","tirekicker"],w:1}
 ];
 const CREW0=[
-  {name:"Frenchy",skill:.2,cave:.5,shirt:0x8a7a3a,skin:0,quirk:""},
+  {name:"Juanny",skill:0,cave:0,shirt:0x8a7a3a,skin:0,quirk:"spanish"},
   {name:"Andres",skill:.45,cave:.2,shirt:0x8a2a2a,skin:1,quirk:"pushy"},
   {name:"Sam",skill:.3,cave:.3,shirt:0x2f6d8a,skin:2,quirk:""}
 ];
+// Salespeople who are always the same, whatever the dice say. Juanny only speaks Spanish: he never closes alone.
+const FIXED_CREW={Juanny:{skill:0,cave:0,quirk:"spanish"},Frenchy:{skill:.2,cave:.5,quirk:""}};
 // The whole sales team. Whoever isn't on the floor is waiting to be hired.
-const TEAM=["Frenchy","Andres","Sam","Riccardo","Mario","Juanny"];
+const TEAM=["Juanny","Andres","Sam","Riccardo","Mario","Frenchy"];
 const SHIRTS=[0x8a7a3a,0x8a2a2a,0x2f6d8a,0x5a3a7a,0x2f6a4a,0x7a5a2a,0x4a4a4a];
 const MAX_CREW=6;
 
@@ -101,16 +103,17 @@ function renameTeam(){
   S.crew.forEach(c=>{if(old[c.name]&&!S.crew.some(x=>x.name===old[c.name]))c.name=old[c.name]});
   S.crew.forEach(c=>{if(!TEAM.includes(c.name)){const n=TEAM.find(n=>!S.crew.some(x=>x.name===n));if(n)c.name=n}});
   S.cands=(S.cands||[]).filter(c=>TEAM.includes(c.name)&&!S.crew.some(x=>x.name===c.name));
+  S.crew.concat(S.cands).forEach(c=>Object.assign(c,FIXED_CREW[c.name]||{}));
 }
 function load(){
   try{
     const s=localStorage.getItem(SAVE);
-    if(s){const o=JSON.parse(s);if(o&&o.v===2){S=o;S.phase="prep";S.cust=[];renameTeam();if(S.guns==null)S.guns=3;restock();return true}}
+    if(s){const o=JSON.parse(s);if(o&&o.v===2){S=o;S.phase="prep";S.cust=[];renameTeam();if(S.cap<12)S.cap=12;if(S.guns==null)S.guns=3;restock();return true}}
   }catch(e){}
   return false;
 }
 function fresh(){
-  S={v:2,day:1,cash:1500,rep:10,cap:6,ad:0,mech:0,front:0,back:0,nextId:1,inv:[],cust:[],log:[],phase:"prep",sold:0,profit:0,
+  S={v:2,day:1,cash:1500,rep:10,cap:12,ad:0,mech:0,front:0,back:0,nextId:1,inv:[],cust:[],log:[],phase:"prep",sold:0,profit:0,
      crew:CREW0.map((c,i)=>Object.assign({id:i+1},c)),crewId:4,cands:[],strikes:0,guns:3,weekStart:0,event:EVENTS[0],review:"",seen:{}};
   restock();genCands();
   logMsg("Bob left you the keys. His trucks keep the lot full. Open the doors and save the deals your salespeople can't close. Get the bank to "+$f(GOAL)+".");
@@ -158,14 +161,14 @@ function wholesale(id){
   logMsg(`Wholesaled ${label(c)} for ${$f(p)} (${$f(p-c.cost)} profit).`);save();
 }
 const UPG=[
-  {k:"cap",n:"Bigger lot (+2 spaces)",cost:()=>1500+S.cap*300,max:20,desc:"Hold more cars."},
+  {k:"cap",n:"Bigger lot (+3 spaces)",cost:()=>1500+S.cap*200,max:30,desc:"Hold more cars."},
   {k:"ad",n:"Advertising",cost:()=>600*(S.ad+1),max:5,desc:"More customers each day (costs $30/day per level)."},
   {k:"mech",n:"In-house mechanic",cost:()=>1200*(S.mech+1),max:5,desc:"Repairs 10% cheaper per level."}
 ];
 function upgrade(k){
   const u=UPG.find(u=>u.k==k),c=u.cost();
   if(S.cash<c)return toast("Not enough cash.");
-  S.cash-=c;S[k]+=k=="cap"?2:1;if(k=="cap")restock();logMsg("Bought upgrade: "+u.n);save();
+  S.cash-=c;S[k]+=k=="cap"?3:1;if(k=="cap")restock();logMsg("Bought upgrade: "+u.n);save();
 }
 
 // ---------- crew ----------
@@ -173,7 +176,7 @@ function genCands(){
   S.cands=[];
   const names=TEAM.filter(n=>!S.crew.some(c=>c.name===n)).sort(()=>Math.random()-.5);
   for(let i=0;i<Math.min(3,names.length);i++){
-    S.cands.push({id:S.crewId++,name:names[i],skill:+rnd(.1,.5).toFixed(2),cave:+rnd(.1,.55).toFixed(2),shirt:pick(SHIRTS),skin:ri(0,3),quirk:Math.random()<.25?"pushy":""});
+    S.cands.push(Object.assign({id:S.crewId++,name:names[i],skill:+rnd(.1,.5).toFixed(2),cave:+rnd(.1,.55).toFixed(2),shirt:pick(SHIRTS),skin:ri(0,3),quirk:Math.random()<.25?"pushy":""},FIXED_CREW[names[i]]||{}));
   }
 }
 function hire(id){
@@ -199,7 +202,7 @@ function train(id){
 function openDay(){
   S.phase="open";S.cust=[];
   const ev=S.event||EVENTS[0];
-  const n=Math.max(4,Math.round((ri(7,11)+S.ad*2+Math.floor(S.rep/15))*ev.cust));
+  const n=Math.max(6,Math.round((ri(12,18)+S.ad*3+Math.floor(S.rep/10))*ev.cust));
   const pool=["haggler","haggler","researcher","fan","budget","rusher","rusher","tirekicker","tirekicker"].concat(ev.bias||[]);
   for(let i=0;i<n;i++){
     S.cust.push({id:i,name:pick(NAMES),body:pick(["any","any","any","sedan","suv","truck","coupe"]),

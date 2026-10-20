@@ -1,8 +1,8 @@
 "use strict";
 // First-person 3D lot. You are the manager: prep in your office, open the lot, then save the deals your salespeople can't close.
 (function(){
-const SHIFT_SECONDS=270, OPEN_MIN=540, CLOSE_MIN=1080, LANE_Z=0;
-const G={phase:"title",on:false,t:0,anim:0,yaw:Math.PI,pitch:0,px:0,pz:-17,keys:{},vx:0,vz:0,bob:0,bobAmt:0,sprint:false,fov:72,shake:0,flash:0,box:0,pops:[],cashShown:0,cust:[],sales:[],cars:{},stats:null,feed:[],talk:null,ended:false,acc:0,drag:false,lastSky:-1,boardKey:""};
+const SHIFT_SECONDS=480, OPEN_MIN=540, CLOSE_MIN=1080, LANE_Z=0;
+const G={phase:"title",on:false,t:0,anim:0,yaw:Math.PI,pitch:0,px:0,pz:-17,keys:{},vx:0,vz:0,bob:0,bobAmt:0,sprint:false,fov:72,shake:0,flash:0,box:0,pops:[],cashShown:0,cust:[],sales:[],cars:{},drives:[],stats:null,feed:[],talk:null,ended:false,acc:0,drag:false,lastSky:-1,boardKey:""};
 let W,canvas,last=0;
 const P=(x,z)=>({x,z});
 
@@ -77,7 +77,7 @@ function syncCars(){
   S.inv.forEach(c=>{
     if(!G.cars[c.id]){
       let s=0;while(used.has(s))s++;used.add(s);
-      const m=W.buildCar(c),p=W.slotPos(s);m.position.set(p.x,0,p.z);m.rotation.y=p.row?Math.PI:0;W.scene.add(m);
+      const m=W.buildCar(c),p=W.slotPos(s);m.position.set(p.x,0,p.z);m.rotation.y=p.rot;W.scene.add(m);
       G.cars[c.id]={mesh:m,slot:s};
     }else W.updateTag(G.cars[c.id].mesh,c.price);
   });
@@ -90,7 +90,7 @@ const CREW_LINES={
   Sam:["Intel: they like cars. That's all I got. Good luck.","Heads up, boss. I think they're a Scorpio. Use that.","They said they're looking for a car. Verified it myself. You're welcome."],
   Riccardo:["Miguel, my friend, I have softened them like butter. Now you spread.","Bellissimo. They're ready. Or they're about to leave. One of the two."],
   Mario:["It's-a you, Miguel! Sorry. I always wanted to say that.","I've got nothing, boss. I tried my best. My best is not good."],
-  Juanny:["Juanny's tapping out, Juanny's tapping out! Your turn, boss!","They called me son three times. I can't go back in there, Miguel."]
+  Juanny:["¡Jefe! ¡No entiendo nada de lo que dice este señor! ¡Ayúdame, por favor!","Le dije que el carro es muy bonito. Creo que se enojó. Te toca a ti, Miguel.","Miguel, este cliente habla muy rápido. Yo solo sonreí y dije que sí a todo."]
 };
 const CREW_VOICES={Frenchy:[.75,.86],Andres:[1.45,1.25],Sam:[.95,1],Riccardo:[1,1.05],Mario:[1.2,1.12],Juanny:[1.3,1.3]};
 // The posters get harder to ignore as the days go by.
@@ -135,7 +135,7 @@ function start(newGame){
 }
 function startShift(){
   if(G.phase!=="prep")return;
-  TALK_LOG.length=0;G.ownerSeen=false;G.wiggleAt=rnd(50,90);if(G.owner){W.scene.remove(G.owner.mesh);G.owner=null}
+  TALK_LOG.length=0;G.ownerSeen=false;(G.drives||[]).forEach(d=>W.scene.remove(d.m));G.drives=[];G.wiggleAt=rnd(50,90);if(G.owner){W.scene.remove(G.owner.mesh);G.owner=null}
   if(!S.inv.length)restock();
   openDay();
   G.phase="open";G.t=0;G.ended=false;
@@ -150,15 +150,38 @@ function startShift(){
 
 // ---------- NPC helpers ----------
 function standX(slot,side){return W.slotPos(slot).x+side*.65}
-function routeIn(slot,side){const x=standX(slot,side);return [P(0,31),P(0,12),P(0,LANE_Z),P(x,LANE_Z),P(x,W.standZ(slot))]}
-function routeOut(x,z){const pts=[];if(Math.abs(z)>2)pts.push(P(x,LANE_Z));pts.push(P(0,LANE_Z),P(0,12),P(0,32));return pts}
-function routeSalesOut(slot,side){const x=standX(slot,side);return [P(0,-13.5),P(0,-11),P(0,LANE_Z),P(x,LANE_Z),P(x,W.standZ(slot))]}
-function routeSalesHome(x,z,home){const pts=[];if(Math.abs(z)>2)pts.push(P(x,LANE_Z));pts.push(P(0,LANE_Z),P(0,-11),P(0,-13.5),P(home.x,-16),P(home.x,home.z));return pts}
+// Customers appear just inside the gate and leave through it.
+const GATE_IN=25.5,GATE_OUT=27.6;
+const inShowroom=z=>z<-12;
+// From the showroom out to the lot lane (via the front door).
+const showroomExit=x=>[P(x,-17.6),P(0,-13.5),P(.55,-11)];
+// Walking lanes: z=0 between the front two rows, z=13 in front of the back row; x=0 is the center aisle.
+const laneZ=z=>z>11?13:LANE_Z;
+const toLane=(x,z)=>inShowroom(z)?showroomExit(x):Math.abs(z-laneZ(z))>1.5?[P(x,laneZ(z))]:[];
+// Keep right in the center aisle: heading toward the showroom walk at x=-.55, heading to the gate at x=+.55.
+const IN=-.55,OUT=.55;
+const toAisle=(x,z,ax)=>toLane(x,z).concat([P(ax,inShowroom(z)?LANE_Z:laneZ(z))]);
+const toSlot=(slot,side,ax)=>{const p=W.slotPos(slot),sx=standX(slot,side);return [P(ax,p.lane),P(sx,p.lane),P(sx,p.stand)]};
+const toShowroom=(x,z)=>inShowroom(z)?[]:toAisle(x,z,IN).concat([P(IN,-11),P(0,-13.5)]);
+function routeIn(slot,side){return [P(IN,24)].concat(toSlot(slot,side,IN))}
+function routeOut(x,z){return toAisle(x,z,OUT).concat([P(OUT,24),P(0,GATE_OUT)])}
+function routeToCar(x,z,slot,side){const zz=W.slotPos(slot).lane,ax=inShowroom(z)||zz>z?OUT:IN;return toAisle(x,z,ax).concat(toSlot(slot,side,ax))}
+// The guest chair a customer takes at a salesperson's desk (the outside one, clear of the sofa).
+function guestSeat(dx){return P(dx>6?dx+.58:dx-.58,-19.1)}
+function routeToDesk(c){const p=c.mesh.position,s=guestSeat(c.sp.home.x);return toShowroom(p.x,p.z).concat([P(s.x,-17.6),s])}
+function routeSalesToDesk(sp){const p=sp.mesh.position,x=sp.home.x;return toShowroom(p.x,p.z).concat([P(x+1.25,-17.8),P(x+1.25,-21.15),P(x+.1,-20.95)])}
+function routeSalesOut(slot,side){return [P(0,-13.5),P(.55,-11)].concat(toSlot(slot,side,.55))}
+function routeSalesHome(x,z,home){
+  if(z<-20.4)return [P(home.x+1.25,-21.15),P(home.x+1.25,-18.6),P(home.x,home.z)];   // getting up from behind the desk
+  const pts=toShowroom(x,z);pts.push(P(home.x,-16),P(home.x,home.z));return pts}
 function stepNpc(n,dt,talk){
   let moving=false;
   if(n.path.length){
     const p=n.path[0],m=n.mesh,dx=p.x-m.position.x,dz=p.z-m.position.z,d=Math.hypot(dx,dz),st=n.speed*dt;
-    if(d<=st){m.position.x=p.x;m.position.z=p.z;n.path.shift()}
+    // Arrive when close; and if someone keeps blocking the spot (people push each other apart), move on after 3 s.
+    n.blocked=d<(n.lastD===undefined?1e9:n.lastD)-.01?0:(n.blocked||0)+dt;n.lastD=d;
+    // corners can be cut; the last spot is exact
+    if(d<=Math.max(st,n.path.length>1?.5:.15)||n.blocked>3){if(!n.path[1]){m.position.x=p.x;m.position.z=p.z}n.path.shift();n.blocked=0;n.lastD=undefined}
     else{m.position.x+=dx/d*st;m.position.z+=dz/d*st;m.rotation.y=Math.atan2(dx,dz);moving=true}
   }
   W.animatePerson(n.mesh,moving,G.anim+(n.ph||0),n.armsUp,talk&&!moving);
@@ -170,10 +193,10 @@ function makeCustomerMesh(){
     skin:ri(0,3),hair:pick([0x1a1a1a,0x5a3a1a,0xb0a080,0x777777]),hairStyle:pick(["short","short","long","cap","bald"]),cap:pick([0x2a4a7a,0x7a2a2a,0x2a5a3a]),wide:Math.random()<.25,beard:Math.random()<.2,glasses:Math.random()<.25,height:.93+Math.random()*.13});
 }
 function spawn(c){
-  c.mesh=makeCustomerMesh();c.mesh.position.set(0,0,32);W.scene.add(c.mesh);
+  c.mesh=makeCustomerMesh();c.mesh.position.set(rnd(-1.5,1.5),0,GATE_IN);W.scene.add(c.mesh);
   const slot=c.u.car?carSlot(c.u.car):-1;c.slot=slot;
   if(slot>=0&&!c.u.done){c.path=routeIn(slot,-1);c.state="enter"}
-  else{c.path=[P(0,31),P(0,9),P(0,9),P(0,32)];c.state="pass"}
+  else{c.path=[P(IN,9),P(OUT,9),P(OUT,GATE_OUT)];c.state="pass"}
   Sfx.chime();
 }
 function addBar(c){
@@ -184,6 +207,7 @@ function addBar(c){
 function removeBar(c){if(c.bar){c.mesh.remove(c.bar.bg);c.mesh.remove(c.bar.fg);c.bar=null}if(c.ring){c.mesh.remove(c.ring);c.ring=null}}
 function addRing(c){const r=new THREE.Mesh(new THREE.RingGeometry(.55,.75,28),new THREE.MeshBasicMaterial({color:0xff3030,transparent:true,opacity:.75,side:THREE.DoubleSide,depthWrite:false}));r.rotation.x=-Math.PI/2;r.position.y=.06;c.mesh.add(r);c.ring=r}
 function finishLeave(c,happy){
+  c.mesh.userData.sit=false;if(c.sp)c.sp.mesh.userData.sit=false;
   c.state="leave";c.path=routeOut(c.mesh.position.x,c.mesh.position.z);c.speed=happy?1.6:2.2;
   if(c.to){c.mesh.remove(c.to);c.to=null}removeBar(c);
   if(c.sp){const s=c.sp;s.state="back";s.armsUp=false;s.path=routeSalesHome(s.mesh.position.x,s.mesh.position.z,s.home);s.cust=null;c.sp=null}
@@ -213,6 +237,7 @@ function commission(sp,front){
 }
 function spSale(c,price,why){
   const car=carOf(c);if(!car)return finishLeave(c,false);
+  claimCar(c);
   const i=S.inv.indexOf(car),front=price-car.cost,sp=c.sp;
   finishSale(c.u,car,i,price,[]);
   const com=commission(sp,front);
@@ -220,10 +245,35 @@ function spSale(c,price,why){
   const rec=G.sales.find(s=>s===sp);if(rec){rec.deals++;rec.gross+=front-com}
   say3(`${sp.def.name} ${why==="cave"?"caved and sold":"sold"} the ${label(car)} for ${$f(price)}: ${front<0?"lost ":""}${$f(Math.abs(front))} gross`,front>=300?"#9f9":front>=0?"#fd8":"#f88");
   popup(`${sp.def.name} ${front-com<0?"-":"+"}${$f(Math.abs(front-com))}`,c.mesh.position,front-com>=300?"#8dffa8":front-com>=0?"#ffe08a":"#ff8a8a");
-  Sfx.cash();syncCars();finishLeave(c,true);
+  Sfx.cash();syncCars();startDelivery(c);
+}
+// A sold car leaves the lot under its new owner, so take its mesh out of the lot's bookkeeping now.
+function claimCar(c){const o=G.cars[c.u.car];if(o){c.carMesh=o.mesh;c.carSlot=o.slot;delete G.cars[c.u.car]}}
+// After a sale: customer and salesperson walk to the car, the customer gets in and drives off.
+function startDelivery(c){
+  if(c.to){c.mesh.remove(c.to);c.to=null}removeBar(c);c.mesh.userData.sit=false;
+  if(!c.carMesh)return finishLeave(c,true);
+  const p=c.mesh.position;c.state="delivery";c.speed=1.7;c.path=routeToCar(p.x,p.z,c.carSlot,-1);
+  const sp=c.sp;if(sp){sp.mesh.userData.sit=false;sp.armsUp=false;sp.state="delivery";sp.speed=1.9;const q=sp.mesh.position;sp.path=(q.z<-20.4?[P(sp.home.x+1.25,-21.15),P(sp.home.x+1.25,-18.2)]:[]).concat(routeToCar(sp.home.x+1.25,-18.2,c.carSlot,1))}
+}
+function driveOff(c){
+  const m=c.carMesh;c.carMesh=null;if(!m)return;
+  const p=m.position,L=laneZ(p.z),pts=[P(p.x,L),P(0,L),P(0,GATE_OUT),P(0,36),P(80,36)];
+  G.drives.push({m,pts,speed:0});Sfx.click();
+}
+function stepDrives(dt){
+  for(let i=G.drives.length-1;i>=0;i--){
+    const d=G.drives[i],m=d.m,p=d.pts[0];
+    if(!p){W.scene.remove(m);G.drives.splice(i,1);continue}
+    d.speed=Math.min(7,d.speed+dt*3);
+    const dx=p.x-m.position.x,dz=p.z-m.position.z,dist=Math.hypot(dx,dz),st=d.speed*dt;
+    if(dist<=st){m.position.x=p.x;m.position.z=p.z;d.pts.shift()}else{m.position.x+=dx/dist*st;m.position.z+=dz/dist*st}
+    if(dist>.05){let a=Math.atan2(dx,dz)-m.rotation.y;a=Math.atan2(Math.sin(a),Math.cos(a));m.rotation.y+=a*Math.min(1,dt*6)}
+  }
 }
 function resolveWork(c){
   const sp=c.sp,u=c.u,d=sp.def,t=tier(c),car=carOf(c),r=Math.random();
+  if(d.quirk==="spanish"){stall(c);return}   // Juanny: nobody understands a word, so it always comes to Miguel
   if(t==="easy"){
     if(r<.85){spSale(c,Math.min(Math.round(u.reserve/50)*50,Math.round(car.price*rnd(.94,1)/50)*50),"easy");return}
   }else if(t==="medium"){
@@ -238,28 +288,42 @@ function resolveWork(c){
 function sim(dt){
   if(G.phase!=="open"||G.ended)return;
   G.t+=dt;if(G.t>=SHIFT_SECONDS&&G.talk)G.t=SHIFT_SECONDS;
-  G.cust.forEach(c=>{if(c.state==="wait"&&G.t>=c.arrive)spawn(c)});
-  stepBob(dt);stepWiggle();
+  // a few customers at a time, not a crowd
+  // only as many customers as the crew can greet, plus one, so nobody stands around ignored
+  const onLot=G.cust.filter(c=>c.mesh&&!["gone","wait","delivery","leave","pass"].includes(c.state)).length;
+  G.cust.forEach(c=>{if(c.state==="wait"&&G.t>=c.arrive){if(onLot>=Math.max(2,G.sales.length+1))c.arrive=G.t+3+Math.random()*4;else spawn(c)}});
+  stepBob(dt);stepWiggle();stepDrives(dt);
   G.cust.forEach(c=>{
     if(!c.mesh||c.state==="gone"||c.state==="talk")return;
-    const arrived=stepNpc(c,dt,c.state==="working"||c.state==="stuck");
+    const arrived=stepNpc(c,dt,["working","stuck","greet"].includes(c.state));
     if(c.to)c.to.position.y=2.65+Math.sin(G.anim*6)*.06;
-    if(["browse","working","stuck"].includes(c.state)){
+    if(["browse","greet","todesk","working","stuck"].includes(c.state)){
       const car=carOf(c);
       if(!car||c.u.done){say3(`${c.u.name} left. The car's gone.`,"#bbb");finishLeave(c,false);return}
     }
     switch(c.state){
-      case"enter":if(arrived){c.state="browse";c.timer=0;c.mesh.rotation.y=W.slotPos(c.slot).row?0:Math.PI;
+      case"enter":if(arrived){c.state="browse";c.timer=0;{const sp=W.slotPos(c.slot);c.mesh.rotation.y=sp.z>sp.stand?0:Math.PI}
         const cm=G.cars[c.u.car];if(cm&&Math.random()<.12&&W.dropBumper(cm.mesh)){c.mesh.userData.mood="shocked";say3(`The front bumper just fell off in front of ${c.u.name}.`,"#fd8");Sfx.click()}}break;
       case"pass":case"leave":if(arrived){c.state="gone";W.scene.remove(c.mesh)}break;
       case"browse":{
         c.timer+=dt;
         const s=G.sales.find(s=>s.state==="idle");
         if(s&&!c.sp){c.sp=s;s.cust=c;s.state="go";s.speed=2.4;s.path=routeSalesOut(c.slot,1)}
-        if(c.sp&&c.sp.state==="go"&&!c.sp.path.length){c.state="working";c.sp.state="work";c.work=rnd(12,20)}
-        if(c.timer>25&&!c.sp)customerWalks(c,`${c.u.name} left. Nobody helped them.`,.5);
+        if(c.sp&&c.sp.state==="go"&&!c.sp.path.length){c.state="greet";c.sp.state="greet";c.greet=rnd(4,6)}
+        if(c.timer>40&&!c.sp)customerWalks(c,`${c.u.name} left. Nobody helped them.`,.5);
         break}
+      case"greet":   // a quick hello at the car, then inside to the desk
+        c.greet-=dt;if(c.greet<=0){c.state="todesk";c.speed=1.5;c.path=routeToDesk(c);c.sp.state="todesk";c.sp.speed=1.8;c.sp.path=routeSalesToDesk(c.sp)}break;
+      case"todesk":
+        if(arrived&&!c.sp.path.length){
+          c.mesh.userData.sit=true;c.mesh.rotation.y=Math.PI;c.sp.mesh.userData.sit=true;c.sp.mesh.rotation.y=0;
+          c.state="working";c.sp.state="work";c.work=rnd(10,16);
+        }break;
       case"working":c.work-=dt;if(c.work<=0)resolveWork(c);break;
+      case"delivery":
+        if(arrived){driveOff(c);c.state="gone";W.scene.remove(c.mesh);
+          const sp=c.sp;if(sp){sp.state="back";sp.cust=null;c.sp=null;const q=sp.mesh.position;sp.path=routeSalesHome(q.x,q.z,sp.home)}}
+        break;
       case"stuck":{
         c.pat-=dt*(c.sp&&c.sp.def.quirk==="pushy"?1.4:1);
         if(c.ring){const k=1+Math.sin(G.anim*8)*.14;c.ring.scale.set(k,k,k)}
@@ -275,10 +339,34 @@ function sim(dt){
   G.sales.forEach(s=>{
     const arrived=stepNpc(s,dt,s.state==="work");
     if(s.state==="back"&&arrived){s.state="idle";s.mesh.rotation.y=Math.PI}
-    if((s.state==="work"||s.state==="stuck")&&s.cust&&s.cust.mesh){const c=s.cust;s.mesh.rotation.y=Math.atan2(c.mesh.position.x-s.mesh.position.x,c.mesh.position.z-s.mesh.position.z)}
+    if((s.state==="work"||s.state==="stuck"||s.state==="greet")&&s.cust&&s.cust.mesh){const c=s.cust;s.mesh.rotation.y=Math.atan2(c.mesh.position.x-s.mesh.position.x,c.mesh.position.z-s.mesh.position.z)}
     if(s.state==="work")s.armsUp=false;
   });
+  separate();
   if(G.t>=SHIFT_SECONDS&&!G.talk)endShift();
+}
+// People step around each other instead of walking through. Seated and talking people don't get pushed.
+const R_PERSON=.32;
+function agents(){
+  const a=[];
+  // a customer and their own salesperson walk together, so they don't shove each other
+  G.cust.forEach(c=>{if(c.mesh&&c.state!=="gone"&&c.state!=="wait")a.push({m:c.mesh,fixed:c.state==="talk"||!!c.mesh.userData.sit,pair:c.sp&&c.sp.mesh})});
+  G.sales.forEach(s=>a.push({m:s.mesh,fixed:!!s.mesh.userData.sit||s.state==="idle"}));
+  if(G.owner)a.push({m:G.owner.mesh,fixed:false});
+  return a;
+}
+function separate(){
+  const a=agents(),D=R_PERSON*2;
+  for(let i=0;i<a.length;i++)for(let j=i+1;j<a.length;j++){
+    const p=a[i].m.position,q=a[j].m.position,dx=p.x-q.x,dz=p.z-q.z,d=Math.hypot(dx,dz);
+    if(d>=D||(a[i].fixed&&a[j].fixed)||a[i].pair===a[j].m||a[j].pair===a[i].m)continue;
+    const nx=d>1e-4?dx/d:1,nz=d>1e-4?dz/d:0,o=D-d,wi=a[i].fixed?0:a[j].fixed?1:.5,wj=1-wi;
+    // push apart, plus a sideways slide so two people meeting head-on step around each other
+    const tx=-nz*.6,tz=nx*.6;
+    p.x+=(nx+tx)*o*wi;p.z+=(nz+tz)*o*wi;q.x-=(nx+tx)*o*wj;q.z-=(nz+tz)*o*wj;
+  }
+  // and nobody stands inside Miguel
+  a.forEach(o=>{if(o.fixed)return;const p=o.m.position,dx=p.x-G.px,dz=p.z-G.pz,d=Math.hypot(dx,dz),D2=R_PERSON+.35;if(d<D2&&d>1e-4){p.x+=dx/d*(D2-d);p.z+=dz/d*(D2-d)}});
 }
 function idleCrew(dt){
   G.sales.forEach(s=>stepNpc(s,dt,false));
@@ -308,6 +396,7 @@ function move(dx,dz){
     nx=Math.max(b.x0,Math.min(b.x1,nx));nz=Math.max(b.z0,Math.min(b.z1,nz));
     let hit=false;
     for(const o of W.colliders)if(nx>o.x0-r&&nx<o.x1+r&&nz>o.z0-r&&nz<o.z1+r){hit=true;break}
+    if(!hit&&G.phase==="open")for(const o of agents()){const p=o.m.position;if(Math.hypot(nx-p.x,nz-p.z)<r+R_PERSON&&Math.hypot(G.px-p.x,G.pz-p.z)>=Math.hypot(nx-p.x,nz-p.z)){hit=true;break}}
     if(!hit)for(const id in G.cars){const p=G.cars[id].mesh.position;if(Math.abs(nx-p.x)<.95+r&&Math.abs(nz-p.z)<2.3+r){hit=true;break}}
     if(!hit){G.px=nx;G.pz=nz}
   }
@@ -347,10 +436,10 @@ function takeover(c){
   c.state="talk";if(c.to){c.mesh.remove(c.to);c.to=null}removeBar(c);
   const sp=c.sp,u=c.u;
   let crew=null;
-  if(sp){sp.armsUp=false;sp.mesh.position.x+=1.1;   // the salesperson steps aside for the manager, with a word
+  if(sp){sp.armsUp=false;if(!sp.mesh.userData.sit)sp.mesh.position.x+=1.1;   // the salesperson steps aside (or stays seated), with a word
     const n=sp.def.name,v=CREW_VOICES[n]||[1,1];crew={name:n,text:pick(CREW_LINES[n]||["All yours, boss."])};
-    speakLine(crew.text,n.length*13+sp.def.id,v[0],v[1])}
-  openTalk(u.id,{patFrac:frac,inWorld:true,crew,intro:sp?`${sp.def.name} has me at ${$f(car.price)}, and I'm at ${$f(u.offer)}. ${posterGag()} I need something ${u.need}. Can you do any better?`:`${Math.random()<.5?posterGag()+" ":""}I need something ${u.need}. What's your best price?`});
+    speakLine(crew.text,n.length*13+sp.def.id,v[0],v[1],false,sp.def.quirk==="spanish"?"es":"en")}
+  openTalk(u.id,{patFrac:frac,inWorld:true,crew,intro:sp&&sp.def.quirk==="spanish"?`${pick(["Your guy only speaks Spanish. I think he offered me a car? Or a sandwich?","Dude, I took French in school. I have no idea what that man said for twenty minutes.","He kept smiling and saying 'sí'. Did I already buy something?"])} I'm at ${$f(u.offer)}. ${posterGag()} I need something ${u.need}.`:sp?`${sp.def.name} has me at ${$f(car.price)}, and I'm at ${$f(u.offer)}. ${posterGag()} I need something ${u.need}. Can you do any better?`:`${Math.random()<.5?posterGag()+" ":""}I need something ${u.need}. What's your best price?`});
 }
 // called by talk.js when the panel closes
 function talkClosed(){
@@ -358,9 +447,10 @@ function talkClosed(){
   const c=t.c,u=c.u,over=u.done;
   if(over&&/^Bought/.test(u.msg)){
     G.stats.mgr++;G.stats.mgrGross+=u.gross||0;
+    claimCar(c);
     say3(`You closed ${u.name}${t.wasStuck?" (saved the deal)":""}.`,"#9f9");popup("+"+$f(u.gross||0),c.mesh.position,"#ffd24a",true);G.shake=.18;
     bobJudges(u);
-    syncCars();finishLeave(c,true);
+    syncCars();startDelivery(c);
   }else if(over&&u.polite){
     if(u.hopeless){G.stats.released++;say3(`You sent ${u.name} home with a handshake. Time saved.`,"#9cf")}
     else{G.stats.lost++;say3(`You let ${u.name} go. That one was winnable.`,"#fd8")}
@@ -387,8 +477,8 @@ function stepBob(dt){
     if(!G.ownerSeen&&G.t>35&&G.t<SHIFT_SECONDS-60&&Math.random()<dt/70){
       const m=W.person({shirt:0xd84a2a,pants:0x34363c,skin:0,hair:0x9a9a9a,hairStyle:"cap",cap:0xb01010,beard:true,wide:true,height:1.08,glasses:true});
       const tag=W.sprite("BOB (owner)","#fff","rgba(150,0,0,.75)");tag.position.y=2.25;m.add(tag);
-      m.position.set(0,0,32);W.scene.add(m);
-      G.owner={mesh:m,path:[P(0,20),P(0,LANE_Z)],speed:1.3,ph:0,until:G.t+75};G.ownerSeen=true;
+      m.position.set(0,0,GATE_IN);W.scene.add(m);
+      G.owner={mesh:m,path:[P(0,13),P(0,LANE_Z)],speed:1.3,ph:0,until:G.t+75};G.ownerSeen=true;
       say3("Bob just pulled up. Don't give anything away while he's watching.","#f99");
       if(!G.talk)speakLine(pick(["Miguel! Why is your face on my dumpster?","Miguel! Numbers! I want numbers!","Don't mind me. I'm just watching. Always watching."]),77,.62,.9);
     }
@@ -396,7 +486,7 @@ function stepBob(dt){
   }
   const b=G.owner;
   if(stepNpc(b,dt,false)){
-    if(G.t>b.until){if(b.leaving){W.scene.remove(b.mesh);G.owner=null;say3("Bob left. You can breathe.","#9cf");return}b.leaving=true;b.path=[P(b.mesh.position.x,LANE_Z),P(0,LANE_Z),P(0,20),P(0,32)];b.speed=1.6}
+    if(G.t>b.until){if(b.leaving){W.scene.remove(b.mesh);G.owner=null;say3("Bob left. You can breathe.","#9cf");return}b.leaving=true;b.path=[P(b.mesh.position.x,LANE_Z),P(0,LANE_Z),P(0,24),P(0,GATE_OUT)];b.speed=1.6}
     else b.path=[P(rnd(-12,12),LANE_Z+rnd(-2,2))];
   }
 }
@@ -556,7 +646,7 @@ function draw(){
     if(G.miguel){G.miguel.visible=true;G.miguel.position.set(1.2,0,21);G.miguel.rotation.y=.12;W.animatePerson(G.miguel,false,G.anim,true,false)}
   }else{
     const sh=G.shake*.07,r=()=>(Math.random()-.5)*sh;
-    const third=G.third&&!G.talk;
+    const third=!!(G.third&&!G.talk);
     if(third)cam.position.set(G.px+Math.sin(G.yaw)*2.4+r(),2.25+r(),G.pz+Math.cos(G.yaw)*2.4+r());
     else cam.position.set(G.px+r(),1.68+Math.sin(G.bob)*.045*G.bobAmt+r(),G.pz+r());
     cam.rotation.set(third?G.pitch*.6-.2:G.pitch,G.yaw,third?0:Math.sin(G.bob*.5)*.006*G.bobAmt);

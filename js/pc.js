@@ -37,13 +37,13 @@ function render(){
   }
   if(tab==="Crew"){
     h+=`<p class=dim>Desks: ${S.crew.length}/${MAX_CREW}. Salespeople take 25% of front gross (minimum $50) plus a daily wage. Higher <b>close</b> means they land more deals alone. <b>Caves</b> is how often they give the car away.</p><div class=grid>`;
-    h+=S.crew.map(c=>`<div class=card><h3>${esc(c.name)}</h3><div class=dim>${c.quirk==="pushy"?"Pushy: customers lose patience 40% faster":"No bad habits you know of"}</div>
+    h+=S.crew.map(c=>`<div class=card><h3>${esc(c.name)}</h3><div class=dim>${c.quirk==="pushy"?"Pushy: customers lose patience 40% faster":c.quirk==="spanish"?"Only speaks Spanish. Nobody understands him. Every deal comes to you.":"No bad habits you know of"}</div>
       <div class=row><span>Closes</span><span>${Math.round(c.skill*100)}</span></div>${bar(c.skill*100,65)}
       <div class=row><span>Caves</span><span>${Math.round(c.cave*100)}%</span></div>${bar(100-c.cave*100)}
       <div class=dim>Wage ${$f(wageOf(c))}/day</div>
       <button class=b onclick="PC.act('train',${c.id})" ${c.trained===S.day?"disabled":""}>Train $300</button><button class=b onclick="PC.act('fire',${c.id})">Fire $150</button></div>`).join("");
     h+=`</div><h2>Candidates</h2><div class=grid>`;
-    h+=S.cands.map(c=>`<div class=card><h3>${esc(c.name)}</h3><div class=dim>${c.quirk==="pushy"?"Pushy":"Seems fine"}</div>
+    h+=S.cands.map(c=>`<div class=card><h3>${esc(c.name)}</h3><div class=dim>${c.quirk==="pushy"?"Pushy":c.quirk==="spanish"?"Only speaks Spanish":"Seems fine"}</div>
       <div class=row><span>Closes</span><span>${Math.round(c.skill*100)}</span></div>${bar(c.skill*100,65)}
       <div class=row><span>Caves</span><span>${Math.round(c.cave*100)}%</span></div>${bar(100-c.cave*100)}
       <div class=dim>Wage ${$f(wageOf(c))}/day</div><button class=b onclick="PC.act('hire',${c.id})" ${S.crew.length>=MAX_CREW?"disabled":""}>Hire</button></div>`).join("")||"<p class=dim>Nobody applied today.</p>";
@@ -51,7 +51,7 @@ function render(){
   }
   if(tab==="Upgrades"){
     h+=`<div class=grid>`;
-    h+=UPG.map(u=>{const lv=u.k==="cap"?(S.cap-6)/2:S[u.k],maxed=u.k==="cap"?S.cap>=u.max:S[u.k]>=u.max;
+    h+=UPG.map(u=>{const lv=u.k==="cap"?(S.cap-12)/3:S[u.k],maxed=u.k==="cap"?S.cap>=u.max:S[u.k]>=u.max;
       return `<div class=card><h3>${u.n}</h3><div class=dim>${u.desc}</div><p>Level ${lv}</p>${maxed?"<b>Maxed</b>":`<button class=b onclick="PC.act('upgrade','${u.k}')">Buy ${$f(u.cost())}</button>`}</div>`}).join("");
     h+="</div>";
   }
