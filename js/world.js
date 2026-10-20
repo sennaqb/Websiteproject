@@ -856,9 +856,38 @@ function create(canvas){
     const m=new THREE.Mesh(g,new THREE.MeshBasicMaterial({color:bc[k%5],side:THREE.DoubleSide}));m.position.set(-26+t*52,4-Math.sin(t*Math.PI)*.8,.2);scene.add(m);
   }
   box(.15,4.2,.15,M(0x555555),-26,2.1,0,{noShadow:true});box(.15,4.2,.15,M(0x555555),26,2.1,0,{noShadow:true});
-  // tube man
-  const tm=new THREE.Group();tm.position.set(23,0,23);scene.add(tm);let par=tm;W.tubeMan=tm;
-  for(let i=0;i<6;i++){const seg=new THREE.Group();seg.position.y=i?.9:0;par.add(seg);const cy=new THREE.Mesh(new THREE.CylinderGeometry(.32,.36,.9,8),M(i%2?0xff2020:0xffee20));cy.position.y=.45;cy.castShadow=true;seg.add(cy);W.tube.push(seg);par=seg}
+  // tube man: Mr. Wiggle. A fan base, a wobbly red/yellow tube, a goofy face, a crown of streamers and two
+  // long floppy arms that flail on their own rhythm (see W.update).
+  const tm=new THREE.Group();tm.position.set(23,0,23);scene.add(tm);W.tubeMan=tm;
+  const fan=new THREE.Mesh(new THREE.CylinderGeometry(.55,.62,.45,14),M(0x2b2f36,{metalness:.4,roughness:.5}));fan.position.y=.22;fan.castShadow=true;tm.add(fan);
+  const body=new THREE.Group();body.position.y=.4;body.rotation.y=Math.atan2(-23,-23);tm.add(body);   // he faces the middle of the lot
+  W.wiggleArms=[];let par=body;
+  for(let i=0;i<6;i++){
+    const seg=new THREE.Group();seg.position.y=i?.82:0;par.add(seg);
+    const cy=new THREE.Mesh(new THREE.CylinderGeometry(.34,.37,.84,12),M(i%2?0xff2a20:0xffd820,{roughness:.55}));cy.position.y=.42;cy.castShadow=true;seg.add(cy);
+    if(i===3)[-1,1].forEach(sd=>{   // arms: two floppy tubes with an elbow
+      const sh=new THREE.Group();sh.position.set(sd*.33,.6,0);seg.add(sh);
+      const up=new THREE.Mesh(new THREE.CylinderGeometry(.13,.15,1.05,8),M(0xff2a20,{roughness:.55}));up.position.y=.5;sh.add(up);
+      const el=new THREE.Group();el.position.y=1.02;sh.add(el);
+      const lo=new THREE.Mesh(new THREE.CylinderGeometry(.11,.13,.95,8),M(0xffd820,{roughness:.55}));lo.position.y=.45;el.add(lo);
+      const hand=new THREE.Mesh(new THREE.SphereGeometry(.15,8,6),M(0xff2a20));hand.position.y=.95;el.add(hand);
+      W.wiggleArms.push({sh,el,sd,ph:Math.random()*6})});
+    if(i===5){   // head: googly eyes, huge grin, streamer hair
+      const hd=new THREE.Mesh(new THREE.SphereGeometry(.4,16,12),M(0xffd820,{roughness:.55}));hd.position.y=1.05;hd.scale.set(1,1.15,1);seg.add(hd);
+      const face=new THREE.Mesh(new THREE.PlaneGeometry(.78,.66),new THREE.MeshBasicMaterial({map:tex(256,220,(g,w,h)=>{
+        g.clearRect(0,0,w,h);
+        [[78,70],[178,64]].forEach(([x,y],k)=>{g.fillStyle="#fff";g.beginPath();g.ellipse(x,y,46,52,0,0,7);g.fill();g.lineWidth=6;g.strokeStyle="#111";g.stroke();
+          g.fillStyle="#111";g.beginPath();g.arc(x+(k?-12:14),y+16,18,0,7);g.fill()});
+        g.strokeStyle="#111";g.lineWidth=8;g.beginPath();g.moveTo(30,18);g.lineTo(115,8);g.moveTo(140,4);g.lineTo(226,22);g.stroke();
+        g.fillStyle="#5a0a0a";g.beginPath();g.moveTo(40,140);g.quadraticCurveTo(128,250,216,136);g.quadraticCurveTo(128,170,40,140);g.fill();
+        g.fillStyle="#fff";g.fillRect(70,146,118,16);g.fillStyle="#ff6a8a";g.beginPath();g.ellipse(128,190,30,14,0,0,7);g.fill();
+      }),transparent:true}));
+      face.position.set(0,1.05,.41);seg.add(face);
+      for(let k=0;k<9;k++){const a=k/9*Math.PI*2,st=new THREE.Mesh(new THREE.ConeGeometry(.06,.55,5),M(k%2?0xff2a20:0x30a0ff));
+        st.position.set(Math.sin(a)*.22,1.55,Math.cos(a)*.22);st.rotation.set(Math.cos(a)*.5,0,-Math.sin(a)*.5);seg.add(st)}
+    }
+    W.tube.push(seg);par=seg;
+  }
   // balloons
   [[-18,-8],[18,-8],[-18,8],[18,8],[-21,-5],[21,5],[-4.5,25.5],[4.5,25.5],[-21,10],[21,-10]].forEach(([bx,bz],i)=>{
     const b=new THREE.Mesh(new THREE.SphereGeometry(.4,8,6),M(bc[i%5],{roughness:.3}));
@@ -930,7 +959,10 @@ function create(canvas){
     for(let i=falling.length-1;i>=0;i--){const f=falling[i];f.v+=dt*9;f.m.position.y=Math.max(.07,f.m.position.y-f.v*dt);f.m.rotation.x=Math.min(.6,f.m.rotation.x+dt*3);f.m.position.z+=dt*.25;if(f.m.position.y<=.07)falling.splice(i,1)}
     clouds.rotation.y+=dt*.004;
     W.flick.forEach((m,i)=>{const v=Math.random()<.035?.25:1;m.material.color.setScalar(v)});
-    W.tube.forEach((s,i)=>{s.rotation.z=Math.sin(t*3+i*.7)*.28;s.rotation.x=Math.cos(t*2.3+i)*.2});
+    W.tube.forEach((s,i)=>{s.rotation.z=Math.sin(t*3.4+i*.7)*.3+Math.sin(t*7.1+i)*.06;s.rotation.x=Math.cos(t*2.6+i)*.22});
+    (W.wiggleArms||[]).forEach(a=>{const k=t*5.2+a.ph;   // the arm-flail: big random-looking swings, floppy elbows
+      a.sh.rotation.z=a.sd*(-1.2-Math.sin(k)*1.1-Math.sin(k*1.7)*.35);a.sh.rotation.x=Math.sin(k*.8+1)*.7;
+      a.el.rotation.z=a.sd*Math.sin(k*1.9+.5)*1.2;a.el.rotation.x=Math.cos(k*1.3)*.5});
     W.balloons.forEach(b=>{const u=b.userData.b;b.position.y=u[1]+Math.sin(t*1.5+u[3])*.15;b.position.x=u[0]+Math.sin(t*.9+u[3])*.2});
     const p=W.flag.geometry.attributes.position;for(let i=0;i<p.count;i++){const x=p.getX(i);p.setZ(i,Math.sin(x*2.2-t*5)*.12*(x+1))}p.needsUpdate=true;
     W.rings.forEach((r,i)=>{r.material.opacity=.35+Math.sin(t*3)*.2;r.scale.setScalar(1+Math.sin(t*3)*.08)});
