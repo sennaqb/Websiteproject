@@ -130,7 +130,7 @@ function adult(vrm,g,o){
 }
 // Walk, sit, wave, talk: the same signals the blocky people use (see animatePerson in world.js).
 // Wave: upper arm out and a little forward, forearm up, wrist turned so the palm faces whoever she's waving at.
-const WAVE={ux:0,uy:0,uz:.35,lx:0,ly:0,lz:-1.5,hx:1.5,hy:0,hz:0,amp:.3};
+const WAVE={ux:0,uy:0,uz:.35,lx:0,ly:0,lz:-1.5,hx:-1.5,hy:0,hz:0,amp:.3};
 const MOODEXP={happy:["happy",.8],angry:["angry",.9],worried:["sad",.7],shocked:["surprised",.9],confused:["sad",.35],neutral:null};
 K.animate=function(g,moving,t,armsUp,talk){
   const u=g.userData,vrm=u.vrm;if(!vrm)return;
