@@ -90,3 +90,4 @@ First-person 3D used-car dealership game ("Bargain Bob's Auto Mart"). You play M
 - Beach Day now uses models/tiffany-beach-skin.png (Golden Summer bikini, Booth 4778162, composited on her body texture with the old underwear inpainted away); swim({texture}) swaps the body map.
 - Beach Day replaced by random Laundry Days (~30% of days, never day 1, hashed from the day number so reloads match): bikini + laundry excuses; crew still twice as distractible.
 - Laundry days: FLIRT_BIKINI lines per salesman (3 tries each, optional last word L[2]), linger up to 100 s, 😍🔥 pops.
+- Rules brain: new intents testdrive/trade/history/budget; unrecognized lines and questions get echo() replies that quote the player's topic instead of 'say a number'. Voices: first spoken chunk cut short (comma/conjunction) so replies start sooner.

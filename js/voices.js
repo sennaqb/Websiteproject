@@ -43,7 +43,13 @@ K.say=function(text,voice,speed,queue){
   if(!queue)K.stop();
   const my=K.seq;
   // split into sentences so the first one starts playing while the rest are generated
-  const parts=String(text).replace(/\*[^*]*\*/g,"").match(/[^.!?]+[.!?]*/g)||[];
+  // and the first piece is kept short (cut at a comma or after a few words) so the customer starts talking right away
+  const parts=[];(String(text).replace(/\*[^*]*\*/g,"").match(/[^.!?]+[.!?]*/g)||[]).forEach(p=>{
+    p=p.trim();const lim=parts.length?90:38;
+    while(p.length>lim+10){let cut=p.lastIndexOf(",",lim);
+      if(cut<4){const m=p.slice(8,lim+20).search(/ (and|but|so|if|because|or|then) /);cut=m>=0?m+8:p.indexOf(" ",Math.min(lim,p.length-1))}
+      if(cut<0)break;parts.push(p.slice(0,cut+1));p=p.slice(cut+1).trim();if(parts.length===1)break}
+    if(p)parts.push(p)});
   // time each line: if this computer generates speech much slower than real time, fall back to standard voices
   const gens=parts.map(p=>p.trim()).filter(Boolean).map(p=>async()=>{const t0=performance.now(),a=await K.tts.generate(p,{voice,speed:speed||1}),gen=(performance.now()-t0)/1000,dur=a.audio.length/a.sampling_rate;
     if(!K.warm){K.warm=true}else if(gen>dur*2.2&&gen>2.5){K.slowHits=(K.slowHits||0)+1;if(K.slowHits>=2&&!K.slow){K.slow=true;if(K.onSlow)K.onSlow()}}return a});

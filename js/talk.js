@@ -201,6 +201,12 @@ function rulesParse(s){
   if(/nice day|thanks for (coming|stopping|your time)|take care|good luck|wish you|no hard feelings|not going to work|can't make that work|shake your hand|appreciate you coming/.test(t))return{type:"release"};
   for(const k in ADDONS)if(ADDONS[k].re.test(t))return{type:"addon",which:k};
   const price=parseMoney(t);
+  if(!T.agreed&&!price){
+    if(/test ?drive|take (it|her|this) (out|for a (spin|drive|ride))|go for a (spin|ride|drive)|drive it|get behind the wheel|grab the keys/.test(t))return{type:"testdrive"};
+    if(/trade[- ]?in|trading (in|it)|your trade|trade (it|your|that)|what are you driving now|current car/.test(t))return{type:"trade"};
+    if(/carfax|history report|owners?|one owner|service records|clean title|salvage|title/.test(t))return{type:"history"};
+    if(/budget|how much (do|are|were|can) you|what (number|price) (works|were you|are you|do you|can you)|what would it take|where do you need to be|what can you (afford|do)|price range|ballpark/.test(t))return{type:"budget"};
+  }
   if(T.agreed){
     if(price)return{type:"offer",price};
     if(/\b(done|that's all|that is all|finalize|sign|paperwork|close|deal|sold|shake|agreed|ok|okay|yes|sure|fine)\b/.test(t))return{type:"finalize"};
@@ -210,7 +216,7 @@ function rulesParse(s){
   if(feats.length)return{type:"sizzle",which:feats};
   if(/what (are you|do you|you) (looking for|need|want)|what's important|what matters|what brings you|tell me about (yourself|you)|what do you use|what will you use|how will you use|what are you driving|your current car|what happened to your|priorit|what are you after|what kind of car/.test(t))return{type:"needs"};
   for(const k in HOT)if(HOT[k].re.test(t))return{type:"hot",which:k};
-  if(/looking for|tell me about|what do you need|what brings|family|commute|kids|nice to meet|welcome|congrat|how are you|how's it going|how you doing|how's your|your day|weather|sunny|hot today|cold today|what do you do|for work|your job|where are you from|where you from|love your|like your|nice (shirt|hat|shoes|jacket|glasses)|you look|weekend|hobby|sports|game last night|your team|pets?|dog|cat|wife|husband|girlfriend|boyfriend|thank you for coming|appreciate you|good to see/.test(t))return{type:"rapport"};
+  if(/looking for|tell me about|what do you need|what brings|family|commute|kids|nice to meet|welcome|congrat|how are you|how's it going|how you doing|how's your|your day|weather|sunny|hot today|cold today|what do you do|for work|your job|where are you from|where you from|love your|like your|nice (shirt|hat|shoes|jacket|glasses)|you look|weekend|hobby|sports|football|basketball|baseball|soccer|hockey|fishing|golf|game last night|your team|your eyes|pets?|dog|cat|wife|husband|girlfriend|boyfriend|thank you for coming|appreciate you|good to see/.test(t))return{type:"rapport"};
   if(/low mile|few miles|low-mile/.test(t))return{type:"pitch_miles"};
   if(/(great|excellent|good|clean) (shape|condition)|reconditioned|serviced|inspected|new tires|detailed|spotless/.test(t))return{type:"pitch_cond"};
   if(/another buyer|someone else|other customer|last one|going fast|popular|in demand|other offers/.test(t))return{type:"urgency"};
@@ -222,7 +228,21 @@ function rulesParse(s){
   if(/\b(deal|sold|take it|shake|yes|yeah|sure|okay|ok|fine|agreed)\b/.test(t))return{type:"accept"};
   if(/\b(no|nope|can't|cannot|final|firm|not)\b/.test(t))return{type:"refuse"};
   if(/\b(hi|hello|hey|morning|afternoon)\b/.test(t))return{type:"greet"};
-  return{type:"unclear"};
+  return{type:/\?\s*$|^(what|why|how|who|where|when|do|does|did|is|are|can|could|would|will|have|has)\b/.test(t)?"question":"unclear",text:s};
+}
+// When the customer doesn't follow, they at least react to what Miguel actually said (instead of "say a number").
+const STOP=new Set("a an the i i'm im you you're your yours me my mine we our us it it's its is are was were be been am do does did to of in on at for with and or but so if then that this these those there here what why how who where when which can could would will should have has had just really very like okay ok um uh well yeah yes no not get got go going gonna wanna kinda about from up out as by man dude bro buddy sir maam ma'am".split(" "));
+function topicOf(s){
+  const words=String(s).replace(/[^\w' -]/g," ").split(/\s+/).filter(Boolean);let best=[],cur=[];
+  for(const w of words){if(!STOP.has(w.toLowerCase())&&w.length>2){cur.push(w);if(cur.length>best.length)best=cur.slice()}else cur=[]}
+  return best.slice(0,4).join(" ").toLowerCase();
+}
+function echo(u,I){
+  const x=topicOf(I.text),car=T.car?T.car.model:"car";
+  if(!x||Math.random()<.25)return line(u,"unclear");
+  const cap=t=>t.replace(/^("?)(\w)/,(m,q,c)=>q+c.toUpperCase());
+  return cap(pick(I.type==="question"?[`${x}? Good question. No idea. You're the car guy, you tell me.`,`Why are you asking me about ${x}? Is this a survey?`,`${x}... honestly I'd rather talk about the price of this ${car}.`,`Ask me about ${x} after you take a grand off.`]
+    :[`"${x}"? Okay... not sure what that has to do with this ${car}.`,`Huh. ${x}. Cool. So, the price?`,`I'll be honest, you lost me at "${x}".`,`${x}? Is that a sales trick? My brother-in-law warned me about tricks.`,`Right, right, ${x}. My cousin says that too. Anyway. The ${car}?`]));
 }
 
 function runIntent(u,I){
@@ -302,6 +322,11 @@ function runIntent(u,I){
       return say(line(u,"refuse",{n:$f(T.counter||u.offer)}));
     case"greet":T.warm=Math.max(T.warm,0);return say(line(u,"greet"));
     case"chat":return say(I.reply||line(u,"unclear"));
+    case"testdrive":T.warm++;bump(u,.01*f,"td");return say(pick([`A test drive? Sure. Does it... start?`,`Yeah, let's drive it. If the ${c.model} makes it around the block I'm halfway sold.`,`Can I drive it? I promise I only hit one mailbox last time.`,`Ooh, yes. Do I get to honk?`]));
+    case"trade":return say(pick([`My trade? It's a ${pick(["2003 Buick LeSabre","Ford Focus with no reverse","minivan that smells like soup","PT Cruiser. Don't laugh","Kia with three hubcaps"])}. It runs. Mostly. What'll you give me?`,`I'd trade in my current car but I think it's legally a planter now.`,`Trade-in? I took the bus here. Does a bus pass count?`]));
+    case"history":return say(c.miles<70000?pick([`One owner, low miles? Okay, show me the Carfax.`,`Clean history? Then why's it on THIS lot?`]):pick([`${Math.round(c.miles/1000)}K miles. How many owners is that, like twelve?`,`Has it been in an accident? Don't lie, I'll know. I won't know. But I'll feel it.`]));
+    case"budget":{const b=Math.round(u.budget*.85/500)*500;T.warm++;return say(pick([`Honestly? I was hoping to stay around ${$f(b)}.`,`My wife said ${$f(b)}. My wife says a lot of things.`,`Like... ${$f(b)}? Is that crazy? Don't answer that.`]))}
+    case"question":case"unclear":return say(echo(u,I));
     default:return say(line(u,"unclear"));
   }
 }
