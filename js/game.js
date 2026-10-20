@@ -113,11 +113,12 @@ const CREW_LOOKS={
 function spawnCrew(){
   G.sales.forEach(s=>W.scene.remove(s.mesh));G.sales=[];
   S.crew.forEach((d,i)=>{
+    if(offToday(d))return;   // approved day off: their desk sits empty
     const home=P(W.desks[i],-18.6);
     const look=Object.assign({hairStyle:["short","short","curly","bald"][i%4],glasses:i===2,beard:i===3,height:[1,.97,1.04,.99][i%4],top:"shirt"},CREW_LOOKS[d.name]);
     const m=W.person(Object.assign({shirt:d.shirt,pants:0x2a2a35,skin:d.skin,hair:0x2a1a10,cap:0x333333,tie:0x202020,badge:true},look));m.userData.tagged=true;
     m.position.set(home.x,0,home.z);m.rotation.y=Math.PI;
-    const tag=W.sprite(d.name,"#fff","rgba(0,0,0,.55)");tag.position.y=2.15;m.add(tag);
+    const mv=motive(d),tag=W.sprite(d.name+(mv>0?" 🔥":mv<0?" 😒":""),"#fff",mv>0?"rgba(20,90,30,.7)":mv<0?"rgba(90,30,20,.7)":"rgba(0,0,0,.55)");tag.position.y=2.15;m.add(tag);
     W.scene.add(m);
     G.sales.push({def:d,mesh:m,tag,path:[],speed:2.1,state:"idle",cust:null,home,ph:i,deals:0,gross:0});
   });
@@ -148,7 +149,7 @@ function start(newGame){
 }
 function startShift(){
   if(G.phase!=="prep")return;
-  G.minis=2;G.walks=2;G.evAt=null;(G.miniBots||[]).forEach(b=>W.scene.remove(b.mesh));G.miniBots=[];
+  G.minis=2;G.walks=2;G.evAt=null;G.offAsk=null;G.offAt=S.day>1&&G.sales.length>1&&Math.random()<.4?rnd(60,300):null;(G.miniBots||[]).forEach(b=>W.scene.remove(b.mesh));G.miniBots=[];
   TALK_LOG.length=0;G.ownerSeen=false;(G.drives||[]).forEach(d=>W.scene.remove(d.m));G.drives=[];G.wiggleAt=rnd(50,90);if(G.owner){W.scene.remove(G.owner.mesh);G.owner=null}
   if(!S.inv.length)restock();
   openDay();
@@ -375,7 +376,7 @@ function stepTestDrive(c,dt){
   c.mesh.position.copy(m.position);c.sp.mesh.position.copy(m.position);   // they're in the car
 }
 function resolveWork(c){
-  const sp=c.sp,u=c.u,d=sp.def,t=tier(c),car=carOf(c),r=Math.random()-(c.tdBonus||0);   // a good test drive helps, a disaster hurts
+  const sp=c.sp,u=c.u,mv=motive(sp.def),d=Object.assign({},sp.def,{skill:Math.max(.05,Math.min(.95,sp.def.skill+mv*.2)),cave:Math.max(0,Math.min(.9,sp.def.cave-mv*.1))}),t=tier(c),car=carOf(c),r=Math.random()-(c.tdBonus||0);   // a good test drive helps, a disaster hurts
   if(d.quirk==="spanish"){stall(c);return}   // Juanny: nobody understands a word, so it always comes to Miguel
   if(t==="easy"){
     if(r<.85){spSale(c,Math.min(Math.round(u.reserve/50)*50,Math.round(car.price*rnd(.94,1)/50)*50),"easy");return}
@@ -395,7 +396,7 @@ function sim(dt){
   // only as many customers as the crew can greet, plus one, so nobody stands around ignored
   const onLot=G.cust.filter(c=>c.mesh&&!["gone","wait","delivery","leave","pass"].includes(c.state)).length;
   G.cust.forEach(c=>{if(c.state==="wait"&&G.t>=c.arrive){if(onLot>=Math.max(2,G.sales.length+1))c.arrive=G.t+3+Math.random()*4;else spawn(c)}});
-  stepBob(dt);stepWiggle();stepDrives(dt);stepMinis(dt);stepEvents(dt);
+  stepBob(dt);stepWiggle();stepDrives(dt);stepMinis(dt);stepEvents(dt);stepDayOff();
   G.cust.forEach(c=>{
     if(!c.mesh||c.state==="gone"||c.state==="talk")return;
     const arrived=stepNpc(c,dt,["working","stuck","greet"].includes(c.state));
@@ -692,6 +693,29 @@ function stepLotWalk(dt){
     if(Math.hypot(c.mesh.position.x-m.position.x,c.mesh.position.z-m.position.z)>4.5)return;w.seen.add(c);u.wave=1.4;
     if(c.u.sex==="f"){c.u.reserve=Math.round(c.u.reserve*.96/50)*50;c.mesh.userData.mood="angry";if(c.state==="stuck")c.pat=Math.max(3,c.pat-6);popup("🙄",c.mesh.position,"#ff8a8a")}
     else{c.u.reserve=Math.round(Math.min(c.u.budget,c.u.reserve*1.05)/50)*50;c.mesh.userData.mood="happy";if(c.state==="stuck")c.pat=Math.min(c.patMax,c.pat+12);popup("😍",c.mesh.position,"#ff7ab8")}});
+}
+// ---------- days off ----------
+// Now and then a salesperson asks for tomorrow off. Approve: they're gone tomorrow (you're a man down) and come back
+// fully motivated the day after (closes more, caves less). Deny, or ignore them: they sulk for two days.
+const OFF_ASKS={Frenchy:"Boss, tomorrow is ze Brie Festival. It's very important to my people. And to me. Mostly me.",
+  Sam:"Hey, uh, can I get tomorrow off? It's my goatee's birthday. Five years. We're doing a whole thing.",
+  Andres:"Can I have tomorrow? My kid's graduating. From preschool. I'm not crying, you're crying.",
+  Riccardo:"I need tomorrow off. Court date. Totally unrelated to the car thing. Different car thing.",
+  Mario:"My mom's got her colonoscopy tomorrow. I'm driving. She says I'm also holding her hand. Can I go?",
+  Juanny:"Jefe... ¿mañana libre? Es el cumpleaños de mi abuela. Cumple cien años. Hay mariachis."};
+const motive=d=>{const m=S.mot&&S.mot[d.name];if(!m)return 0;if(m.boost===S.day)return 1;if(m.sulk>=S.day)return -1;return 0};
+const offToday=d=>!!(S.mot&&S.mot[d.name]&&S.mot[d.name].off===S.day);
+function stepDayOff(){
+  if(G.offAsk&&(G.t>G.offAsk.until||G.t>=SHIFT_SECONDS-1)){const n=G.offAsk.name;answerDayOff(false);say3(`${n} took your silence as a no. They're sulking.`,"#f66")}
+  if(G.offAt==null||G.t<G.offAt||G.talk)return;G.offAt=null;
+  const sp=pick(G.sales.filter(s=>s.state==="idle"||s.state==="work"));if(!sp)return;
+  G.offAsk={name:sp.def.name,sp,until:G.t+60};crewSay(sp,OFF_ASKS[sp.def.name]||"Can I get tomorrow off, boss?");Sfx.phone&&Sfx.phone();
+}
+function answerDayOff(yes){
+  const a=G.offAsk;if(!a)return;G.offAsk=null;S.mot=S.mot||{};const m=S.mot[a.name]=S.mot[a.name]||{};
+  if(yes){m.off=S.day+1;m.boost=S.day+2;crewSay(a.sp,pick(["You're the best, boss! I'll come back on FIRE.","Thank you! I owe you one. Two. Okay, one.","¡Gracias, jefe! ¡Gracias!"]));say3(`✅ ${a.name} gets tomorrow off. You'll be a man down, but they'll come back fired up.`,"#8dffa8")}
+  else{m.sulk=S.day+2;crewSay(a.sp,pick(["Fine. FINE. I'll be here. Physically.","Cool. Cool cool cool. I'll just sell cars with my broken heart.","Okay. I'm telling my mom you said no."]));say3(`❌ You denied ${a.name}'s day off. Expect two days of sulking.`,"#f66")}
+  save();
 }
 // ---------- the crew gets distracted by Tiffany ----------
 // An idle salesperson drifts over to the reception desk to flirt. While they're there they don't greet anyone,
@@ -1000,6 +1024,7 @@ function hud(){
     +(G.lawyer&&G.lawyer.state==="wait"?`<div class=al>⚖️ ${esc(G.lawyer.name)}'s lawyer at your office · ${Math.ceil(G.lawyer.wait)}s</div>`:"")
     +(G.dale&&G.dale.state!=="leave"?`<div class="al mini">🥫 Dale is bugging customers</div>`:"")
     +(G.lotWalk?`<div class="al flirt">💁 Tiffany is walking the lot</div>`:"")
+    +(G.offAsk?`<div class="al mini">🙋 ${esc(G.offAsk.name)} wants tomorrow off · <b>Y</b> approve · <b>N</b> deny</div>`:"")
     +(stuck.length>3?`<div class=al>+${stuck.length-3} more</div>`:"")
     +(stuck.length&&G.minis>0?`<div class="al mini">Q: send Mini Miguel (${G.minis} left)</div>`:"")
     +G.miniBots.map(b=>`<div class="al mini">🧒 Mini Miguel → ${esc(b.c.u.name)}</div>`).join("");
@@ -1104,6 +1129,7 @@ addEventListener("keydown",e=>{
   if(e.code==="KeyC"&&!T){G.third=!G.third;return}
   if(e.code==="KeyQ"){sendMini();return}
   if(e.code==="KeyL"){sendTiffany();return}
+  if((e.code==="KeyY"||e.code==="KeyN")&&G.offAsk){answerDayOff(e.code==="KeyY");return}
   if(e.code==="KeyK"&&G.tut){tutEnd();say3("Tutorial skipped. Tiffany's at her desk if you need her (E).","#9cf");return}
   if(e.code==="KeyE"){const n=nearest();if(n){Sfx.click();n.act()}}
 });
@@ -1150,5 +1176,5 @@ function gun(){
   G.gunEnd=performance.now()+3200;G.shake=.25;Sfx.click();
   if(G.talk&&G.talk.c.mesh)G.talk.c.mesh.userData.handsUp=4;
 }
-window.G3={gun,cry,makeCustomerMesh,ev:{startDale,startLawyer,startRain,sendTiffany,daleLeave,lawyerTalk,lawyer},speaking:(s,mood)=>{if(G.talk&&G.talk.c.mesh){const u=G.talk.c.mesh.userData;u.talkLeft=s;if(mood)u.mood=mood}},fx,popup,on:()=>G.phase==="open"&&!G.ended,elapse,waiting,talkClosed,step,sim,draw,hud,takeover,endShift,startShift,state:G,world:()=>W,tier,syncCars,enterPrep};
+window.G3={gun,cry,makeCustomerMesh,ev:{startDale,startLawyer,startRain,sendTiffany,daleLeave,lawyerTalk,lawyer,answerDayOff,motive,offToday},speaking:(s,mood)=>{if(G.talk&&G.talk.c.mesh){const u=G.talk.c.mesh.userData;u.talkLeft=s;if(mood)u.mood=mood}},fx,popup,on:()=>G.phase==="open"&&!G.ended,elapse,waiting,talkClosed,step,sim,draw,hud,takeover,endShift,startShift,state:G,world:()=>W,tier,syncCars,enterPrep};
 })();
