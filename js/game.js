@@ -710,8 +710,10 @@ const motive=d=>{const m=S.mot&&S.mot[d.name];if(!m)return 0;if(m.boost===S.day)
 const offToday=d=>!!(S.mot&&S.mot[d.name]&&S.mot[d.name].off===S.day);
 function stepDayOff(){
   if(G.offAsk&&(G.t>G.offAsk.until||G.t>=SHIFT_SECONDS-1)){const n=G.offAsk.name;answerDayOff(false);say3(`${n} took your silence as a no. They're sulking.`,"#f66")}
-  if(G.offAt==null||G.t<G.offAt||G.talk)return;G.offAt=null;
-  const sp=pick(G.sales.filter(s=>s.state==="idle"||s.state==="work"));if(!sp)return;
+  if(G.offAt==null||G.t<G.offAt||G.talk||G.offAsk)return;
+  const sp=pick(G.sales.filter(s=>s.state==="idle"||s.state==="work"));
+  if(!sp||G.t>SHIFT_SECONDS-70){G.offAt=G.t<SHIFT_SECONDS-70?G.t+15:null;return}   // everyone busy: ask a bit later
+  G.offAt=null;
   G.offAsk={name:sp.def.name,sp,until:G.t+60};crewSay(sp,OFF_ASKS[sp.def.name]||"Can I get tomorrow off, boss?");Sfx.phone&&Sfx.phone();
 }
 function answerDayOff(yes){
