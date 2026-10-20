@@ -301,6 +301,7 @@ function person(o){
 }
 const BROWS={neutral:[0,0],happy:[.2,.016],angry:[-.75,-.008],worried:[.6,.006],shocked:[.15,.03],confused:[-.45,-.006,.3,.024]};
 function animatePerson(g,moving,t,armsUp,talk){
+  if(g.userData.isVRM){if(window.VRMKit)VRMKit.animate(g,moving,t,armsUp,talk);return}
   const u=g.userData,s=moving?Math.sin(t*9)*.6:0;
   if(u.sit&&!moving){   // seated: thighs forward, shins down, hips on the seat
     g.position.y=.6-u.hipY;
@@ -528,6 +529,22 @@ function furnMats(){
     chrome:SM(0xd0d4d8,{metalness:1,roughness:.2}),screen:new THREE.MeshBasicMaterial({map:screenTex()}),keys:SM(0xffffff,{map:keysTex(),roughness:.6})});
   return FM;
 }
+// Reception counter: the front faces the showroom (-z), the receptionist stands behind it (+z side).
+function makeReception(){
+  const F=furnMats(),g=new THREE.Group(),front=SM(0x2e3440,{roughness:.5});
+  part(g,rbox(2.2,1.02,.5,.04),front,0,.51,0);
+  part(g,rbox(2.36,.05,.64,.02),F.wood,0,1.045,0);
+  part(g,rbox(2.24,.04,.08,.02),F.chrome,0,.06,-.24,{noShadow:true});
+  const sign=new THREE.Mesh(new THREE.PlaneGeometry(1.5,.26),new THREE.MeshBasicMaterial({map:textTex("RECEPTION","#ffd24a","#2e3440",512,96,"bold 64px sans-serif")}));
+  sign.position.set(0,.74,-.253);sign.rotation.y=Math.PI;g.add(sign);
+  // monitor facing her, a bell for impatient customers, a dish of mints nobody touches
+  part(g,new THREE.BoxGeometry(.52,.32,.03),F.black,.45,1.3,.08);part(g,new THREE.BoxGeometry(.05,.18,.04),F.plastic,.45,1.15,.1);
+  const scr=new THREE.Mesh(new THREE.PlaneGeometry(.48,.28),F.screen);scr.position.set(.45,1.3,.097);g.add(scr);
+  part(g,new THREE.BoxGeometry(.4,.02,.13),F.keys,.45,1.08,.2,{noShadow:true});
+  part(g,new THREE.SphereGeometry(.05,12,8,0,Math.PI*2,0,Math.PI/2),F.chrome,-.6,1.07,-.15);
+  part(g,new THREE.CylinderGeometry(.08,.05,.04,14),SM(0xbfd8e8,{roughness:.1,transparent:true,opacity:.6}),-.25,1.09,-.18);
+  return g;
+}
 function part(g,geo,mat,x,y,z,o){const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);if(o&&o.ry)m.rotation.y=o.ry;if(o&&o.rx)m.rotation.x=o.rx;m.castShadow=!(o&&o.noShadow);m.receiveShadow=true;g.add(m);return m}
 const BX=(w,h,d)=>new THREE.BoxGeometry(w,h,d);
 // Desk: the seated side is local -z, the visitor side +z. Top at y .76.
@@ -737,6 +754,8 @@ function create(canvas){
     box(.84,.52,.05,F.black,-7.5,1.2,-25.32);box(.06,.3,.04,F.plastic,-7.5,.9,-25.4);box(.3,.015,.2,F.plastic,-7.5,.767,-25.4);
     box(.44,.022,.14,F.keys,-7.5,.771,-24.85,{noShadow:true});
     const mc=makeOfficeChair();mc.position.set(-6.5,0,-23.9);mc.rotation.y=Math.PI+.7;furn.add(mc);
+    // reception, just inside the door on the left; the receptionist stands between it and the front wall
+    const rc=makeReception();rc.position.set(-7.5,0,-14.95);furn.add(rc);solid(-8.7,-6.3,-15.3,-14);W.reception={x:-7.5,z:-14.45};
     bakeStatic(furn).forEach(m=>scene.add(m)); }
   const screen=new THREE.Mesh(new THREE.PlaneGeometry(.7,.4),new THREE.MeshBasicMaterial({map:textTex("PRICES  ·  CREW  ·  BOOKS","#6fff9a","#06140c",256,128,"bold 15px monospace")}));
   screen.position.set(-7.5,1.2,-25.26);scene.add(screen);W.pcScreen=screen;
@@ -901,6 +920,7 @@ function create(canvas){
     b.userData.dropped=true;falling.push({m:b,v:0});return true;
   };
   W.update=function(dt,t){
+    if(window.VRMKit)VRMKit.update(dt);
     if(fly){
       fly.t+=dt;const k=Math.min(1,fly.t/fly.dur);
       if(k<1){tm.position.set(fly.fx+(fly.x-fly.fx)*k,Math.sin(k*Math.PI)*8,fly.fz+(fly.z-fly.fz)*k);tm.rotation.x+=dt*7;tm.rotation.z+=dt*4}

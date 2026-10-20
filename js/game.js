@@ -149,7 +149,7 @@ function startShift(){
   openDay();
   G.phase="open";G.t=0;G.ended=false;
   G.stats={p0:S.profit,front0:S.front,back0:S.back,sp:0,spGross:0,mgr:0,mgrGross:0,lost:0,comm:0,cave:0,timeouts:0,released:0,wasted:0};
-  G.sales.forEach(s=>{s.deals=0;s.gross=0});
+  G.sales.forEach(s=>{s.deals=0;s.gross=0;s.drift=driftTime(s)*.7});
   const n=S.cust.length;
   G.cust=S.cust.map((u,i)=>({u,mesh:null,path:[],speed:1.5,state:"wait",arrive:(i+.3)*(SHIFT_SECONDS*.8/n)+Math.random()*6,pat:0,patMax:45,sp:null,ph:Math.random()*6}));
   W.setOpen(true);Sfx.chime();
@@ -379,6 +379,7 @@ function sim(dt){
     if(s.state==="back"&&arrived){s.state="idle";s.mesh.rotation.y=Math.PI}
     if((s.state==="work"||s.state==="stuck"||s.state==="greet")&&s.cust&&s.cust.mesh){const c=s.cust;s.mesh.rotation.y=Math.atan2(c.mesh.position.x-s.mesh.position.x,c.mesh.position.z-s.mesh.position.z)}
     if(s.state==="work")s.armsUp=false;
+    stepFlirt(s,dt,arrived);
   });
   separate();
   if(G.t>=SHIFT_SECONDS&&!G.talk)endShift();
@@ -439,7 +440,7 @@ function move(dx,dz){
     if(!hit){G.px=nx;G.pz=nz}
   }
 }
-function step(dt){G.anim+=dt;if(!overlayOpen())movePlayer(dt);if(G.phase==="open")sim(dt);else if(G.phase==="prep")idleCrew(dt);W.update(dt,G.anim)}
+function step(dt){G.anim+=dt;if(!overlayOpen())movePlayer(dt);if(G.phase==="open")sim(dt);else if(G.phase==="prep")idleCrew(dt);if(G.phase!=="title")stepRecep(dt);W.update(dt,G.anim)}
 function elapse(sec){if(G.phase!=="open"||G.ended)return;for(let i=0;i<Math.round(sec/.25);i++)sim(.25)}
 function waiting(){
   const w=G.cust.filter(c=>c.state==="stuck");
@@ -456,7 +457,91 @@ function pairNear(){
   });
   return best;
 }
+// ---------- Tiffany, the receptionist (a VRoid model) ----------
+// Drop your own VRoid Studio export at models/receptionist.vrm; until then she's the three-vrm sample girl.
+// Outfit changes: export extra outfits as models/receptionist-day1.vrm, -day2, -day3; she rotates through them daily.
+const RECEP_NAME="Tiffany",RECEP_MODELS=["models/receptionist.vrm","https://cdn.jsdelivr.net/gh/pixiv/three-vrm@dev/packages/three-vrm/examples/models/VRM1_Constraint_Twist_Sample.vrm"];
+const RECEP_HI=["Welcome to Bargain Bob's! Someone will be right with you. Probably.","Hiii! Help yourself to a mint. Nobody else has, since 2009.","Welcome in! Please don't touch the Kia, it's load-bearing.","Hi! The coffee's free. The bathroom is a hundred dollars.",
+  "Welcome to Bargain Bob's, where every car has a story, and most of them are crimes.","Oh my gosh, a customer! Okay, act natural, everybody.","Hi there! Sign in here. Pen's on a chain. We've lost eleven pens.","Welcome! If you hear crying, that's just the manager. Totally normal."];
+const RECEP_JOKES=["Bob asked me to answer the phone 'Bargain Bob's, how can I lower your expectations?' So I do.","A guy called asking if we take trades. I said we take anything. He's bringing a boat. And a goat.",
+  "I put 'Do not lean on the Corolla' on a sign and someone leaned on the sign and the sign broke the Corolla.","Juanny told me something really sweet today. I think. It was in Spanish. Might have been a sandwich order.",
+  "Frenchy keeps calling me 'mon petit croissant'. HR is me. I'm HR. I said it's fine.","The phone rang four times today. Three were Bob's mom.","Sam's goatee has its own Instagram. It has more followers than the dealership."];
+function makeRecep(){
+  const g=new THREE.Group();g.userData={isVRM:true,brows:[],hipY:.8,sex:"f",mood:"happy",keep:true};
+  const day=S?S.day:1;VRMKit.attach(g,[`models/receptionist-day${(day-1)%3+1}.vrm`].concat(RECEP_MODELS));
+  g.position.set(W.reception.x,0,W.reception.z);g.rotation.y=Math.PI;W.scene.add(g);
+  G.recep={mesh:g,cool:0,said:{},day};
+}
+function recepSay(text,force){
+  const r=G.recep;if(!r||(!force&&(r.cool>0||G.talk)))return false;
+  const p=r.mesh.position;if(!force&&Math.hypot(G.px-p.x,G.pz-p.z)>14)return false;
+  r.cool=9;r.mesh.userData.talkLeft=Math.min(6,1+text.length*.055);
+  speakLine(text,77,1.14,1.03,true,"en","af_heart");say3(`💁 ${RECEP_NAME}: ${text}`,"#ffc8e8");return true;
+}
+function recepPick(list){const r=G.recep;let t=pick(list);for(let i=0;i<4&&r.said[t];i++)t=pick(list);r.said={};r.said[t]=1;return t}
+function stepRecep(dt){
+  if(G.recep&&S&&G.recep.day!==S.day&&G.phase==="prep"){W.scene.remove(G.recep.mesh);G.recep=null}   // new day, maybe a new outfit
+  if(!G.recep){if(window.VRMKit&&W&&W.reception)makeRecep();return}
+  const r=G.recep,m=r.mesh,u=m.userData,p=m.position;r.cool-=dt;u.wave=(u.wave||0)-dt;u.talkLeft=(u.talkLeft||0)-dt;
+  // she watches you when you're close, otherwise eyes front
+  const d=Math.hypot(G.px-p.x,G.pz-p.z);let want=0;
+  if(d<7){want=Math.atan2(G.px-p.x,G.pz-p.z)-m.rotation.y;want=Math.atan2(Math.sin(want),Math.cos(want));want=Math.max(-1,Math.min(1,want))}
+  u.headYaw=(u.headYaw||0)+(want-(u.headYaw||0))*Math.min(1,dt*4);
+  // customers coming through the door get a wave and a hello
+  if(G.phase==="open")G.cust.forEach(c=>{if(c.mesh&&!c.hiRecep&&c.mesh.position.z<-13.6&&c.state==="todesk"){c.hiRecep=true;u.wave=2.4;recepSay(recepPick(RECEP_HI))}});
+  W.animatePerson(m,false,G.anim,false,u.talkLeft>0);
+}
+// ---------- the crew gets distracted by Tiffany ----------
+// An idle salesperson drifts over to the reception desk to flirt. While they're there they don't greet anyone,
+// so customers on the lot go unhelped. Walk over and press E to send them back. Some are worse than others.
+const FLIRT_RATE={Frenchy:.55,Riccardo:.7,Mario:.8,Juanny:.85,Sam:1,Andres:1.15};
+const FLIRT={Frenchy:[["Tiffany, mon chéri. Your eyes are like two headlights on a 2004 Peugeot.","Frenchy, they don't sell those in America."],["In France, we would call you 'magnifique'. Here I call you 'the reason I come to work'.","You come to work for the free coffee, Frenchy."]],
+  Sam:[["So, uh... you a goatee person?","I'm a 'people who sell cars' person, Sam."],["I sold a car last week. Well. I almost sold a car.","Wow. Almost. Be still my heart."]],
+  Andres:[["I'm not short. I'm fuel efficient.","Okay, Andres."],["Want to see me reach the top shelf? I'm gonna need a chair.","Please don't stand on my chair again."]],
+  Riccardo:[["Tiffany. You want to see my commission check? I laminated it.","It's for forty-one dollars, Riccardo."],["My cousin says I look like a young Al Pacino.","Your cousin needs glasses."]],
+  Mario:[["You know, my mom says I'm a catch.","Your mom calls here every day, Mario. She says you left the stove on."],["I brought you a meatball. Just one. It's a big one.","...Thank you, Mario. I think."]],
+  Juanny:[["Tiffany, eres más bonita que un Camry con cero millas.","Gracias? I think? Is that a car thing?"],["¿Quieres ir a comer tacos después del trabajo?","I don't know what you said but I heard tacos, and yes."]]};
+const BACK={Frenchy:"I was only asking about ze... stapler.",Sam:"I was just checking the sign-in sheet, boss.",Andres:"She asked me to reach something. Okay, she didn't.",Riccardo:"Networking, boss. It's called networking.",Mario:"I'm going, I'm going.",Juanny:"Sí, jefe, sí, sí."};
+const driftTime=s=>rnd(35,70)*(FLIRT_RATE[s.def.name]||1);
+function crewSay(s,text){const n=s.def.name,v=CREW_VOICES[n]||[1,1];say3(`${n}: ${text}`,"#cde");
+  speakLine(text,n.length*13+s.def.id,v[0],v[1],true,s.def.quirk==="spanish"?"es":"en",CREW_KVOICE[n]||"am_eric");s.mesh.userData.talkLeft=2.5}
+function stepFlirt(s,dt,arrived){
+  if(!G.recep||G.ended)return;
+  if(s.state==="idle"){s.drift=(s.drift===undefined?driftTime(s):s.drift)-dt;
+    if(s.drift<=0&&!G.sales.some(o=>o.state==="flirt"&&o.flirt>40)){   // one at a time hangs around for long
+      const spot=[-8.2,-7.5,-6.8].find(x=>!G.sales.some(o=>o.state==="flirt"&&o.spot===x));if(spot===undefined){s.drift=10;return}
+      s.state="flirt";s.spot=spot;s.flirt=0;s.said=0;s.speed=1.6;s.path=[P(s.mesh.position.x,-16.4),P(spot,-15.85)];
+      say3(`😍 ${s.def.name} wandered over to ${RECEP_NAME}'s desk instead of working.`,"#ffb6e1")}
+    return}
+  if(s.state!=="flirt")return;
+  s.flirt+=dt;if(!arrived)return;
+  s.mesh.rotation.y=Math.atan2(G.recep.mesh.position.x-s.mesh.position.x,G.recep.mesh.position.z-s.mesh.position.z);
+  const d=Math.hypot(G.px-s.mesh.position.x,G.pz-s.mesh.position.z),lines=FLIRT[s.def.name]||[["So... you come here often?","I work here."]];
+  if(s.said<2&&s.flirt>(s.said?14:2)&&!G.talk&&d<14){const L=lines[s.said%lines.length];s.said++;
+    if(s.said===1)popup("😍",s.mesh.position,"#ff7ab8");crewSay(s,L[0]);G.recep.cool=0;G.recep.mesh.userData.mood="neutral";recepSay(L[1],true);
+    setTimeout(()=>{if(G.recep)G.recep.mesh.userData.mood="happy"},4000)}
+  if(s.flirt>75){sendBack(s,false)}   // she finally shoos them off herself
+}
+function sendBack(s,byMiguel){
+  s.state="back";s.speed=2.1;s.path=routeSalesHome(s.mesh.position.x,s.mesh.position.z,s.home);s.drift=driftTime(s)*(byMiguel?1.3:.8);s.spot=null;
+  if(byMiguel)crewSay(s,BACK[s.def.name]||"Going, boss.");
+  else say3(`${RECEP_NAME} sent ${s.def.name} back to his desk. Somebody has to.`,"#ffb6e1");
+}
+function recepChat(){
+  const S0=S,list=[],stuck=G.cust.filter(c=>c.state==="stuck");
+  if(G.phase!=="open")list.push("Lot's not open yet. Buy some cars on the computer, then hit the switch by the door. I believe in you. Kind of.");
+  if(stuck.length)list.push(`${stuck.length} ${stuck.length>1?"people are":"person is"} waiting on you, sweetie. ${stuck[0].u.name} is chewing on the pen chain.`);
+  if(G.owner)list.push("Bob's here. He asked me if the coffee's free. It's his coffee. He paid for it. I didn't correct him.");
+  if(G.phase==="open"&&G.minis>0)list.push(`You've got ${G.minis} Mini Miguel${G.minis>1?"s":""} left today. He keeps asking me out. He's eleven inches tall.`);
+  if(G.phase==="open"&&G.minis===0)list.push("Mini Miguel's on his break. He's sitting in the cup holder of the Civic, sulking.");
+  try{const wk=weekOf(S0.day),got=S0.profit-S0.weekStart,q=quota(wk);list.push(got>=q?"You hit quota! Bob said 'good job' and then immediately said 'don't get used to it.'":`You need ${$f(q-got)} more this week for quota. No pressure. Except from Bob. And the bank.`)}catch(e){}
+  list.push(recepPick(RECEP_JOKES));
+  G.recep.mesh.userData.wave=1.2;recepSay(pick(list.slice(0,2).concat(list.slice(-1))),true);
+}
 function nearest(){
+  if(!G.talk){const f=G.sales.find(s=>s.state==="flirt"&&Math.hypot(G.px-s.mesh.position.x,G.pz-s.mesh.position.z)<2.2);
+    if(f)return{label:`[E] Back to your desk, ${f.def.name}!`,act:()=>sendBack(f,true)}}
+  if(G.recep&&!G.talk){const p=G.recep.mesh.position;if(Math.hypot(G.px-p.x,G.pz-(p.z-.9))<1.8)return{label:`[E] Talk to ${RECEP_NAME}`,act:recepChat}}
   if(G.phase==="prep"){
     if(Math.hypot(G.px-W.pc.x,G.pz-W.pc.z)<1.7)return{label:"[E] Use the computer: prices, crew, upgrades, books",act:()=>PC.open()};
     if(Math.hypot(G.px-W.sw.x,G.pz-W.sw.z)<1.7)return{label:S.inv.length?"[E] Open the lot":"[E] Open the lot (buy cars first)",act:startShift};
@@ -676,7 +761,7 @@ function hud(){
   el("hudTop").innerHTML=`<b>Day ${S.day}</b> · ${clock} · Bank <b>${$f(G.cashShown)}</b>${open?` · Gross today <b class="${gross>=0?"good":"bad"}">${$f(gross)}</b>`:""} · Wk ${wk} quota ${$f(Math.max(0,S.profit-S.weekStart))}/${$f(quota(wk))}${Sfx.muted?" · 🔇":""}`;
   const stuck=G.cust.filter(c=>c.state==="stuck");
   // small chips across the top: who needs a T.O., how long they'll wait, how far away
-  el("alerts").innerHTML=G.talk?"":stuck.slice(0,3).map(c=>{const d=Math.round(Math.hypot(c.mesh.position.x-G.px,c.mesh.position.z-G.pz));return `<div class=al>🚨 T.O. ${c.sp?esc(c.sp.def.name)+" · ":""}${esc(c.u.name)} · ${Math.ceil(c.pat)}s · ${d}m</div>`}).join("")
+  el("alerts").innerHTML=G.talk?"":stuck.slice(0,3).map(c=>{const d=Math.round(Math.hypot(c.mesh.position.x-G.px,c.mesh.position.z-G.pz));return `<div class=al>🚨 T.O. ${c.sp?esc(c.sp.def.name)+" · ":""}${esc(c.u.name)} · ${Math.ceil(c.pat)}s · ${d}m</div>`}).join("")+G.sales.filter(s=>s.state==="flirt").map(s=>`<div class="al flirt">😍 ${esc(s.def.name)} is at reception</div>`).join("")
     +(stuck.length>3?`<div class=al>+${stuck.length-3} more</div>`:"")
     +(stuck.length&&G.minis>0?`<div class="al mini">Q: send Mini Miguel (${G.minis} left)</div>`:"")
     +G.miniBots.map(b=>`<div class="al mini">🧒 Mini Miguel → ${esc(b.c.u.name)}</div>`).join("");
@@ -690,7 +775,7 @@ function hud(){
   g.fillStyle="#222";g.fillRect(0,0,Wd,Wd);g.fillStyle="#555";g.fillRect(X(-10),Z(-27),X(10)-X(-10),Z(-14)-Z(-27));
   g.fillStyle="#6a6";for(const id in G.cars){const p=G.cars[id].mesh.position;g.fillRect(X(p.x)-2,Z(p.z)-4,4,8)}
   g.fillStyle="#ffd24a";[W.pc,W.sw].forEach(p=>{if(G.phase==="prep")g.fillRect(X(p.x)-3,Z(p.z)-3,6,6)});
-  G.sales.forEach(s=>{g.fillStyle="#4af";g.fillRect(X(s.mesh.position.x)-2,Z(s.mesh.position.z)-2,5,5)});
+  G.sales.forEach(s=>{g.fillStyle=s.state==="flirt"?"#ff7ab8":"#4af";g.fillRect(X(s.mesh.position.x)-2,Z(s.mesh.position.z)-2,5,5)});
   G.cust.forEach(c=>{if(!c.mesh||c.state==="gone")return;const hot=c.state==="stuck";g.fillStyle=hot?(Math.floor(G.anim*3)%2?"#f33":"#fff"):"#fd4";g.fillRect(X(c.mesh.position.x)-2,Z(c.mesh.position.z)-2,hot?7:4,hot?7:4)});
   g.save();g.translate(X(G.px),Z(G.pz));g.rotate(-G.yaw);g.fillStyle="#fff";g.beginPath();g.moveTo(0,-7);g.lineTo(4,5);g.lineTo(-4,5);g.fill();g.restore();
 }

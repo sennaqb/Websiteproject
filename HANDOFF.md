@@ -72,3 +72,9 @@ First-person 3D used-car dealership game ("Bargain Bob's Auto Mart"). You play M
 - `js/audio.js`: synthesized sound.
 - `js/miguel.js`: Miguel's photo.
 - `NOTES.md`: dev notes and testing approach.
+
+## Tiffany (receptionist, VRoid)
+- js/vrm.js (ES module via importmap + js/three-shim.js) loads VRM with @pixiv/three-vrm 3.4.5: spring bones, expressions, blink, lip sync, wave, head turn, procedural bust sway when the export has no bust spring bones.
+- Reception counter in world.js (`makeReception`, `W.reception`). game.js: `makeRecep`, `stepRecep`, `recepChat` (E), greets customers walking in.
+- Models: models/receptionist.vrm, optional models/receptionist-day1..3.vrm (daily outfits), sample fallback. See models/README.md.
+- Crew distraction: idle salespeople drift to reception (`stepFlirt`, FLIRT_RATE per person), skip customers while there; E sends them back (`sendBack`); Tiffany shoos them after 75 s. Pink chip + pink minimap dot.
