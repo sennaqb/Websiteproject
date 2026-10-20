@@ -661,7 +661,9 @@ function create(canvas){
   W.setTime=function(p){
     p=Math.max(0,Math.min(1,p));let a=KEYS[0],b=KEYS[1];
     for(let i=0;i<KEYS.length-1;i++)if(p>=KEYS[i][0]&&p<=KEYS[i+1][0]){a=KEYS[i];b=KEYS[i+1]}
-    const k=(p-a[0])/Math.max(.001,b[0]-a[0]),top=mix(a[1],b[1],k),hor=mix(a[2],b[2],k),pow=a[3]+(b[3]-a[3])*k;
+    const k=(p-a[0])/Math.max(.001,b[0]-a[0]),rn=W.rainAmt||0,grey=new THREE.Color(0x6c7480);
+    const top=mix(a[1],b[1],k).lerp(grey,rn*.75),hor=mix(a[2],b[2],k).lerp(grey,rn*.6),pow=(a[3]+(b[3]-a[3])*k)*(1-rn*.4);
+    W.lastTime=p;
     const pos=skyGeo.attributes.position,arr=skyGeo.attributes.color.array;
     for(let i=0;i<pos.count;i++){const t=Math.max(0,pos.getY(i)/150),c=hor.clone().lerp(top,Math.pow(t,.6));arr[i*3]=c.r;arr[i*3+1]=c.g;arr[i*3+2]=c.b}
     skyGeo.attributes.color.needsUpdate=true;
@@ -671,8 +673,14 @@ function create(canvas){
     const dusk=Math.max(0,Math.min(1,(p-.55)/.4));
     glows.forEach(f=>f(dusk));
     sunDisc.position.copy(sun.position).normalize().multiplyScalar(140);sunDisc.material.color.set(mix(0xfff8e0,0xffa060,dusk));
-    cloudMats.forEach(m=>m.color.set(mix(0xffffff,0xffc4a0,dusk)));
+    cloudMats.forEach(m=>m.color.set(mix(0xffffff,0xffc4a0,dusk)).lerp(new THREE.Color(0x707884),rn*.8));
   };
+  // Rain: streaks that fall in a box around the camera; the sky greys out while it lasts.
+  const RN=1400,rainGeo=new THREE.BufferGeometry(),rp=new Float32Array(RN*6);
+  for(let i=0;i<RN;i++){const x=(Math.random()-.5)*44,y=Math.random()*16,z=(Math.random()-.5)*44;rp.set([x,y,z,x+.03,y-.55,z],i*6)}
+  rainGeo.setAttribute("position",new THREE.BufferAttribute(rp,3));
+  const rain=new THREE.LineSegments(rainGeo,new THREE.LineBasicMaterial({color:0xaab8c8,transparent:true,opacity:.55}));rain.visible=false;rain.frustumCulled=false;scene.add(rain);
+  W.setRain=function(a){W.rainAmt=a;rain.visible=a>.05;rain.material.opacity=.55*a;if(W.lastTime!=null)W.setTime(W.lastTime)};
 
   // sun and clouds
   const sunDisc=new THREE.Sprite(new THREE.SpriteMaterial({map:tex(128,128,(g,w,h)=>{const r=g.createRadialGradient(64,64,0,64,64,64);r.addColorStop(0,"rgba(255,255,240,1)");r.addColorStop(.25,"rgba(255,250,220,1)");r.addColorStop(.4,"rgba(255,230,160,.35)");r.addColorStop(1,"rgba(255,220,150,0)");g.fillStyle=r;g.fillRect(0,0,w,h)}),fog:false,depthWrite:false,transparent:true}));
@@ -958,6 +966,9 @@ function create(canvas){
     }
     for(let i=falling.length-1;i>=0;i--){const f=falling[i];f.v+=dt*9;f.m.position.y=Math.max(.07,f.m.position.y-f.v*dt);f.m.rotation.x=Math.min(.6,f.m.rotation.x+dt*3);f.m.position.z+=dt*.25;if(f.m.position.y<=.07)falling.splice(i,1)}
     clouds.rotation.y+=dt*.004;
+    if(rain.visible){rain.position.set(cam.position.x,0,cam.position.z);
+      const indoors=cam.position.z<-13.9&&Math.abs(cam.position.x)<10.2;rain.material.opacity=indoors?0:.55*(W.rainAmt||0);   // dry under the showroom roofconst a=rainGeo.attributes.position.array;
+      for(let i=0;i<RN;i++){let y=a[i*6+1]-dt*19;if(y<0)y+=16;a[i*6+1]=y;a[i*6+4]=y-.55}rainGeo.attributes.position.needsUpdate=true}
     W.flick.forEach((m,i)=>{const v=Math.random()<.035?.25:1;m.material.color.setScalar(v)});
     W.tube.forEach((s,i)=>{s.rotation.z=Math.sin(t*3.4+i*.7)*.3+Math.sin(t*7.1+i)*.06;s.rotation.x=Math.cos(t*2.6+i)*.22});
     (W.wiggleArms||[]).forEach(a=>{const k=t*5.2+a.ph;   // the arm-flail: big random-looking swings, floppy elbows

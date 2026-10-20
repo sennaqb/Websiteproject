@@ -33,7 +33,7 @@ function showTitle(){
     <div class=aibox>${aiRow}<div class=dim id=ainote>${esc(ai.note||"")}</div>
       <div class=dim style="margin-top:6px">${!window.claude&&navigator.mediaDevices?"🎙️ Voice is ready: walk up to a customer and hold <b>V</b> to talk. <button class=b onclick=\"Game.micTest()\">Test mic</button> <span id=micres></span>":"🎙️ This page can't use your microphone, so you'll type (press <b>T</b>). For voice, play the hosted version in Chrome or Edge."}</div></div>
       <div class=dim style="margin-top:6px"><label><input type=checkbox ${window.Voices&&Voices.on?"checked":""} onchange="Voices.setOn(this.checked)"> 🗣️ <b>Natural voices</b></label> <span id=vstat>${window.Voices?esc(Voices.status()):""}</span> <button class=b id=vretry style="display:none" onclick="Voices.retry()">Retry</button></div>
-    <div class=keys><b>WASD</b> move · <b>Shift</b> sprint · <b>Mouse</b> look (click and drag if it won't lock) · <b>←/→</b> turn · <b>E</b> use / take over · <b>Q</b> send Mini Miguel to a T.O. (2 a day) · <b>C</b> see yourself · <b>M</b> mute · <b>Esc</b> pause</div>
+    <div class=keys><b>WASD</b> move · <b>Shift</b> sprint · <b>Mouse</b> look (click and drag if it won't lock) · <b>←/→</b> turn · <b>E</b> use / take over · <b>Q</b> send Mini Miguel to a T.O. (2 a day) · <b>L</b> Tiffany walks the lot (2 a day) · <b>C</b> see yourself · <b>M</b> mute · <b>Esc</b> pause</div>
   </div>`;
   el("title").style.display="flex";
 }
@@ -131,6 +131,8 @@ function enterPrep(){
   W.setTime(0);G.lastSky=0;W.setOpen(false);setPlayerStart();G.feed=[];
   S.phase="prep";boardUpdate(true);G.cashShown=S.cash;
   titleCard("DAY "+S.day,S.event.name);
+  if(G.dale){W.scene.remove(G.dale.mesh);G.dale=null}if(G.lawyer){W.scene.remove(G.lawyer.cl.mesh);W.scene.remove(G.lawyer.lw.mesh);G.lawyer=null}
+  G.rain=null;W.setRain&&W.setRain(0);G.lotWalk=null;
   G.whToday=0;G.whLost=0;G.whPend=0;G.usedPC=false;G.tut=S.day===1&&!tutDone()?{i:0,t:0,said:-1}:null;
 }
 
@@ -146,7 +148,7 @@ function start(newGame){
 }
 function startShift(){
   if(G.phase!=="prep")return;
-  G.minis=2;(G.miniBots||[]).forEach(b=>W.scene.remove(b.mesh));G.miniBots=[];
+  G.minis=2;G.walks=2;G.evAt=null;(G.miniBots||[]).forEach(b=>W.scene.remove(b.mesh));G.miniBots=[];
   TALK_LOG.length=0;G.ownerSeen=false;(G.drives||[]).forEach(d=>W.scene.remove(d.m));G.drives=[];G.wiggleAt=rnd(50,90);if(G.owner){W.scene.remove(G.owner.mesh);G.owner=null}
   if(!S.inv.length)restock();
   openDay();
@@ -393,7 +395,7 @@ function sim(dt){
   // only as many customers as the crew can greet, plus one, so nobody stands around ignored
   const onLot=G.cust.filter(c=>c.mesh&&!["gone","wait","delivery","leave","pass"].includes(c.state)).length;
   G.cust.forEach(c=>{if(c.state==="wait"&&G.t>=c.arrive){if(onLot>=Math.max(2,G.sales.length+1))c.arrive=G.t+3+Math.random()*4;else spawn(c)}});
-  stepBob(dt);stepWiggle();stepDrives(dt);stepMinis(dt);
+  stepBob(dt);stepWiggle();stepDrives(dt);stepMinis(dt);stepEvents(dt);
   G.cust.forEach(c=>{
     if(!c.mesh||c.state==="gone"||c.state==="talk")return;
     const arrived=stepNpc(c,dt,["working","stuck","greet"].includes(c.state));
@@ -411,7 +413,7 @@ function sim(dt){
         const s=G.sales.find(s=>s.state==="idle");
         if(s&&!c.sp){c.sp=s;s.cust=c;s.state="go";s.speed=2.4;s.path=routeSalesOut(c.slot,1)}
         if(c.sp&&c.sp.state==="go"&&!c.sp.path.length){c.state="greet";c.sp.state="greet";c.greet=rnd(4,6)}
-        if(c.timer>40&&!c.sp)customerWalks(c,`${c.u.name} left. Nobody helped them.`,.5);
+        if(c.timer>(G.rain?28:40)&&!c.sp)customerWalks(c,`${c.u.name} left. Nobody helped them.`,.5);
         break}
       case"greet":   // a quick hello at the car, then inside to the desk
         c.greet-=dt;if(c.greet<=0){c.state="todesk";c.speed=1.5;c.path=routeToDesk(c);c.sp.state="todesk";c.sp.speed=1.8;c.sp.path=routeSalesToDesk(c.sp)}break;
@@ -431,7 +433,7 @@ function sim(dt){
           const sp=c.sp;if(sp){sp.state="back";sp.cust=null;c.sp=null;const q=sp.mesh.position;sp.path=routeSalesHome(q.x,q.z,sp.home)}}
         break;
       case"stuck":{
-        c.pat-=dt*(c.sp&&c.sp.def.quirk==="pushy"?1.4:1);
+        c.pat-=dt*(c.sp&&c.sp.def.quirk==="pushy"?1.4:1)*(G.rain?1.25:1);
         if(c.ring){const k=1+Math.sin(G.anim*8)*.14;c.ring.scale.set(k,k,k)}
         if(c.bar){const f=Math.max(0,c.pat/c.patMax);c.bar.fg.scale.x=1.06*f;c.bar.fg.material.color.set(f>.5?0x40d060:f>.25?0xe0c030:0xe03030)}
         if(c.pat<=0){
@@ -573,11 +575,11 @@ function stepRecep(dt){
   const r=G.recep,m=r.mesh,u=m.userData,p=m.position;r.cool-=dt;u.wave=(u.wave||0)-dt;if(u.mood==="neutral"||u.mood==="happy")u.mood=u.wave>0?"happy":"neutral";u.talkLeft=(u.talkLeft||0)-dt;
   // she watches you when you're close, otherwise eyes front
   const d=Math.hypot(G.px-p.x,G.pz-p.z);let want=0;
-  if(d<7){want=Math.atan2(G.px-p.x,G.pz-p.z)-m.rotation.y;want=Math.atan2(Math.sin(want),Math.cos(want));want=Math.max(-1,Math.min(1,want))}
+  if(d<7&&!G.lotWalk){want=Math.atan2(G.px-p.x,G.pz-p.z)-m.rotation.y;want=Math.atan2(Math.sin(want),Math.cos(want));want=Math.max(-1,Math.min(1,want))}
   u.headYaw=(u.headYaw||0)+(want-(u.headYaw||0))*Math.min(1,dt*4);
   // customers coming through the door get a wave and a hello
   if(G.phase==="open")G.cust.forEach(c=>{if(c.mesh&&!c.hiRecep&&c.mesh.position.z<-13.6&&c.state==="todesk"){c.hiRecep=true;u.wave=2.4;recepSay(recepPick(RECEP_HI))}});
-  W.animatePerson(m,false,G.anim,false,u.talkLeft>0);
+  W.animatePerson(m,!!(G.lotWalk&&G.lotWalk.path.length),G.anim,false,u.talkLeft>0);
 }
 // ---------- day-one tutorial, run by Tiffany ----------
 // One small goal chip at a time; she talks you through it. K skips. Runs once per browser.
@@ -601,6 +603,96 @@ function stepTut(dt){
   if(t.said===t.i&&st.done(t.t)){t.i++;t.t=0;if(t.i>=TUT.length)tutEnd()}
 }
 const tutGoal=()=>G.tut&&G.tut.said===G.tut.i&&TUT[G.tut.i].goal;
+// ---------- random events during the day ----------
+// Every minute or two something happens on the lot: Dale the homeless guy pesters customers, a past customer
+// comes back with a lawyer, or it starts raining. Tiffany's lot walk (L, twice a day) lives here too.
+const DALE_LINES=["Hey. Hey buddy. You got a dollar? I'll tell you which car has the raccoon.","Don't buy the Buick. I lived in the Buick. It's got a leak.","Spare some change? I accept cash, Venmo, and car keys.","I used to sell cars here. Then Miguel happened.","Psst. The salesman's lying. I don't know about what. But he's lying."];
+const LAWYER_LINES=[c=>`My client purchased a "reliable" car from this establishment. It is now, legally speaking, a planter.`,c=>`My client was promised "like new." The car is, and I quote my mechanic, "older than the concept of new."`,c=>`My client found a raccoon in the glovebox. The raccoon has also retained counsel.`,c=>`Mr. Wiggle assaulted my client. We have photographs. They're blurry, but he is clearly flailing.`];
+function stepEvents(dt){
+  if(G.evAt==null)G.evAt=rnd(60,100);
+  if(G.t>=G.evAt&&!G.talk){G.evAt=G.t+rnd(70,120);
+    const opts=[];if(!G.dale)opts.push("dale");if(!G.lawyer&&G.t<SHIFT_SECONDS-90)opts.push("lawyer");if(!G.rain)opts.push("rain");
+    const e=pick(opts);if(e==="dale")startDale();if(e==="lawyer")startLawyer();if(e==="rain")startRain()}
+  stepDale(dt);stepLawyer(dt);stepRain(dt);stepLotWalk(dt);
+}
+// Dale: wanders up to customers and asks for change; they get less patient and less willing. E: give him $5 to go away.
+function startDale(){
+  const m=W.person({top:"jacket",shirt:0x4a4030,shirt2:0x3a3328,pants:0x3a3a30,hat:"beanie",hatColor:0x5a2a2a,beard:true,hairStyle:"messy",hair:0x6a6a60,skin:ri(0,3),build:"slim",height:.97});
+  m.position.set(rnd(-1,1),0,GATE_IN);W.scene.add(m);
+  G.dale={mesh:m,path:[],speed:1.2,state:"seek",bothered:0,t:0,ph:0};say3("🥫 Dale wandered onto the lot. He's looking for customers. Not to buy.","#fd8");
+}
+function stepDale(dt){
+  const d=G.dale;if(!d)return;d.t+=dt;const arrived=stepNpc(d,dt,d.state==="pester");
+  if(d.state==="seek"){const c=pick(G.cust.filter(c=>c.mesh&&c.mesh.visible&&["browse","greet","working","stuck"].includes(c.state)&&c!==d.last));
+    if(!c||d.bothered>=2||d.t>80){daleLeave(false);return}
+    const p=c.mesh.position,q=d.mesh.position,inside=inShowroom(p.z),from=inShowroom(q.z)?[P(q.x,-17.6)]:toShowroom(q.x,q.z);d.tgt=c;
+    d.path=inside?from.concat([P(p.x+.9,-17.6),P(p.x+.9,p.z+.6)]):(inShowroom(q.z)?[P(q.x,-17.6),P(0,-13.5),P(IN,-11)]:[]).concat(toAisle(inShowroom(q.z)?IN:q.x,inShowroom(q.z)?-11:q.z,IN),[P(p.x+.9,p.z+.6)]);d.state="go"}
+  else if(d.state==="go"){if(!d.tgt.mesh||d.tgt.state==="gone"){d.state="seek";return}if(arrived){d.state="pester";d.wait=9;d.bothered++;d.last=d.tgt;
+      const c=d.tgt,l=pick(DALE_LINES),near=Math.hypot(G.px-d.mesh.position.x,G.pz-d.mesh.position.z)<15;
+      say3(`🥫 Dale to ${c.u.name}: "${l}"`,"#d8c8a0");if(near)speakLine(l,31,.7,.92,false,"en","am_echo");d.mesh.userData.talkLeft=4;
+      c.mesh.userData.mood="worried";if(c.state==="stuck")c.pat=Math.max(3,c.pat-10);else c.u.reserve=Math.round(c.u.reserve*.97/50)*50}}
+  else if(d.state==="pester"){d.wait-=dt;const c=d.tgt;if(c&&c.mesh)d.mesh.rotation.y=Math.atan2(c.mesh.position.x-d.mesh.position.x,c.mesh.position.z-d.mesh.position.z);if(d.wait<=0)d.state="seek"}
+  else if(d.state==="leave"&&arrived){W.scene.remove(d.mesh);G.dale=null}
+}
+function daleLeave(paid){const d=G.dale;if(!d||d.state==="leave")return;d.state="leave";d.speed=1.5;const q=d.mesh.position;
+  d.path=(inShowroom(q.z)?[P(q.x,-17.6),P(0,-13.5),P(OUT,-11)].concat(toAisle(OUT,-11,OUT)):toAisle(q.x,q.z,OUT)).concat([P(OUT,24),P(0,GATE_OUT)]);
+  if(paid){S.cash-=5;const l=pick(["Bless you, Miguel. Don't buy the Buick.","Five bucks! I'm gonna buy a Buick.","You're a good man. Your posters don't do you justice."]);say3(`🥫 Dale: "${l}"`,"#d8c8a0");speakLine(l,31,.7,.92,false,"en","am_echo")}
+  else say3("🥫 Dale wandered off.","#bbb")}
+// The lawsuit: a past customer and their lawyer wait by your office. E: settle or fight. Ignore them and the court decides.
+function startLawyer(){
+  const done=S.cust.filter(u=>u.done&&/^Bought/.test(u.msg||"")),name=done.length?pick(done).name:pick(NAMES),amt=Math.round(rnd(300,900)/50)*50;
+  const cl=W.person({top:"hoodie",shirt:pick([0x4a6a8a,0x6a4a4a,0x4a7a5a]),skin:ri(0,3),hairStyle:pick(["short","bob","curly"]),build:pick(["avg","fat"])});
+  const lw=W.person({top:"suit",shirt:0x22252c,shirt2:0xf2f2f2,tie:0x7a1020,pants:0x22252c,hairStyle:"slick",hair:0x1a1a1a,glasses:true,skin:ri(0,3),height:1.02});
+  cl.position.set(-.8,0,GATE_IN);lw.position.set(.8,0,GATE_IN);W.scene.add(cl);W.scene.add(lw);
+  const to=[P(0,-13.5),P(-3.5,-17),P(-5.2,-21.6)];
+  G.lawyer={name,amt,cl:{mesh:cl,path:toAisle(-.8,GATE_IN,IN).concat([P(IN,-11)],to),speed:1.4},lw:{mesh:lw,path:toAisle(.8,GATE_IN,IN).concat([P(IN,-11.5)],to.map(p=>P(p.x+.9,p.z))),speed:1.4},state:"in",t:0};
+  say3(`⚖️ ${name} is back. With a lawyer. They're heading for your office.`,"#ffb070");Sfx.alert&&Sfx.alert();
+}
+function stepLawyer(dt){
+  const L=G.lawyer;if(!L)return;L.t+=dt;const a=stepNpc(L.cl,dt,L.state==="wait"),b=stepNpc(L.lw,dt,L.state==="wait");
+  if(L.state==="in"&&a&&b){L.state="wait";L.wait=55;const l=pick(LAWYER_LINES)(L);say3(`⚖️ ${L.name}'s lawyer: "${l}"`,"#ffb070");
+    if(Math.hypot(G.px-L.lw.mesh.position.x,G.pz-L.lw.mesh.position.z)<16)speakLine(l,55,.85,1.05,false,"en","bm_george");L.lw.mesh.userData.talkLeft=5}
+  if(L.state==="wait"){L.wait-=dt;[L.cl,L.lw].forEach(n=>n.mesh.rotation.y=Math.atan2(G.px-n.mesh.position.x,G.pz-n.mesh.position.z));
+    if(L.wait<=0){const pay=Math.round(L.amt*1.5/50)*50;S.cash-=pay;say3(`⚖️ You ignored ${L.name}'s lawyer. The court ruled against you: ${$f(pay)}.`,"#f66");Sfx.lose();lawyerLeave()}}
+  if(L.state==="out"&&a&&b){W.scene.remove(L.cl.mesh);W.scene.remove(L.lw.mesh);G.lawyer=null}
+}
+function lawyerLeave(){const L=G.lawyer;if(!L)return;L.state="out";[L.cl,L.lw].forEach((n,i)=>{const q=n.mesh.position;n.speed=1.6;n.path=[P(q.x,-17),P(i?.8:-.8,-13.5)].concat(toAisle(i?.8:-.8,-11,OUT),[P(OUT,24),P(0,GATE_OUT)])})}
+function lawyerTalk(){
+  const L=G.lawyer;if(!L||L.state!=="wait")return;
+  showPause(`<h2>⚖️ ${esc(L.name)} v. Bargain Bob's</h2><p>Their lawyer wants <b>${$f(L.amt)}</b> to make this go away.</p><p class=dim>Fight it and it's a coin flip: they walk away with nothing, or you pay double.</p>
+    <button class=go onclick="Game.lawyer('settle')">Settle: pay ${$f(L.amt)}</button><button class=b onclick="Game.lawyer('fight')">Fight it</button><button class=b onclick="Game.lawyer('stall')">Stall</button>`);
+}
+function lawyer(choice){
+  const L=G.lawyer;resume();if(!L)return;
+  if(choice==="stall"){L.wait=Math.max(L.wait,20);say3(`⚖️ You told them you'd "be right with them". The clock's ticking.`,"#ffb070");return}
+  if(choice==="settle"){S.cash-=L.amt;say3(`⚖️ Settled with ${L.name} for ${$f(L.amt)}. Their lawyer smirked the whole time.`,"#ffb070");Sfx.lose()}
+  else if(Math.random()<.5){say3(`⚖️ You fought it and WON. The lawyer is calling you a "loose cannon" in the parking lot.`,"#8dffa8");Sfx.win&&Sfx.win()}
+  else{const pay=L.amt*2;S.cash-=pay;say3(`⚖️ You fought it and lost. ${$f(pay)}. Tiffany is pretending she didn't see.`,"#f66");Sfx.lose()}
+  lawyerLeave();
+}
+// Rain: grey sky, streaks of rain; customers have less patience while it lasts.
+function startRain(){G.rain={t:0,dur:rnd(60,95),a:0};say3("🌧️ It's starting to rain. Customers are getting impatient.","#9cf");
+  if(G.recep&&Math.random()<.7)setTimeout(()=>recepSay(pick(["Great. Rain. Bob's going to say the cars are 'getting a free wash'.","It's raining. Juanny is outside dancing in it. Nobody knows why.","Rain! Perfect. Sam's goatee is going to frizz."]),true),2500)}
+function stepRain(dt){const r=G.rain;if(!r)return;r.t+=dt;const tgt=r.t<r.dur?1:0;r.a+=(tgt-r.a)*Math.min(1,dt*.4);W.setRain(r.a);if(r.t>r.dur&&r.a<.03){W.setRain(0);G.rain=null;say3("🌤️ The rain stopped.","#9cf")}}
+// Tiffany walks the lot (L, twice a day): male customers she passes warm up, female customers cool off.
+function sendTiffany(){
+  if(G.phase!=="open"||G.talk)return;if(!G.recep||!G.recep.mesh.userData.vrm)return say3("Tiffany isn't at her desk yet.","#fd8");
+  if(G.lotWalk)return say3("Tiffany's already out on the lot.","#fd8");if(!(G.walks>0))return say3("Tiffany already walked the lot twice today. Her feet hurt.","#fd8");
+  G.walks--;const p=G.recep.mesh.position;
+  G.lotWalk={path:[P(-5.9,-14.5),P(-5.9,-16.2),P(0,-15.8),P(0,-12.5),P(0,0),P(-17,0),P(-17,13),P(17,13),P(17,0),P(0,0),P(0,-12.5),P(0,-15.8),P(-5.9,-16.2),P(-5.9,-14.5),P(p.x,p.z)],seen:new Set(),home:{x:p.x,z:p.z}};
+  say3(`💁 Tiffany is walking the lot (${G.walks} left today). Watch the men stand up straighter.`,"#ffc8e8");
+  recepSay(pick(["Fine. I'll go be 'customer engagement'. Again.","Walking the lot. If Frenchy follows me, he's fired.","Okay, I'm going out there. Somebody watch the phone. Not Mario."]),true);
+}
+function stepLotWalk(dt){
+  const w=G.lotWalk;if(!w||!G.recep)return;const m=G.recep.mesh,u=m.userData,p=w.path[0];
+  if(!p){m.position.set(w.home.x,0,w.home.z);m.rotation.y=Math.PI;G.lotWalk=null;u.headYaw=0;return}
+  const dx=p.x-m.position.x,dz=p.z-m.position.z,d=Math.hypot(dx,dz),st=1.35*dt;
+  if(d<=st){m.position.x=p.x;m.position.z=p.z;w.path.shift()}else{m.position.x+=dx/d*st;m.position.z+=dz/d*st;m.rotation.y=Math.atan2(dx,dz)}
+  G.cust.forEach(c=>{if(!c.mesh||w.seen.has(c)||["gone","wait","talk","td_drive"].includes(c.state))return;
+    if(Math.hypot(c.mesh.position.x-m.position.x,c.mesh.position.z-m.position.z)>4.5)return;w.seen.add(c);u.wave=1.4;
+    if(c.u.sex==="f"){c.u.reserve=Math.round(c.u.reserve*.96/50)*50;c.mesh.userData.mood="angry";if(c.state==="stuck")c.pat=Math.max(3,c.pat-6);popup("🙄",c.mesh.position,"#ff8a8a")}
+    else{c.u.reserve=Math.round(Math.min(c.u.budget,c.u.reserve*1.05)/50)*50;c.mesh.userData.mood="happy";if(c.state==="stuck")c.pat=Math.min(c.patMax,c.pat+12);popup("😍",c.mesh.position,"#ff7ab8")}});
+}
 // ---------- the crew gets distracted by Tiffany ----------
 // An idle salesperson drifts over to the reception desk to flirt. While they're there they don't greet anyone,
 // so customers on the lot go unhelped. Walk over and press E to send them back. Some are worse than others.
@@ -625,7 +717,7 @@ function crewSay(s,text){const n=s.def.name,v=CREW_VOICES[n]||[1,1];say3(`${n}: 
 function stepFlirt(s,dt,arrived){
   if(!G.recep||G.ended)return;
   if(s.state==="idle"){s.drift=(s.drift===undefined?driftTime(s):s.drift)-dt;
-    if(s.drift<=0&&!G.sales.some(o=>o.state==="flirt"&&o.flirt>40)){   // one at a time hangs around for long
+    if(s.drift<=0&&!G.lotWalk&&!G.sales.some(o=>o.state==="flirt"&&o.flirt>40)){   // one at a time hangs around for long
       const spot=[-8.2,-7.5,-6.8].find(x=>!G.sales.some(o=>o.state==="flirt"&&o.spot===x));if(spot===undefined){s.drift=10;return}
       s.state="flirt";s.spot=spot;s.flirt=0;s.said=0;s.speed=1.6;s.path=[P(s.mesh.position.x,-16.4),P(spot,-15.85)];
       say3(`😍 ${s.def.name} wandered over to ${RECEP_NAME}'s desk instead of working.`,"#ffb6e1");
@@ -661,6 +753,8 @@ function recepChat(){
   G.recep.mesh.userData.wave=1.2;recepSay(pick(list.slice(0,2).concat(list.slice(-1))),true);
 }
 function nearest(){
+  if(!G.talk&&G.dale&&G.dale.state!=="leave"&&Math.hypot(G.px-G.dale.mesh.position.x,G.pz-G.dale.mesh.position.z)<2.2)return{label:"[E] Give Dale $5 to go away",act:()=>daleLeave(true)};
+  if(!G.talk&&G.lawyer&&G.lawyer.state==="wait"&&Math.hypot(G.px-G.lawyer.lw.mesh.position.x,G.pz-G.lawyer.lw.mesh.position.z)<2.6)return{label:`[E] Deal with ${G.lawyer.name}'s lawyer`,act:lawyerTalk};
   if(!G.talk){const f=G.sales.find(s=>s.state==="flirt"&&Math.hypot(G.px-s.mesh.position.x,G.pz-s.mesh.position.z)<2.2);
     if(f)return{label:`[E] Back to your desk, ${f.def.name}!`,act:()=>sendBack(f,true)}}
   if(G.recep&&!G.talk){const p=G.recep.mesh.position;if(Math.hypot(G.px-p.x,G.pz-(p.z-.9))<1.8)return{label:`[E] Talk to ${RECEP_NAME}`,act:recepChat}}
@@ -903,6 +997,9 @@ function hud(){
   const stuck=G.cust.filter(c=>c.state==="stuck");
   // small chips across the top: who needs a T.O., how long they'll wait, how far away
   el("alerts").innerHTML=G.talk?"":stuck.slice(0,3).map(c=>{const d=Math.round(Math.hypot(c.mesh.position.x-G.px,c.mesh.position.z-G.pz));return `<div class=al>🚨 T.O. ${c.sp?esc(c.sp.def.name)+" · ":""}${esc(c.u.name)} · ${Math.ceil(c.pat)}s · ${d}m</div>`}).join("")+G.sales.filter(s=>s.state==="flirt").map(s=>`<div class="al flirt">😍 ${esc(s.def.name)} is at reception</div>`).join("")
+    +(G.lawyer&&G.lawyer.state==="wait"?`<div class=al>⚖️ ${esc(G.lawyer.name)}'s lawyer at your office · ${Math.ceil(G.lawyer.wait)}s</div>`:"")
+    +(G.dale&&G.dale.state!=="leave"?`<div class="al mini">🥫 Dale is bugging customers</div>`:"")
+    +(G.lotWalk?`<div class="al flirt">💁 Tiffany is walking the lot</div>`:"")
     +(stuck.length>3?`<div class=al>+${stuck.length-3} more</div>`:"")
     +(stuck.length&&G.minis>0?`<div class="al mini">Q: send Mini Miguel (${G.minis} left)</div>`:"")
     +G.miniBots.map(b=>`<div class="al mini">🧒 Mini Miguel → ${esc(b.c.u.name)}</div>`).join("");
@@ -1006,6 +1103,7 @@ addEventListener("keydown",e=>{
   if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Space"].includes(e.code))e.preventDefault();
   if(e.code==="KeyC"&&!T){G.third=!G.third;return}
   if(e.code==="KeyQ"){sendMini();return}
+  if(e.code==="KeyL"){sendTiffany();return}
   if(e.code==="KeyK"&&G.tut){tutEnd();say3("Tutorial skipped. Tiffany's at her desk if you need her (E).","#9cf");return}
   if(e.code==="KeyE"){const n=nearest();if(n){Sfx.click();n.act()}}
 });
@@ -1046,11 +1144,11 @@ function boot(){
   showTitle();loop();return true;
 }
 
-window.Game={boot,micTest,wholesaled,start,resume,finish,nextDay,quit,toggleAI,saveKey,clearKey,toast,pcClosed,syncCars,state:G};
+window.Game={boot,micTest,wholesaled,lawyer,start,resume,finish,nextDay,quit,toggleAI,saveKey,clearKey,toast,pcClosed,syncCars,state:G};
 function cry(){G.shake=.4;if(G.talk&&G.talk.c.mesh)G.talk.c.mesh.userData.talkLeft=0}
 function gun(){
   G.gunEnd=performance.now()+3200;G.shake=.25;Sfx.click();
   if(G.talk&&G.talk.c.mesh)G.talk.c.mesh.userData.handsUp=4;
 }
-window.G3={gun,cry,makeCustomerMesh,speaking:(s,mood)=>{if(G.talk&&G.talk.c.mesh){const u=G.talk.c.mesh.userData;u.talkLeft=s;if(mood)u.mood=mood}},fx,popup,on:()=>G.phase==="open"&&!G.ended,elapse,waiting,talkClosed,step,sim,draw,hud,takeover,endShift,startShift,state:G,world:()=>W,tier,syncCars,enterPrep};
+window.G3={gun,cry,makeCustomerMesh,ev:{startDale,startLawyer,startRain,sendTiffany,daleLeave,lawyerTalk,lawyer},speaking:(s,mood)=>{if(G.talk&&G.talk.c.mesh){const u=G.talk.c.mesh.userData;u.talkLeft=s;if(mood)u.mood=mood}},fx,popup,on:()=>G.phase==="open"&&!G.ended,elapse,waiting,talkClosed,step,sim,draw,hud,takeover,endShift,startShift,state:G,world:()=>W,tier,syncCars,enterPrep};
 })();
