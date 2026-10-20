@@ -81,6 +81,31 @@ const HOT={
   space:{n:"space",re:/\bspace|room|trunk|cargo|seats|haul|tow|fits? (everything|everyone)|big enough/,need:["I've got three kids and a dog the size of a horse. I need room.","I haul a lot of stuff. Equipment. Don't ask what kind."]},
   deal:{n:"a good deal",re:/great deal|good deal|steal|bargain|best price in town|save you|savings|value/,need:["I just want to feel like I won. Like I beat the system.","I'm not leaving here unless I feel like I got a steal."]}
 };
+// Selling points a car may have. Pitching real ones builds value (more if it hits the customer's hot button);
+// claiming one the car doesn't have is a lie and costs trust. body: only on these body styles.
+const FEATS={
+  sunroof:{n:"sunroof",re:/sun ?roof|moon ?roof/,hot:"looks"},
+  leather:{n:"leather seats",re:/leather/,hot:"looks"},
+  v8:{n:"V8 engine",re:/\bv ?-?8\b|horsepower|big engine|powerful engine|it'?s fast|fast car|muscle/,hot:"looks",body:["truck","coupe","sedan","suv"]},
+  tires:{n:"brand-new tires",re:/new tires|brand new tires|fresh tires/,hot:"safety"},
+  camera:{n:"backup camera",re:/backup camera|rear camera|back up camera|camera/,hot:"safety"},
+  heated:{n:"heated seats",re:/heated seats?|seat heaters?/},
+  bluetooth:{n:"Bluetooth",re:/bluetooth|car ?play|android auto|aux/},
+  owner:{n:"one owner",re:/one owner|single owner|1 owner|only had one owner/,hot:"reliable"},
+  records:{n:"full service records",re:/service records|maintenance records|records/,hot:"reliable"},
+  tow:{n:"towing package",re:/tow(ing)? package|hitch|can tow|tows/,hot:"space",body:["truck","suv"]},
+  third:{n:"third-row seats",re:/third row|3rd row|seats (seven|7)|seven seats/,hot:"space",body:["suv"]},
+  sound:{n:"premium sound system",re:/sound system|speakers|subwoofer|stereo|bose|premium sound/,hot:"looks"},
+  rims:{n:"chrome rims",re:/\brims\b|chrome|custom wheels/,hot:"looks"},
+  title:{n:"clean title",re:/clean title|clean car ?fax|no accidents|car ?fax/,hot:"deal"},
+  ac:{n:"ice-cold AC",re:/cold a\.?c|ice cold|air condition|a\/c|the ac (works|blows)/},
+  economy:{n:"great gas mileage",re:/good on gas|four cylinder|4 cylinder|gas saver|sips gas|great mileage on gas/,hot:"mpg",body:["sedan","coupe"]}
+};
+function giveFeats(c){
+  if(c.feats)return c;
+  const ok=Object.keys(FEATS).filter(k=>!FEATS[k].body||FEATS[k].body.includes(c.body)).sort(()=>Math.random()-.5);
+  c.feats=ok.slice(0,ri(2,4));return c;
+}
 const persona=u=>PERSONAS.find(p=>p.id===(u&&u.persona))||PERSONAS[PERSONAS.length-1];
 const URGENCY={haggler:.02,researcher:0,fan:.04,budget:.01,rusher:.05,tirekicker:0};
 const EVENTS=[
@@ -123,7 +148,7 @@ function renameTeam(){
 function load(){
   try{
     const s=localStorage.getItem(SAVE);
-    if(s){const o=JSON.parse(s);if(o&&o.v===2){S=o;S.phase="prep";S.cust=[];renameTeam();if(S.cap<12)S.cap=12;if(S.guns==null)S.guns=3;restock();return true}}
+    if(s){const o=JSON.parse(s);if(o&&o.v===2){S=o;S.phase="prep";S.cust=[];renameTeam();if(S.cap<12)S.cap=12;if(S.guns==null)S.guns=3;S.inv.forEach(giveFeats);restock();return true}}
   }catch(e){}
   return false;
 }
@@ -146,7 +171,7 @@ function makeCar(){
   const [make,model,body,base]=pick(MODELS);
   const year=ri(1996,2012),cond=ri(20,80);
   const c={id:S.nextId++,make,model,body,base,year,miles:Math.min(290000,Math.round((2026-year)*ri(7000,13000)/100)*100),cond,seen:false,cost:0,price:0,days:0,note:pick(NOTES)};
-  c.estCond=Math.max(10,Math.min(100,cond+ri(-18,18)));
+  c.estCond=Math.max(10,Math.min(100,cond+ri(-18,18)));giveFeats(c);
   return c;
 }
 // Bob's trucks keep the lot full. The cars are on consignment: you never pay for them, you keep what's left after Bob's cost.

@@ -27,11 +27,11 @@ function parseMoney(t){
 function openTalk(uid,opts={}){
   if(window.Sfx&&Sfx.duck)Sfx.duck(true);
   const u=S.cust.find(x=>x.id==uid),c=S.inv.find(x=>x.id==u.car);if(!c)return;
-  const ty=TYPES[u.type];
+  const ty=TYPES[u.type];giveFeats(c);
   T={uid,car:c,lines:[],pat:Math.max(1,Math.round(ty.pat*(opts.patFrac||1))),maxPat:ty.pat,rapport:0,used:{},rounds:0,
      hands:!!SR&&!opts.noMic&&!opts.inWorld,listening:false,over:false,counter:0,lastAsk:0,agreed:0,addons:[],asked:{},declines:0,err:"",summary:"",
      stated:!!opts.intro,buf:[],busy:false,financed:false,interim:"",mute:false,sold:null,lastSaid:"",inWorld:!!opts.inWorld,typing:false,ptt:false,pttBuf:"",
-     warm:0,knowNeed:false,hotHit:false,coldDone:false,cried:false,wife:false,wifeDone:false,forceMood:null,crew:opts.crew?Object.assign({until:performance.now()+8000},opts.crew):null,queueNext:!!opts.crew};
+     warm:0,value:0,pitched:{},lies:0,justified:false,knowNeed:false,hotHit:false,coldDone:false,cried:false,wife:false,wifeDone:false,forceMood:null,crew:opts.crew?Object.assign({until:performance.now()+8000},opts.crew):null,queueNext:!!opts.crew};
   T.buf.push(opts.intro?`${opts.intro} ${ty.intro} ${line(u,"intro")}`:`Hi, I'm ${u.name}. ${line(u,"intro")} ${ty.intro} I'm looking at that ${label(c)}. ${pick(["What's the story with it?","Is it any good?","Tell me about it."])}`);
   flush();
 }
@@ -186,6 +186,8 @@ function rulesParse(s){
     if(/\b(done|that's all|that is all|finalize|sign|paperwork|close|deal|sold|shake|agreed|ok|okay|yes|sure|fine)\b/.test(t))return{type:"finalize"};
     return{type:"unclear"};
   }
+  const feats=Object.keys(FEATS).filter(k=>FEATS[k].re.test(t));
+  if(feats.length)return{type:"sizzle",which:feats};
   if(/what (are you|do you|you) (looking for|need|want)|what's important|what matters|what brings you|tell me about (yourself|you)|what do you use|what will you use|how will you use|what are you driving|your current car|what happened to your|priorit|what are you after|what kind of car/.test(t))return{type:"needs"};
   for(const k in HOT)if(HOT[k].re.test(t))return{type:"hot",which:k};
   if(/looking for|tell me about|what do you need|what brings|family|commute|kids|nice to meet|welcome|congrat|how are you|how's it going|how you doing|how's your|your day|weather|sunny|hot today|cold today|what do you do|for work|your job|where are you from|where you from|love your|like your|nice (shirt|hat|shoes|jacket|glasses)|you look|weekend|hobby|sports|game last night|your team|pets?|dog|cat|wife|husband|girlfriend|boyfriend|thank you for coming|appreciate you|good to see/.test(t))return{type:"rapport"};
@@ -217,6 +219,20 @@ function runIntent(u,I){
   if((I.type==="offer"||I.type==="middle")&&!T.warm&&!T.coldDone){   // a price before any warm-up: they push back once
     T.coldDone=true;bump(u,-.03);T.forceMood="angry";return say(line(u,"cold"))}
   switch(I.type){
+    case"sizzle":{   // selling the car's features: real ones build value, fake ones are lies
+      T.warm++;giveFeats(c);
+      const has=I.which.filter(k=>c.feats.includes(k)),fake=I.which.filter(k=>FEATS[k]&&!c.feats.includes(k)),fresh=has.filter(k=>!T.pitched[k]);
+      if(fake.length){
+        T.lies++;bump(u,-.03);T.forceMood="angry";const f=FEATS[fake[0]].n;
+        if(T.lies>=2&&tire(u,2,line(u,"sizzleLie",{f})+" Twice now. I'm out."))return;
+        return say(line(u,"sizzleLie",{f}));
+      }
+      if(!fresh.length)return say(line(u,"sizzleAgain",{f:FEATS[has[0]].n}));
+      let hit=false;
+      fresh.forEach(k=>{T.pitched[k]=1;const h=FEATS[k].hot===u.hot;if(h)hit=true;T.value+=h?2:1;bump(u,h?.045:.022,null,1.35)});
+      T.forceMood="happy";
+      return say(line(u,hit?"sizzleHot":"sizzleYes",{f:fresh.map(k=>FEATS[k].n).join(" and ")}));
+    }
     case"needs":{
       const h=HOT[u.hot]||HOT.deal;
       if(T.knowNeed)return say(line(u,"needsAgain",{need:pick(h.need)}));
@@ -272,10 +288,11 @@ function runIntent(u,I){
 
 // ---------- the rules ----------
 // raise (or lower) the customer's walk-away price; key makes it one-time
-function bump(u,pct,key){
+// stretch: how far past their budget a raise can go (selling real features stretches it further)
+function bump(u,pct,key,stretch){
   if(key){if(T.used[key])return false;T.used[key]=1}
-  const cap=Math.min(u.budget*1.1,marketValue(T.car)*1.8);
-  u.reserve=Math.round(Math.min(cap,u.reserve*(1+pct))/50)*50;
+  const cap=Math.min(u.budget*(stretch||1.1),marketValue(T.car)*1.8);
+  u.reserve=Math.round(Math.max(Math.min(cap,u.reserve*(1+pct)),pct<0?0:u.reserve)/50)*50;
   u.offer=Math.min(u.offer,u.reserve);
   return true;
 }
@@ -284,6 +301,8 @@ function tire(u,n,msg){T.pat-=n;if(T.pat<=0){walk(u,msg);return true}return fals
 function offerPrice(u,price){
   T.lastAsk=price;
   if(price<=u.reserve)return agree(u,price);
+  // a big number with no value built: they want to hear why it's worth it (once)
+  if(!T.value&&!T.justified&&price>u.reserve*1.08){T.justified=true;T.forceMood="confused";return say(line(u,"justify",{p:$f(price)}))}
   const hopeless=u.reserve<=T.car.cost*1.05;
   if(price>u.reserve*1.3&&!hopeless)return walk(u,pick(["That's way out of my range.","Way, WAY too much.","Not even close."])+" "+line(u,"walk"));
   T.rounds++;
@@ -423,6 +442,7 @@ function renderSubs(){
   const warmth=T.agreed?"":T.warm>=2?" · 🔥 warmed up":T.warm===1?" · 🙂 warming up":" · ❄️ cold";
   const hotTag=T.knowNeed?` · cares about <b>${esc((HOT[u.hot]||HOT.deal).n)}</b>${T.hotHit?" ✔":""}`:"";
   box.innerHTML=`<div class=subhead><b>${esc(u.name)}</b>${warmth}${hotTag} · ${esc(label(c))} · cost ${$f(c.cost)} · ask ${$f(c.price)} · patience ${pat} · rapport ${"♥".repeat(T.rapport)||"–"}${best&&!T.agreed?` · their best ${$f(best)}${best<c.cost?" <span class=bad>(under cost)</span>":""}`:""}${T.agreed?` · <span class=good>agreed ${$f(T.agreed)} · back-end ${$f(back)}</span>`:""}${window.AI&&AI.on()?` · <span class=good>${AI.who()}</span>`:""}</div>
+  ${T.agreed?"":`<div class=subhead>🚗 Sell it: ${(c.feats||[]).map(k=>T.pitched[k]?`<span class=good>✔ ${esc(FEATS[k].n)}</span>`:esc(FEATS[k].n)).join(" · ")} · value built ${"★".repeat(Math.min(5,T.value))||"–"}</div>`}
   ${T.crew&&performance.now()<T.crew.until?`<div class="sub s"><b>${esc(T.crew.name)}:</b> ${esc(T.crew.text)}</div>`:""}
   ${lastC?`<div class="sub c"><b>${esc(u.name)}</b> <span class=tag>(${esc(persona(u).tag)})</span><b>:</b> ${esc(lastC.text)}</div>`:""}
   ${T.interim?`<div class="sub p"><b>You:</b> <i>${esc(T.interim)}…</i></div>`:lastP?`<div class="sub p dimmed"><b>You:</b> ${esc(lastP.text)}</div>`:""}

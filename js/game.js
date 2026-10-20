@@ -631,7 +631,8 @@ function hud(){
   const stuck=G.cust.filter(c=>c.state==="stuck");
   el("alerts").innerHTML=stuck.map(c=>{const d=Math.round(Math.hypot(c.mesh.position.x-G.px,c.mesh.position.z-G.pz));return `<div class=al>T.O.! ${c.sp?esc(c.sp.def.name):""} · ${esc(c.u.name)} · ${esc(label(carOf(c)||{year:"",make:"",model:""}))} · ${Math.ceil(c.pat)}s · ${d}m</div>`}).join("");
   el("feed").innerHTML=G.feed.filter(f=>G.anim-f.t<14).map(f=>`<div style="color:${f.col}">${esc(f.msg)}</div>`).join("");
-  const n=nearest();el("prompt").textContent=n?n.label:"";
+  const n=nearest(),free=document.pointerLockElement!==canvas&&!overlayOpen()&&!G.mouseDown;
+  el("prompt").textContent=n?n.label:free&&!G.talk?"Click to look around":"";
   const tp=tip();el("tip").textContent=tp;el("tip").style.display=tp?"block":"none";
   boardUpdate(false);
   // minimap
@@ -733,7 +734,7 @@ addEventListener("keydown",e=>{
 addEventListener("keyup",e=>{G.keys[e.code]=false;if((e.code==="KeyV"||e.code==="Space")&&T&&T.inWorld)pttStop(e.timeStamp)});
 addEventListener("mousemove",e=>{
   if(!G.on||overlayOpen())return;
-  if(document.pointerLockElement===canvas||(G.drag&&e.buttons)){G.yaw-=e.movementX*.0022;G.pitch=Math.max(-1.3,Math.min(1.3,G.pitch-e.movementY*.0022))}
+  if(document.pointerLockElement===canvas||e.buttons){G.yaw-=e.movementX*.0022;G.pitch=Math.max(-1.3,Math.min(1.3,G.pitch-e.movementY*.0022))}
 });
 document.addEventListener("pointerlockchange",()=>{
   if(!G.on||overlayOpen())return;
@@ -741,6 +742,11 @@ document.addEventListener("pointerlockchange",()=>{
   if(document.pointerLockElement!==canvas&&(G.phase==="prep"||G.phase==="open")&&!G.talk)showPause(`<h2>Paused</h2><button class=go onclick="Game.resume()">Resume</button> <button class=b onclick="Game.quit()">Quit to title</button>`);
 });
 document.addEventListener("pointerlockerror",()=>{G.drag=true});
+// The mouse can get released (Esc, the browser's mic prompt, a popup). Clicking the game grabs it again;
+// until then, holding a mouse button and dragging still turns the camera.
+addEventListener("mousedown",e=>{G.mouseDown=true;if(e.target===canvas&&G.on&&(G.phase==="prep"||G.phase==="open")&&!overlayOpen()&&document.pointerLockElement!==canvas)lockMouse()});
+addEventListener("mouseup",()=>{G.mouseDown=false});
+document.addEventListener("pointerlockchange",()=>{if(document.pointerLockElement===canvas)G.drag=false});
 addEventListener("resize",()=>{if(W)W.resize()});
 function quit(){hidePause();save();Sfx.ambient(false);showTitle()}
 

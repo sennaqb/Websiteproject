@@ -148,6 +148,7 @@ const INTENTS=`{"type":"offer","price":N}  the manager names a price they would 
 {"type":"middle"}  proposes splitting the difference
 {"type":"accept"}  accepts the customer's number or says deal
 {"type":"refuse"}  says no or holds firm
+{"type":"sizzle","which":["feature",...]}  talks up specific features of the car. feature is any of: ${Object.keys(FEATS).map(k=>k+" ("+FEATS[k].n+")").join(", ")}. List every feature the manager claims, even ones this car doesn't have
 {"type":"needs"}  asks what the customer needs, is looking for, or cares about in a car
 {"type":"hot","which":"safety"|"mpg"|"looks"|"reliable"|"space"|"deal"}  pitches a benefit: safety, gas mileage, looks/style, reliability, space/room, or what a great deal it is
 {"type":"rapport"}  friendly small talk: the customer's day, job, family, hobbies, compliments
@@ -161,7 +162,7 @@ const INTENTS=`{"type":"offer","price":N}  the manager names a price they would 
 {"type":"greet"}  hello
 {"type":"chat","reply":"..."}  anything else. reply is the customer's short in-character answer with no prices and no agreement to buy
 {"type":"unclear"}`;
-const OK=new Set(["needs","hot","offer","middle","accept","refuse","rapport","pitch_miles","pitch_cond","urgency","ask","addon","finalize","release","greet","chat","unclear"]);
+const OK=new Set(["sizzle","needs","hot","offer","middle","accept","refuse","rapport","pitch_miles","pitch_cond","urgency","ask","addon","finalize","release","greet","chat","unclear"]);
 
 AI.classify=function({T,u,said}){
   const c=T.car;
@@ -181,6 +182,7 @@ Reply with JSON only, like {"intents":[...]}.`;
       if(!I||!OK.has(I.type))continue;
       if(I.type==="offer"){const p=Math.round(+I.price);if(!(p>=100&&p<=99999))continue;out.push({type:"offer",price:p})}
       else if(I.type==="ask"){if(["miles","year","condition"].includes(I.topic))out.push({type:"ask",topic:I.topic})}
+      else if(I.type==="sizzle"){const w=(Array.isArray(I.which)?I.which:[I.which]).filter(k=>FEATS[k]);if(w.length)out.push({type:"sizzle",which:w.slice(0,4)})}
       else if(I.type==="hot"){if(["safety","mpg","looks","reliable","space","deal"].includes(I.which))out.push({type:"hot",which:I.which})}
       else if(I.type==="addon"){if(["warranty","gap","acc","finance"].includes(I.which))out.push({type:"addon",which:I.which})}
       else if(I.type==="chat"){

@@ -23,6 +23,11 @@ const ANY={
   milesYes:["Those are low miles. That's a plus.","Low miles? Okay, okay. I see you."],
   milesNo:["That's not low miles to me.","Low? That odometer has seen things."],
   condYes:["It does look sharp. I like that.","Yeah, it cleans up nice. Like me."],
+  sizzleYes:["Oh, {f}? Okay, that's nice.","{f}, huh? Alright, I see the value.","Ooh. {f}. Keep talking.","Okay, {f} is a plus. I'll give you that.","{f}? Didn't notice that. Nice."],
+  sizzleHot:["{f}?! That's exactly my thing.","Wait, it has {f}? Now you've got my attention.","{f}. Okay. Okay okay okay. I want it.","You had me at {f}."],
+  sizzleLie:["Uh, this car doesn't have {f}. I'm looking right at it.","{f}? Where? Show me. ...Yeah, that's what I thought.","Miguel. There is no {f}. Don't lie to me.","Nice try. No {f} on this thing."],
+  sizzleAgain:["Yeah, you mentioned the {f}.","Right, the {f}. What else you got?","I heard you about the {f}. Next."],
+  justify:["{p}? Why's it worth that? Sell me on it.","Whoa, {p}. What makes this thing worth {p}?","{p} for this? Convince me. What's special about it?","Okay, {p}. Why? What am I getting for that?"],
   cold:["Whoa. Slow down. I just got here. You don't even know what I need.","Numbers already? Buy me a coffee first, Miguel.","Easy, tiger. Ask me something about me first.","Do you say 'hi' to people, or do you just throw prices at them?"],
   hotYes:["That's... exactly what I needed to hear.","Okay. Now you're speaking my language.","You get it. You actually get it.","See, THAT'S why I came here."],
   hotNo:["Eh. I don't really care about that.","Cool, but that's not really my thing.","Mm, not a big deal for me."],
@@ -173,6 +178,6 @@ window.line=function(u,kind,vars){
   if(!pool.length)pool=own.concat(gen);
   if(!pool.length)return "";
   const s=pool[Math.random()*pool.length|0];if(said)said.add(s);
-  return fill(s,vars);
+  const out=fill(s,vars);return out.charAt(0).toUpperCase()+out.slice(1);
 };
 })();
