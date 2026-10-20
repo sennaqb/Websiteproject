@@ -543,9 +543,12 @@ const RECEP_LOOKS=[{file:"receptionist"},
     "My outfit's in the dryer. The dryer is in my car. My car is in the shop. Don't ask.",
     "Laundry day. Frenchy has asked me four times if I'm 'going to ze beach'. I'm going to HR. I'm HR.",
     "Yes, it's a bikini. Yes, my clothes are in the wash. No, Mario, I don't need your jacket. It smells like meatballs.",
-    "The washer flooded my apartment, so this is what I've got. Bob's calling it 'Summer Savings Event'. It's November."]}];
+    "The washer flooded my apartment, so this is what I've got. Bob's calling it 'Summer Savings Event'. It's November.",
+    "Different bikini, same broken washer. Don't say anything, Miguel.","I own four bikinis and zero working washing machines. Make of that what you will."]}];
 const laundryDay=d=>{if(d<2)return false;let h=Math.imul(d^0x5bd1e995,374761393);h=Math.imul(h^h>>>13,1274126177);h^=h>>>16;return (h>>>0)/4294967296<.3};
-const recepLook=()=>RECEP_LOOKS[laundryDay(S?S.day:1)?1:0];
+// Laundry days rotate through her bikinis.
+const SWIMS=["models/tiffany-beach-skin.png","models/tiffany-beach-red.png","models/tiffany-beach-black.png","models/tiffany-beach-pink.png"];
+const recepLook=()=>{const d=S?S.day:1;if(!laundryDay(d))return RECEP_LOOKS[0];const lk=Object.assign({},RECEP_LOOKS[1]);let n=0;for(let i=2;i<=d;i++)if(laundryDay(i))n++;lk.swim={texture:SWIMS[(n-1)%SWIMS.length]};/* nth laundry day → next bikini in line */return lk};
 const lookFiles=l=>[`models/${l.file}.vrm`,`models/${l.file}.b64.txt`];
 const RECEP_NAME="Tiffany",RECEP_MODELS=["models/receptionist.vrm","models/receptionist.b64.txt","https://cdn.jsdelivr.net/gh/pixiv/three-vrm@dev/packages/three-vrm/examples/models/VRM1_Constraint_Twist_Sample.vrm"];
 const RECEP_HI=["Welcome to Bargain Bob's! Someone will be right with you. Probably.","Hiii! Help yourself to a mint. Nobody else has, since 2009.","Welcome in! Please don't touch the Kia, it's load-bearing.","Hi! The coffee's free. The bathroom is a hundred dollars.",
