@@ -209,6 +209,8 @@ const LOOKS={
   dumped:()=>({sex:Math.random()<.4?"f":"m",top:pick(["hoodie","tee"]),shirt:pick([0x6a6a6a,0x5a6a7a]),hairStyle:"messy",stubble:true,pants:0x5a5a5a}),
   prepper:()=>({top:"camo",shirt:0x4a5a32,hat:"boonie",hatColor:0x5a5a3a,beard:true,build:"muscle",pants:0x4a4a3a}),
   mj:()=>({top:"thriller",shirt:0xc01818,hat:"fedora",hatColor:0x111111,hairStyle:"mjcurls",hair:0x111111,glove:true,socks:true,build:"slim",pants:0x111111,moonwalk:true,skin:pick([1,2]),shoe:0x080808}),
+  elvis:()=>({top:"jacket",shirt:0xf6f2ea,shirt2:0xd8b040,hairStyle:"slick",hair:0x0a0a0a,glasses:"sun",chain:true,pants:0xf6f2ea,shoe:0xf6f2ea,mustache:false,build:pick(["avg","fat"]),skin:0,height:1.02}),
+  arnold:()=>({build:"muscle",top:"jacket",shirt:0x1a1a1a,shirt2:0x0a0a0a,glasses:"sun",hairStyle:"buzz",hair:0x4a3a2a,height:1.07,skin:0,pants:0x1a1a1a}),
   hungry:()=>({build:"fat",top:pick(["flannel","hawaii","tee"]),shirt:pick([0xa01818,0x2a5a8a,0x3a7a3a]),shirt2:pick([0x222222,0xf0e040]),hat:Math.random()<.5?"cap":null,hatColor:0x333333,beard:Math.random()<.5,suspenders:Math.random()<.3,hairStyle:pick(["short","balding","buzz"])}),
   flirt:()=>({sex:"f",top:"dress",shirt:pick([0xc01020,0x101010,0x7a1a8a]),hairStyle:"long",hair:pick([0x2a1a10,0x8a2a10,0xe8c070]),lipstick:"#c0182a",makeup:"#6a3a7a",earrings:true,build:"slim",shoe:0x1a0a0a}),
   normal:()=>{const f=Math.random()<.5;return f?{sex:"f",top:pick(["tee","jacket","cardigan","polo"]),shirt:pick(COLORS),shirt2:pick(COLORS),hairStyle:pick(["long","ponytail","bob","bun","curly"]),hair:pick(HAIRS),bottom:pick(["pants","skirt"]),pants:pick([0x30343c,0x2a3a5a,0x4a3a2a]),lipstick:Math.random()<.5?"#b0405a":null,glasses:Math.random()<.2}

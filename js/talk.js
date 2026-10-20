@@ -58,7 +58,7 @@ function flush(){
   const text=T.buf.join(" ").trim();T.buf=[];
   if(!text){renderTalk();return}
   const uid=T.uid;
-  if(!(window.AI&&AI.on())&&!T.over&&Math.random()<.3){
+  if(!(window.AI&&AI.on())&&!T.over&&Math.random()<(persona(S.cust.find(x=>x.id==uid)).imp?.65:.3)){
     const said=T.said||(T.said=new Set()),fresh=persona(S.cust.find(x=>x.id==uid)).quips.filter(q=>!said.has(q));
     if(fresh.length){const q=pick(fresh);said.add(q);return show(text+" "+q)}}
   if(window.AI&&AI.on()&&AI.voiceOn()){
