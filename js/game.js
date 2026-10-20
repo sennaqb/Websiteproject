@@ -149,7 +149,10 @@ function start(newGame){
 }
 function startShift(){
   if(G.phase!=="prep")return;
-  G.minis=2;G.walks=2;G.evAt=null;G.offAsk=null;G.offAt=S.day>1&&G.sales.length>1&&Math.random()<.4?rnd(60,300):null;(G.miniBots||[]).forEach(b=>W.scene.remove(b.mesh));G.miniBots=[];
+  G.minis=2;G.walks=2;G.evAt=null;G.flirts=0;G.covered=false;G.coffeeT=0;G.coffee=false;
+  if(S.tiff&&S.tiff.aff>=8){G.coffee=true;G.coffeeT=60;setTimeout(()=>say3("☕ Tiffany left you a coffee. You walk faster for a minute, and your next T.O. starts with more patience.","#ffd6a0"),3000)}
+  if(S.tiff&&S.tiff.aff>=18&&G.recep){G.recep.mesh.userData.wave=2.5;setTimeout(()=>say3("💘 Tiffany waved at you first this morning.","#ff9ad0"),1500)}
+  G.offAsk=null;G.offAt=S.day>1&&G.sales.length>1&&Math.random()<.4?rnd(60,300):null;(G.miniBots||[]).forEach(b=>W.scene.remove(b.mesh));G.miniBots=[];
   TALK_LOG.length=0;G.ownerSeen=false;(G.drives||[]).forEach(d=>W.scene.remove(d.m));G.drives=[];G.wiggleAt=rnd(50,90);if(G.owner){W.scene.remove(G.owner.mesh);G.owner=null}
   if(!S.inv.length)restock();
   openDay();
@@ -482,7 +485,7 @@ function idleCrew(dt){
   G.sales.forEach(s=>stepNpc(s,dt,false));
 }
 function movePlayer(dt){
-  const k=G.keys;G.sprint=!!(k.ShiftLeft||k.ShiftRight);const spd=G.sprint?5.4:3.1;
+  const k=G.keys;G.sprint=!!(k.ShiftLeft||k.ShiftRight);const spd=(G.sprint?5.4:3.1)*(G.coffeeT>0?1.25:1);if(G.coffeeT>0)G.coffeeT-=dt;
   if(k.ArrowLeft)G.yaw+=1.9*dt;if(k.ArrowRight)G.yaw-=1.9*dt;
   let fx=0,fz=0;
   if(k.KeyW||k.ArrowUp){fx-=Math.sin(G.yaw);fz-=Math.cos(G.yaw)}
@@ -717,6 +720,47 @@ function answerDayOff(yes){
   else{m.sulk=S.day+2;crewSay(a.sp,pick(["Fine. FINE. I'll be here. Physically.","Cool. Cool cool cool. I'll just sell cars with my broken heart.","Okay. I'm telling my mom you said no."]));say3(`❌ You denied ${a.name}'s day off. Expect two days of sulking.`,"#f66")}
   save();
 }
+// ---------- secret: flirting with Tiffany ----------
+// Chat with her (E) on three different days and F unlocks at her desk. Pick one of three lines (3 a day); she rates it.
+// A hidden affection meter (0-20) unlocks perks: budget tips (4), morning coffee (8), she covers for you with Bob (13),
+// she waves at you first (18), and at 20 a vending-machine date after hours. Wholesaling and the gun cost you points.
+const TF=()=>S.tiff||(S.tiff={days:[],aff:0,unlocked:false,dated:false});
+const FL_LINES=[["Are you a 2004 Corolla? Because you're reliable and I'd never trade you in.",3],["I'd give you zero percent APR. For life.",3],
+  ["If you were a car, you'd be the one we never put on sale.",3],["You make this dump of a dealership look like a showroom.",3],["Is your name Carfax? Because I want to know your whole history.",3],
+  ["Do you have a warranty? Because I'm falling for you.",1],["Are you the check engine light? Because I can't stop thinking about you.",1],
+  ["Is this seat taken? Not the chair. Like, emotionally.",1],["Do you like test drives? Asking for a friend. The friend is me.",1],["You must be a trade-in, because I'd give you way more than you're worth. Wait.",1],
+  ["I've got a V8 under this tie.",-2],["You up? I mean, you're standing. Never mind.",-2],["My mom thinks you're nice. She's in the car right now.",-2],
+  ["Want to see my commission check? I laminated it.",-2],["I'm the manager, so technically I'm your boss. Is that... hot?",-3]];
+const FL_REPLY={good:["Smooth, Miguel. Did Frenchy write that for you?","Okay... that one was actually good. Don't let it go to your head.","Fine. You get one point. One.","Zero percent APR? You'd lose money on me."],
+  meh:["That's so cheesy it should come with crackers.","I'm going to pretend I didn't hear that. But I heard it.","Cute. In a sad, golden-retriever way."],
+  bad:["Miguel. No.","That's the worst line I've heard since Mario's meatball.","I'm HR. I'm writing this down. I'm also laughing at you.","Please never say that again. Not to me. Not to anyone."]};
+const FL_LEVELS=[[4,"💘 Tiffany likes you. She'll slip you customers' budgets when you chat (E)."],[8,"💘 Tiffany's sweet on you. She'll leave you a coffee every morning."],
+  [13,"💘 Tiffany's got your back. Next time Bob catches you slipping, she'll cover for you."],[18,"💘 Tiffany's head over heels. She waves at you first now."],[20,"💘 Tiffany's all in. Stick around after closing tonight."]];
+function tiffAff(d,quiet){const t=TF(),was=t.aff;t.aff=Math.max(0,Math.min(20,t.aff+d));
+  FL_LEVELS.forEach(([lv,msg])=>{if(was<lv&&t.aff>=lv){setTimeout(()=>say3(msg,"#ff9ad0"),2600);if(lv===20&&!t.dated)G.datePending=true}});
+  if(!quiet&&t.aff!==was)popup(t.aff>was?"💗":"💔",G.recep?G.recep.mesh.position:{x:G.px,z:G.pz},t.aff>was?"#ff7ab8":"#9aa")}
+function flirtOpen(){
+  const t=TF();if(!t.unlocked||!G.recep||G.lotWalk||G.talk)return;
+  if((G.flirts||0)>=3)return recepSay(pick(["Three's my limit, Miguel. Go sell a car.","You're cute, but you have customers.","Save some charm for the buyers."]),true);
+  const tiers=[FL_LINES.filter(l=>l[1]>=3),FL_LINES.filter(l=>l[1]>0&&l[1]<3),FL_LINES.filter(l=>l[1]<0)];
+  G.flirtOpts=tiers.map(pick).sort(()=>Math.random()-.5);
+  showPause(`<h2>💘 Say something to Tiffany</h2>${G.flirtOpts.map((l,i)=>`<button class=b style="display:block;width:100%;text-align:left;margin:8px 0" onclick="Game.flirt(${i})">${i+1}. ${esc(l[0])}</button>`).join("")}<button class=b onclick="Game.flirt(-1)">Never mind</button>`);
+}
+function flirt(i){
+  resume();const o=G.flirtOpts&&G.flirtOpts[i];G.flirtOpts=null;if(!o||!G.recep)return;
+  G.flirts=(G.flirts||0)+1;say3(`You: "${o[0]}"`,"#cfe3ff");
+  // the crew sees it and gets competitive
+  const sp=G.sales.find(s=>s.state==="idle"&&Math.hypot(s.mesh.position.x-G.px,s.mesh.position.z-G.pz)<14);
+  if(sp){setTimeout(()=>crewSay(sp,pick(["Hey! The boss is hitting on Tiffany!","Oh, so it's like THAT, Miguel?","I saw that. Everybody saw that.","Not cool, boss. I was gonna ask her to lunch."])),3600);G.sales.forEach(s=>{if(s.state==="idle")s.drift=Math.min(s.drift||99,rnd(4,12))})}
+  setTimeout(()=>{if(!G.recep)return;const u=G.recep.mesh.userData;
+    if(G.owner&&!G.owner.leaving){recepSay("Uh. Bob's right there.",true);setTimeout(()=>{say3("Bob saw that. He's not mad. He's just disappointed. And a little impressed.","#ffd24a");speakLine("Miguel. My office. Actually, I don't have an office. Your office.",77,.62,.9,false,"en","am_onyx")},2500);return}
+    const k=o[1]>=3?"good":o[1]>0?"meh":"bad";u.mood=k==="good"?"happy":k==="meh"?"neutral":"angry";u.moodScale=k==="good"?.8:.45;u.wave=k==="good"?1:0;
+    setTimeout(()=>{u.mood="neutral";u.moodScale=.45},4500);recepSay(pick(FL_REPLY[k]),true);tiffAff(o[1])},1500);
+}
+function tiffTip(){
+  if(TF().aff<4)return null;const c=pick(G.cust.filter(c=>c.mesh&&["browse","greet","working","stuck"].includes(c.state)));
+  return c?`Psst. ${c.u.name} told me their budget's about ${$f(Math.round(c.u.budget*.95/100)*100)}. You didn't hear it from me.`:null;
+}
 // ---------- the crew gets distracted by Tiffany ----------
 // An idle salesperson drifts over to the reception desk to flirt. While they're there they don't greet anyone,
 // so customers on the lot go unhelped. Walk over and press E to send them back. Some are worse than others.
@@ -763,7 +807,9 @@ function sendBack(s,byMiguel){
   else say3(`${RECEP_NAME} sent ${s.def.name} back to his desk. Somebody has to.`,"#ffb6e1");
 }
 function recepChat(){
-  const S0=S,list=[],stuck=G.cust.filter(c=>c.state==="stuck");
+  const S0=S,list=[],stuck=G.cust.filter(c=>c.state==="stuck"),tf=TF();
+  if(!tf.days.includes(S.day)){tf.days.push(S.day);if(!tf.unlocked&&tf.days.length>=3){tf.unlocked=true;setTimeout(()=>say3("💘 Tiffany smiled at you a little longer than usual. (Psst: press F at her desk.)","#ff9ad0"),5000)}}
+  const tip=G.phase==="open"&&Math.random()<.6&&tiffTip();if(tip&&G.recep.toldOutfit){G.recep.mesh.userData.wave=1;return recepSay(tip,true)}
   if(G.phase!=="open")list.push("Lot's not open yet. Buy some cars on the computer, then hit the switch by the door. I believe in you. Kind of.");
   if(stuck.length)list.push(`${stuck.length} ${stuck.length>1?"people are":"person is"} waiting on you, sweetie. ${stuck[0].u.name} is chewing on the pen chain.`);
   if(G.owner)list.push("Bob's here. He asked me if the coffee's free. It's his coffee. He paid for it. I didn't correct him.");
@@ -781,7 +827,7 @@ function nearest(){
   if(!G.talk&&G.lawyer&&G.lawyer.state==="wait"&&Math.hypot(G.px-G.lawyer.lw.mesh.position.x,G.pz-G.lawyer.lw.mesh.position.z)<2.6)return{label:`[E] Deal with ${G.lawyer.name}'s lawyer`,act:lawyerTalk};
   if(!G.talk){const f=G.sales.find(s=>s.state==="flirt"&&Math.hypot(G.px-s.mesh.position.x,G.pz-s.mesh.position.z)<2.2);
     if(f)return{label:`[E] Back to your desk, ${f.def.name}!`,act:()=>sendBack(f,true)}}
-  if(G.recep&&!G.talk){const p=G.recep.mesh.position;if(Math.hypot(G.px-p.x,G.pz-(p.z-.9))<1.8)return{label:`[E] Talk to ${RECEP_NAME}`,act:recepChat}}
+  if(G.recep&&!G.talk){const p=G.recep.mesh.position;if(Math.hypot(G.px-p.x,G.pz-(p.z-.9))<1.8)return{label:`[E] Talk to ${RECEP_NAME}`+(TF().unlocked?" · [F] Flirt":""),act:recepChat}}
   if(G.phase==="prep"){
     if(Math.hypot(G.px-W.pc.x,G.pz-W.pc.z)<1.7)return{label:"[E] Use the computer: prices, crew, upgrades, books",act:()=>{G.usedPC=true;PC.open()}};
     if(Math.hypot(G.px-W.sw.x,G.pz-W.sw.z)<1.7)return{label:S.inv.length?"[E] Open the lot":"[E] Open the lot (buy cars first)",act:startShift};
@@ -795,7 +841,7 @@ function nearest(){
 function takeover(c){
   const car=carOf(c);if(!car||G.talk)return;
   G.talk={c,prev:c.state,wasStuck:c.state==="stuck"};G.keys={};G.vx=G.vz=0;
-  const frac=c.state==="stuck"?Math.max(.4,c.pat/c.patMax):1;
+  let frac=c.state==="stuck"?Math.max(.4,c.pat/c.patMax):1;if(G.coffee){G.coffee=false;frac=Math.min(1,frac+.25)}
   c.state="talk";if(c.to){c.mesh.remove(c.to);c.to=null}removeBar(c);
   const sp=c.sp,u=c.u;
   let crew=null;
@@ -852,7 +898,7 @@ function recepRoast(){
       `Wholesale? Really? I could've sold that one, and I'm the receptionist.`,
       `Oh, we're wholesaling now? Cool, cool. I'll update my résumé.`];
   if(G.recep){G.recep.cool=0;G.recep.mesh.userData.mood="angry";setTimeout(()=>{if(G.recep)G.recep.mesh.userData.mood="neutral"},6000)}
-  tutSay(pick(L));if(G.recep)G.recep.mesh.userData.wave=0;   // no waving while she roasts you
+  tutSay(pick(L));if(G.recep)G.recep.mesh.userData.wave=0;tiffAff(-1,true);   // no waving while she roasts you
 }
 
 // ---------- Mini Miguel ----------
@@ -863,7 +909,7 @@ function sendMini(){
   const taken=new Set(G.miniBots.map(b=>b.c));
   const c=G.cust.filter(c=>c.state==="stuck"&&!taken.has(c)).sort((a,b)=>a.pat-b.pat)[0];
   if(!c)return say3("No T.O. for Mini Miguel right now.","#bbb");
-  G.minis--;
+  G.minis--;if(Math.random()<.25)setTimeout(()=>say3("Mini Miguel stopped at Tiffany's desk on the way. She let him down gently. Again.","#ff9ad0"),1800);
   const m=W.person({shirt:0xa9b8d8,pants:0x2b2f3a,skinColor:0xd6a483,hair:0x2a1c14,hairStyle:"short",tie:0x24345e,badge:true,face:W.miguelFaceTex(),bigHead:1.6,height:.55});
   m.position.set(-6.5,0,-22.7);W.scene.add(m);
   const p=c.mesh.position;
@@ -914,6 +960,7 @@ function stepBob(dt){
 function bobJudges(u){
   if(!G.owner||G.owner.leaving)return;
   if(u.gunned){S.cash+=500;say3("Bob saw the gun thing. He's... proud? He slipped you a $500 'bonus'.","#ffd24a");speakLine("That's my boy!",77,.62,.9,false,"en","am_onyx");return}
+  if(u.front<0&&S.tiff&&S.tiff.aff>=13&&!G.covered){G.covered=true;say3("Bob saw you sell under cost... and Tiffany told him the computer glitched. No strike. You owe her.","#ff9ad0");return}
   if(u.front<0){S.strikes++;say3(`Bob saw you sell under cost. That's a strike (${S.strikes} of 2).`,"#f66");speakLine("Under cost? In front of me? Strike, Miguel.",77,.62,.9,false,"en","am_onyx");Sfx.lose()}
 }
 // Mr. Wiggle the tube man breaks loose now and then and lands on a customer.
@@ -971,7 +1018,9 @@ function finish(){
   if(r.end)return endGame(r);
   const bits=[`Wages ${$f(r.wages)}`,`lot and overhead ${$f(r.fees-r.wages)}`];
   if(r.rent)bits.push(`rent ${$f(r.rent)}`);
-  showPause(`<h2>Next morning</h2><p>Expenses: ${bits.join(" · ")}.</p>${r.review?`<p><b>${esc(r.review)}</b></p>`:""}
+  let date="";if(G.datePending&&S.tiff&&!S.tiff.dated){G.datePending=false;S.tiff.dated=true;save();
+    date=`<div class=card style="text-align:left;margin:10px 0;border-color:#ff7ab8"><b>💘 After closing…</b><p>The lot's dark. Tiffany fed the vending machine four quarters and it gave you both a bag of Funyuns and a warm Fresca. You split them on the showroom sofa while Mr. Wiggle flailed outside like he was cheering you on.</p><p>"This is the worst date I've ever been on," she says. "Same time tomorrow?"</p><p class=dim>Frenchy saw the whole thing through the window. He's devastated.</p></div>`}
+  showPause(`<h2>Next morning</h2>${date}<p>Expenses: ${bits.join(" · ")}.</p>${r.review?`<p><b>${esc(r.review)}</b></p>`:""}
    <p>Bank <b>${$f(S.cash)}</b> of ${$f(GOAL)}</p><p class=dim>Today: ${esc(S.event.name)}. ${esc(S.event.desc)}</p>
    <button class=go onclick="Game.nextDay()">Start day ${S.day} ▸</button>`);
 }
@@ -1129,6 +1178,7 @@ addEventListener("keydown",e=>{
   if(e.code==="KeyC"&&!T){G.third=!G.third;return}
   if(e.code==="KeyQ"){sendMini();return}
   if(e.code==="KeyL"){sendTiffany();return}
+  if(e.code==="KeyF"&&G.recep&&TF().unlocked&&Math.hypot(G.px-G.recep.mesh.position.x,G.pz-(G.recep.mesh.position.z-.9))<1.8){flirtOpen();return}
   if((e.code==="KeyY"||e.code==="KeyN")&&G.offAsk){answerDayOff(e.code==="KeyY");return}
   if(e.code==="KeyK"&&G.tut){tutEnd();say3("Tutorial skipped. Tiffany's at her desk if you need her (E).","#9cf");return}
   if(e.code==="KeyE"){const n=nearest();if(n){Sfx.click();n.act()}}
@@ -1170,10 +1220,10 @@ function boot(){
   showTitle();loop();return true;
 }
 
-window.Game={boot,micTest,wholesaled,lawyer,start,resume,finish,nextDay,quit,toggleAI,saveKey,clearKey,toast,pcClosed,syncCars,state:G};
+window.Game={boot,micTest,wholesaled,lawyer,flirt,start,resume,finish,nextDay,quit,toggleAI,saveKey,clearKey,toast,pcClosed,syncCars,state:G};
 function cry(){G.shake=.4;if(G.talk&&G.talk.c.mesh)G.talk.c.mesh.userData.talkLeft=0}
 function gun(){
-  G.gunEnd=performance.now()+3200;G.shake=.25;Sfx.click();
+  G.gunEnd=performance.now()+3200;G.shake=.25;Sfx.click();if(S.tiff)tiffAff(-1,true);
   if(G.talk&&G.talk.c.mesh)G.talk.c.mesh.userData.handsUp=4;
 }
 window.G3={gun,cry,makeCustomerMesh,ev:{startDale,startLawyer,startRain,sendTiffany,daleLeave,lawyerTalk,lawyer,answerDayOff,motive,offToday},speaking:(s,mood)=>{if(G.talk&&G.talk.c.mesh){const u=G.talk.c.mesh.userData;u.talkLeft=s;if(mood)u.mood=mood}},fx,popup,on:()=>G.phase==="open"&&!G.ended,elapse,waiting,talkClosed,step,sim,draw,hud,takeover,endShift,startShift,state:G,world:()=>W,tier,syncCars,enterPrep};
