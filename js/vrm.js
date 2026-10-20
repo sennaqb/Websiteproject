@@ -129,6 +129,8 @@ function adult(vrm,g,o){
     if(/FaceEyeline|FaceEyelash/.test(n)){mt.color.set(0x2a1418);if(mt.shadeColorFactor)mt.shadeColorFactor.set(0x1a0a0e)}});
 }
 // Walk, sit, wave, talk: the same signals the blocky people use (see animatePerson in world.js).
+// Wave: upper arm out and a little forward, forearm up, wrist turned so the palm faces whoever she's waving at.
+const WAVE={ux:0,uy:0,uz:.35,lx:0,ly:0,lz:-1.5,hx:1.5,hy:0,hz:0,amp:.3};
 const MOODEXP={happy:["happy",.8],angry:["angry",.9],worried:["sad",.7],shocked:["surprised",.9],confused:["sad",.35],neutral:null};
 K.animate=function(g,moving,t,armsUp,talk){
   const u=g.userData,vrm=u.vrm;if(!vrm)return;
@@ -144,8 +146,8 @@ K.animate=function(g,moving,t,armsUp,talk){
   }
   // arms come down from the T-pose; swing when walking, gesture when talking, up when cheering
   const sw=moving?s*.6:Math.sin(t*1.5)*.03;
-  if(u.wave>0&&!moving){set("leftUpperArm",sw,0,-1.25);set("leftLowerArm",0,-.15,0);
-    set("rightUpperArm",0,0,-.35);set("rightLowerArm",0,0,-1.1+Math.sin(t*9)*.35)}
+  if(u.wave>0&&!moving){const w=u.wavePose||WAVE,f=Math.sin(t*8)*w.amp;set("leftUpperArm",sw,0,-1.25);set("leftLowerArm",0,-.15,0);
+    set("rightUpperArm",w.ux,w.uy,w.uz);set("rightLowerArm",w.lx,w.ly,w.lz+f);set("rightHand",w.hx,w.hy,w.hz+f*.4)}
   else if(armsUp){set("leftUpperArm",0,0,1.1+Math.sin(t*10)*.2);set("rightUpperArm",0,0,-1.1-Math.sin(t*10+1)*.2);set("leftLowerArm",0,0,.3);set("rightLowerArm",0,0,-.3)}
   else if(talk&&!moving){set("leftUpperArm",.25+Math.sin(t*3)*.15,0,-1.1);set("rightUpperArm",.35+Math.sin(t*3.7+1)*.2,0,1.1);set("leftLowerArm",0,-1.1+Math.sin(t*3)*.2,0);set("rightLowerArm",0,1.2+Math.sin(t*3.4)*.2,0)}
   else{set("leftUpperArm",sw,0,-1.25);set("rightUpperArm",-sw,0,1.25);set("leftLowerArm",0,-.15,0);set("rightLowerArm",0,.15,0)}
