@@ -544,6 +544,13 @@ const FLIRT={Frenchy:[["Tiffany, mon chéri. Your eyes are like two headlights o
   Riccardo:[["Tiffany. You want to see my commission check? I laminated it.","It's for forty-one dollars, Riccardo."],["My cousin says I look like a young Al Pacino.","Your cousin needs glasses."]],
   Mario:[["You know, my mom says I'm a catch.","Your mom calls here every day, Mario. She says you left the stove on."],["I brought you a meatball. Just one. It's a big one.","...Thank you, Mario. I think."]],
   Juanny:[["Tiffany, eres más bonita que un Camry con cero millas.","Gracias? I think? Is that a car thing?"],["¿Quieres ir a comer tacos después del trabajo?","I don't know what you said but I heard tacos, and yes."]]};
+// Laundry days (she's in the bikini): the crew turns it up. Three tries each, and they hang around longer.
+const FLIRT_BIKINI={Frenchy:[["Tiffany. Ze laundry gods have smiled on me today.","They're about to frown on you, Frenchy."],["In France, zis is called 'business casual'.","In America it's called 'my washer broke'."],["Shall I hold ze sunscreen? For safety?","There's no sun. We're indoors. Go sell a car."]],
+  Sam:[["So, uh, I washed my car today too. We have that in common.","We have nothing in common, Sam."],["Nice, uh... weather. In here. Today.","It's raining, Sam."],["I could give you a ride to the laundromat. In a car I haven't sold.","I'll take the bus."]],
+  Andres:[["From down here, you look like a giant golden goddess.","From up here, you look like you have a customer waiting."],["I'm on the lifeguard list at my apartment pool.","The pool's been drained since 2019, Andres."],["Want me to stand guard? I'm small, but I'm loud.","You're both. Go."]],
+  Riccardo:[["Tiffany. I'm not saying it's fate that your laundry broke. But it's fate.","It's a broken washer, Riccardo."],["You know, I own a boat. Well. A raft. It's a pool float.","Is it a flamingo?","It's a flamingo."],["I'd buy a car from you right now. Full sticker.","You work here, Riccardo."]],
+  Mario:[["Mamma mia. I'm calling my mother to tell her about this.","Please do not call your mother about this."],["I brought you a towel. And a meatball. Beach essentials.","...Leave the towel. Take the meatball."],["You know I'm single, right?","Everyone knows, Mario. Your mom put it on the sign."]],
+  Juanny:[["¡Ay, Tiffany! ¡Hoy es día de playa!","I don't know what that means but no."],["¿Necesitas una toalla? ¿Un café? ¿Un esposo?","I caught 'café'. Yes. Black."],["Mi corazón está en la lavandería también.","Okay, sweetie. Go back to your desk."]]};
 const BACK={Frenchy:"I was only asking about ze... stapler.",Sam:"I was just checking the sign-in sheet, boss.",Andres:"She asked me to reach something. Okay, she didn't.",Riccardo:"Networking, boss. It's called networking.",Mario:"I'm going, I'm going.",Juanny:"Sí, jefe, sí, sí."};
 const driftTime=s=>rnd(35,70)*(FLIRT_RATE[s.def.name]||1)*(recepLook().event?.5:1);   // Beach Day: twice as bad
 function crewSay(s,text){const n=s.def.name,v=CREW_VOICES[n]||[1,1];say3(`${n}: ${text}`,"#cde");
@@ -560,11 +567,12 @@ function stepFlirt(s,dt,arrived){
   if(s.state!=="flirt")return;
   s.flirt+=dt;if(!arrived)return;
   s.mesh.rotation.y=Math.atan2(G.recep.mesh.position.x-s.mesh.position.x,G.recep.mesh.position.z-s.mesh.position.z);
-  const d=Math.hypot(G.px-s.mesh.position.x,G.pz-s.mesh.position.z),lines=FLIRT[s.def.name]||[["So... you come here often?","I work here."]];
-  if(s.said<2&&s.flirt>(s.said?14:2)&&!G.talk&&d<14){const L=lines[s.said%lines.length];s.said++;
-    if(s.said===1)popup("😍",s.mesh.position,"#ff7ab8");crewSay(s,L[0]);G.recep.cool=0;G.recep.mesh.userData.mood="neutral";recepSay(L[1],true);
+  const d=Math.hypot(G.px-s.mesh.position.x,G.pz-s.mesh.position.z),bik=laundryDay(S.day),lines=(bik&&FLIRT_BIKINI[s.def.name])||FLIRT[s.def.name]||[["So... you come here often?","I work here."]];
+  if(s.said<(bik?3:2)&&s.flirt>(s.said?(bik?11:14):2)&&!G.talk&&d<14){const L=lines[s.said%lines.length];s.said++;
+    if(s.said===1||bik)popup(bik?"😍🔥":"😍",s.mesh.position,"#ff7ab8");crewSay(s,L[0]);G.recep.cool=0;G.recep.mesh.userData.mood="neutral";recepSay(L[1],true);
+    if(L[2])setTimeout(()=>{if(s.state==="flirt")crewSay(s,L[2])},4500);   // some bits get a last word
     setTimeout(()=>{if(G.recep)G.recep.mesh.userData.mood="happy"},4000)}
-  if(s.flirt>75){sendBack(s,false)}   // she finally shoos them off herself
+  if(s.flirt>(bik?100:75)){sendBack(s,false)}   // she finally shoos them off herself
 }
 function sendBack(s,byMiguel){
   s.state="back";s.speed=2.1;s.path=routeSalesHome(s.mesh.position.x,s.mesh.position.z,s.home);s.drift=driftTime(s)*(byMiguel?1.3:.8);s.spot=null;
