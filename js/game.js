@@ -125,7 +125,9 @@ function spawnCrew(){
 function clearCustomers(){G.cust.forEach(c=>{if(c.mesh)W.scene.remove(c.mesh)});G.cust=[]}
 function setPlayerStart(){G.px=0;G.pz=-17;G.yaw=Math.PI;G.pitch=0}
 function enterPrep(){
-  clearCustomers();spawnCrew();syncCars();G.phase="prep";G.t=0;G.ended=false;G.talk=null;
+  clearCustomers();spawnCrew();syncCars();
+  for(const id in G.cars){const o=G.cars[id],q=W.slotPos(o.slot);o.mesh.position.set(q.x,0,q.z);o.mesh.rotation.y=q.rot;o.mesh.visible=true}   // test-drive cars back in their spots
+  G.phase="prep";G.t=0;G.ended=false;G.talk=null;
   W.setTime(0);G.lastSky=0;W.setOpen(false);setPlayerStart();G.feed=[];
   S.phase="prep";boardUpdate(true);G.cashShown=S.cash;
   titleCard("DAY "+S.day,S.event.name);
@@ -310,8 +312,68 @@ function stepDrives(dt){
     if(dist>.05){let a=Math.atan2(dx,dz)-m.rotation.y;a=Math.atan2(Math.sin(a),Math.cos(a));m.rotation.y+=a*Math.min(1,dt*6)}
   }
 }
+// ---------- test drives ----------
+// Midway through a desk deal the salesperson may take the customer for a lap of the lot in their car.
+// One thing happens on the way (smooth ride, bumper falls off, donuts, Mr. Wiggle, a joyride out the gate),
+// and it nudges how likely the deal is to close. Then they park and go back to the desk.
+const TD_EVENTS=[["smooth",3],["bumper",2],["donuts",2],["wiggle",2],["joyride",2]];
+function startTestDrive(c){
+  const o=G.cars[c.u.car],sp=c.sp;if(!o||!sp||G.drives.some(d=>d.m===o.mesh))return false;
+  c.mesh.userData.sit=false;sp.mesh.userData.sit=false;sp.armsUp=false;
+  const p=c.mesh.position;c.state="td_walk";c.speed=1.6;c.path=routeToCar(p.x,p.z,o.slot,-1);
+  sp.state="td";sp.speed=1.9;const q=sp.mesh.position;
+  sp.path=(q.z<-20.4?[P(sp.home.x+1.25,-21.15),P(sp.home.x+1.25,-18.2)]:[]).concat(routeToCar(sp.home.x+1.25,-18.2,o.slot,1));
+  if(Math.random()<.5)crewSay(sp,pick(["Let's take her for a spin.","Wanna feel it? Let's go for a drive.","Keys! Let's go, let's go.","Test drive. Buckle up. Seriously, buckle up."]));
+  return true;
+}
+function beginDrive(c){
+  const o=G.cars[c.u.car];if(!o){c.tdDone=true;c.state="todesk";c.path=routeToDesk(c);c.sp.state="todesk";c.sp.path=routeSalesToDesk(c.sp);return}
+  const m=o.mesh,p=m.position,L=laneZ(p.z),side=p.x>=0?1:-1,X=22*side;
+  let ev=TD_EVENTS.reduce((a,e)=>a.concat(Array(e[1]).fill(e[0])),[]);ev=pick(ev);
+  // a lap: out to the lane, down to the fence, along the front by the gate, back around
+  const pts=[P(p.x,L),P(X,L),P(X,23),P(-X,23),P(-X,L),P(p.x,L),P(p.x,p.z)];
+  if(ev==="joyride")pts.splice(3,0,P(0,23),P(0,GATE_OUT+14),P(0,23));
+  c.td={m,pts,speed:0,ev,leg:0,home:{x:p.x,z:p.z,rot:m.rotation.y},spin:0,fired:false};
+  c.mesh.visible=false;c.sp.mesh.visible=false;c.state="td_drive";Sfx.click();
+  say3(`🚗 ${c.sp.def.name} took ${c.u.name} on a test drive.`,"#9cf");
+}
+function tdEvent(c){
+  const d=c.td,u=c.u,n=c.sp.def.name,m=d.m,near=Math.hypot(G.px-m.position.x,G.pz-m.position.z)<16;d.fired=true;
+  if(d.ev==="smooth"){c.tdBonus=.15;popup("😍",m.position,"#8dffa8");say3(`${u.name} loves how it drives. ${n} is already picking out a pen for the paperwork.`,"#8dffa8")}
+  if(d.ev==="bumper"){c.tdBonus=-.12;if(W.dropBumper(m))popup("💥",m.position,"#ff8a8a");say3(`The bumper fell off mid test drive. ${n}: "That's a feature. It's... modular."`,"#fd8");if(near)G.shake=.2}
+  if(d.ev==="donuts"){c.tdBonus=.1;d.spin=1.6;popup("🌀",m.position,"#ffe08a");say3(`${u.name} is doing donuts in the lot. ${n} is screaming. ${u.name} is having the time of their life.`,"#ffe08a")}
+  if(d.ev==="wiggle"){c.tdBonus=.05;W.launchTube(m.position.x+rnd(-6,6),m.position.z-rnd(4,8),()=>{});popup("🎈",m.position,"#ffe08a");say3(`${u.name} clipped Mr. Wiggle. He's airborne. Again.`,"#fd8");if(near)G.shake=.25}
+  if(d.ev==="joyride"){c.tdBonus=Math.random()<.5?.12:-.15;popup("💨",m.position,"#ff8a8a");say3(`${u.name} floored it out the gate with ${n} in the passenger seat. They'll be back. Probably.`,"#fd8")}
+}
+function stepTestDrive(c,dt){
+  const d=c.td;if(!d)return;const m=d.m;
+  if(!G.cars[c.u.car]||G.drives.some(x=>x.m===m)){   // someone else bought this car mid-drive: hop out where they are
+    c.td=null;c.tdDone=true;c.mesh.visible=c.sp.mesh.visible=true;c.mesh.position.x+=1;c.sp.mesh.position.x-=1;
+    say3(`${c.u.name}'s test drive car just got sold out from under them. ${c.sp.def.name}: "Happens."`,"#fd8");
+    c.state="todesk";c.speed=1.5;c.path=routeToDesk(c);c.sp.state="todesk";c.sp.speed=1.8;c.sp.path=routeSalesToDesk(c.sp);return}
+  if(d.spin>0){d.spin-=dt;m.rotation.y+=dt*9;c.mesh.position.copy(m.position);c.sp.mesh.position.copy(m.position);return}
+  if(d.wait>0){d.wait-=dt;if(d.wait<=0){m.visible=true;say3(`${c.u.name} and ${c.sp.def.name} are back. ${c.tdBonus>0?"Both grinning.":"Neither will talk about it."}`,"#9cf")}return}
+  const p=d.pts[0];
+  if(!p){   // parked: back where it was, and back inside to talk numbers
+    m.position.set(d.home.x,0,d.home.z);m.rotation.y=d.home.rot;c.td=null;c.tdDone=true;
+    const sp=c.sp,st=W.slotPos(G.cars[c.u.car]?G.cars[c.u.car].slot:0);
+    c.mesh.position.set(d.home.x-1,0,st.stand);sp.mesh.position.set(d.home.x+1,0,st.stand);c.mesh.visible=sp.mesh.visible=true;
+    c.mesh.userData.mood=c.tdBonus>0?"happy":"worried";
+    c.state="todesk";c.speed=1.5;c.path=routeToDesk(c);sp.state="todesk";sp.speed=1.8;sp.path=routeSalesToDesk(sp);return}
+  const fast=d.ev==="joyride"&&d.leg>=3&&d.leg<=4;
+  d.speed=Math.min(fast?12:6.5,d.speed+dt*(fast?6:3));
+  if(d.pts.length<=1)d.speed=Math.min(d.speed,2.5);   // ease into the parking spot
+  const dx=p.x-m.position.x,dz=p.z-m.position.z,dist=Math.hypot(dx,dz),st=d.speed*dt;
+  if(dist<=st){m.position.x=p.x;m.position.z=p.z;d.pts.shift();d.leg++;
+    if(!d.fired&&d.leg===(d.ev==="joyride"?4:3))tdEvent(c);
+    if(d.ev==="joyride"&&d.leg===4){m.visible=false;d.wait=rnd(6,9)}}
+  else{m.position.x+=dx/dist*st;m.position.z+=dz/dist*st}
+  if(dist>.05&&d.pts.length>1){let a=Math.atan2(dx,dz)-m.rotation.y;a=Math.atan2(Math.sin(a),Math.cos(a));m.rotation.y+=a*Math.min(1,dt*6)}
+  if(!d.fired&&d.ev==="wiggle"&&Math.hypot(m.position.x-23,m.position.z-23)<6)tdEvent(c);
+  c.mesh.position.copy(m.position);c.sp.mesh.position.copy(m.position);   // they're in the car
+}
 function resolveWork(c){
-  const sp=c.sp,u=c.u,d=sp.def,t=tier(c),car=carOf(c),r=Math.random();
+  const sp=c.sp,u=c.u,d=sp.def,t=tier(c),car=carOf(c),r=Math.random()-(c.tdBonus||0);   // a good test drive helps, a disaster hurts
   if(d.quirk==="spanish"){stall(c);return}   // Juanny: nobody understands a word, so it always comes to Miguel
   if(t==="easy"){
     if(r<.85){spSale(c,Math.min(Math.round(u.reserve/50)*50,Math.round(car.price*rnd(.94,1)/50)*50),"easy");return}
@@ -356,9 +418,14 @@ function sim(dt){
       case"todesk":
         if(arrived&&!c.sp.path.length){
           c.mesh.userData.sit=true;c.mesh.rotation.y=Math.PI;c.sp.mesh.userData.sit=true;c.sp.mesh.rotation.y=0;
-          c.state="working";c.sp.state="work";c.work=rnd(10,16);
+          c.state="working";c.sp.state="work";c.work=c.tdDone?rnd(5,8):rnd(10,16);c.work0=c.work;
         }break;
-      case"working":c.work-=dt;if(c.work<=0)resolveWork(c);break;
+      case"working":c.work-=dt;
+        if(!c.tdDone&&!c.tdNo&&c.work<c.work0*.55){if(Math.random()<.45&&startTestDrive(c))break;c.tdNo=true}
+        if(c.work<=0)resolveWork(c);break;
+      case"td_walk":
+        if(arrived&&c.sp&&!c.sp.path.length)beginDrive(c);break;
+      case"td_drive":stepTestDrive(c,dt);break;
       case"delivery":
         if(arrived){driveOff(c);c.state="gone";W.scene.remove(c.mesh);
           const sp=c.sp;if(sp){sp.state="back";sp.cust=null;c.sp=null;const q=sp.mesh.position;sp.path=routeSalesHome(q.x,q.z,sp.home)}}
