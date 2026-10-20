@@ -9,7 +9,10 @@ const files={},live=new Set();
 const K={ready:true,models:[]};
 
 // Fetch a model file once; every character made from it is parsed from the cached bytes.
-function bytes(url){return files[url]||(files[url]=fetch(url).then(r=>{if(!r.ok)throw new Error(url+" "+r.status);return r.arrayBuffer()}))}
+function bytes(url){return files[url]||(files[url]=/\.b64\.txt$/.test(url)?packed(url):fetch(url).then(r=>{if(!r.ok)throw new Error(url+" "+r.status);return r.arrayBuffer()}))}
+// A .vrm packed as gzipped base64 text (the artifact host only serves web file types): fetch, decode, gunzip.
+async function packed(url){const r=await fetch(url);if(!r.ok)throw new Error(url+" "+r.status);const s=atob((await r.text()).trim()),n=s.length,a=new Uint8Array(n);for(let i=0;i<n;i++)a[i]=s.charCodeAt(i);
+  return new Response(new Blob([a]).stream().pipeThrough(new DecompressionStream("gzip"))).arrayBuffer()}
 // url may be a list: the first file that loads wins (your own export first, the sample as a fallback).
 async function make(url){
   if(Array.isArray(url)){let err;for(const x of url){try{const v=await make(x);v.src=x;return v}catch(e){err=e}}throw err}
@@ -18,7 +21,9 @@ async function make(url){
   const vrm=gltf.userData.vrm;
   VRMUtils.removeUnnecessaryVertices(gltf.scene);VRMUtils.combineSkeletons?VRMUtils.combineSkeletons(gltf.scene):0;
   VRMUtils.rotateVRM0(vrm);   // old VRM 0.x files face the other way
-  vrm.scene.traverse(o=>{if(o.isMesh){o.castShadow=true;o.frustumCulled=false}});
+  vrm.scene.traverse(o=>{if(o.isMesh){o.castShadow=true;o.frustumCulled=false;
+    // white cloth blows out under the showroom lights; take clothes down a notch so folds and seams show
+    const mt=Array.isArray(o.material)?o.material[0]:o.material;if(mt&&/CLOTH/.test(mt.name||"")&&mt.color)mt.color.multiplyScalar(.82)}});
   return vrm;
 }
 const N=(vrm,b)=>vrm.humanoid.getNormalizedBoneNode(b);

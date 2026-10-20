@@ -461,7 +461,7 @@ function pairNear(){
 // ---------- Tiffany, the receptionist (a VRoid model) ----------
 // Drop your own VRoid Studio export at models/receptionist.vrm; until then she's the three-vrm sample girl.
 // Outfit changes: export extra outfits as models/receptionist-day1.vrm, -day2, -day3; she rotates through them daily.
-const RECEP_NAME="Tiffany",RECEP_MODELS=["models/receptionist.vrm","https://cdn.jsdelivr.net/gh/pixiv/three-vrm@dev/packages/three-vrm/examples/models/VRM1_Constraint_Twist_Sample.vrm"];
+const RECEP_NAME="Tiffany",RECEP_MODELS=["models/receptionist.vrm","models/receptionist.b64.txt","https://cdn.jsdelivr.net/gh/pixiv/three-vrm@dev/packages/three-vrm/examples/models/VRM1_Constraint_Twist_Sample.vrm"];
 const RECEP_HI=["Welcome to Bargain Bob's! Someone will be right with you. Probably.","Hiii! Help yourself to a mint. Nobody else has, since 2009.","Welcome in! Please don't touch the Kia, it's load-bearing.","Hi! The coffee's free. The bathroom is a hundred dollars.",
   "Welcome to Bargain Bob's, where every car has a story, and most of them are crimes.","Oh my gosh, a customer! Okay, act natural, everybody.","Hi there! Sign in here. Pen's on a chain. We've lost eleven pens.","Welcome! If you hear crying, that's just the manager. Totally normal."];
 const RECEP_JOKES=["Bob asked me to answer the phone 'Bargain Bob's, how can I lower your expectations?' So I do.","A guy called asking if we take trades. I said we take anything. He's bringing a boat. And a goat.",

@@ -84,3 +84,4 @@ First-person 3D used-car dealership game ("Bargain Bob's Auto Mart"). You play M
 - Day-one tutorial (game.js TUT / stepTut): Tiffany talks you through walking, the computer, opening, the first T.O., Mini Miguel and the gun; goal shows in the tip line; K skips; runs once per browser (localStorage bobsTut).
 - Tiffany reads as a grown woman: vrm.js `adult()` (head .86, neck 1.25, legs 1.1, overall 1.07, feet re-grounded, relaxed eyes, lipstick, darker liner). Default face neutral; soft smile only while waving. Pencil skirts (flare<.15) sit over the blouse.
 - Tiffany is now the user's own VRoid Studio model (models/receptionist.vrm, source in models/source/). Generated outfits/adult tweaks only apply to the sample fallback.
+- New Tiffany (white blouse, pencil mini, glasses) replaces the suit model. Artifact copy loads models/receptionist.b64.txt (gzipped base64, decoded in vrm.js) since the artifact can't serve .vrm; clothes dimmed x.82 so white doesn't blow out.
