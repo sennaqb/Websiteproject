@@ -76,6 +76,9 @@ function swim(vrm,o){
   vrm.scene.traverse(m=>{if(!m.isMesh||!m.material)return;const mt=Array.isArray(m.material)?m.material[0]:m.material,n=mt.name||"";
     if(hide.test(n))m.visible=false;if(/Body_00_SKIN/.test(n))body=mt});
   const img=body&&body.map&&body.map.image;if(!img)return;
+  // a ready-made skin with the swimsuit on it (from a VRoid "inner top" item): just swap the body texture
+  if(o.texture){new THREE.TextureLoader().load(o.texture,t=>{t.colorSpace=body.map.colorSpace;t.flipY=body.map.flipY;t.wrapS=body.map.wrapS;t.wrapT=body.map.wrapT;
+    if(body.shadeMultiplyTexture===body.map)body.shadeMultiplyTexture=t;body.map=t;body.needsUpdate=true});return}
   const W=img.width,H=img.height,cv=document.createElement("canvas");cv.width=W;cv.height=H;const g=cv.getContext("2d");g.drawImage(img,0,0);
   const d=g.getImageData(0,0,W,H),px=d.data,mask=new Uint8Array(W*H);
   for(let i=0;i<W*H;i++){const r=px[i*4],gg=px[i*4+1],b=px[i*4+2];if(px[i*4+3]>10&&r+gg+b<150)mask[i]=1}

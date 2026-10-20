@@ -10,3 +10,5 @@ Bust "Sway" (spring bones) for physics. If the export has no bust spring bones t
 Current: receptionist.vrm is Tiffany as made in VRoid Studio (source project in source/Dealership_Receptionist.vroid). Open the .vroid in VRoid Studio to edit her, then re-export.
 
 Outfit rotation: receptionist.vrm on odd days, receptionist-beach.vrm (Beach Day) on even days. Add more looks to RECEP_LOOKS in js/game.js.
+
+Beach Day skin: tiffany-beach-skin.png = her body texture with the 'Golden Summer' bikini (Booth item 4778162 by The Cadenza Store) composited on and the painted underwear removed.

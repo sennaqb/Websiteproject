@@ -463,7 +463,7 @@ function pairNear(){
 // Outfit rotation: each look is its own VRoid export in models/ (.vrm, or .b64.txt for the artifact copy).
 // Days cycle through RECEP_LOOKS; a look whose file isn't there yet falls back to the main model.
 const RECEP_LOOKS=[{file:"receptionist"},
-  {file:"receptionist-beach",event:"Beach Day",swim:{color:0xe8364f},lines:["Bob declared it Beach Day. The AC's been broken since June, so honestly? Fair.","It's Beach Day! Bob says it 'moves convertibles'. We don't have any convertibles.","Beach Day. Frenchy brought a tiny umbrella for his drink. He doesn't have a drink."]}];
+  {file:"receptionist-beach",event:"Beach Day",swim:{texture:"models/tiffany-beach-skin.png"},lines:["Bob declared it Beach Day. The AC's been broken since June, so honestly? Fair.","It's Beach Day! Bob says it 'moves convertibles'. We don't have any convertibles.","Beach Day. Frenchy brought a tiny umbrella for his drink. He doesn't have a drink.","Gold stripes. Bob says I look like a bumblebee. Bob is wearing socks with sandals."]}];
 const recepLook=()=>RECEP_LOOKS[((S?S.day:1)-1)%RECEP_LOOKS.length];
 const lookFiles=l=>[`models/${l.file}.vrm`,`models/${l.file}.b64.txt`];
 const RECEP_NAME="Tiffany",RECEP_MODELS=["models/receptionist.vrm","models/receptionist.b64.txt","https://cdn.jsdelivr.net/gh/pixiv/three-vrm@dev/packages/three-vrm/examples/models/VRM1_Constraint_Twist_Sample.vrm"];
