@@ -967,7 +967,8 @@ function create(canvas){
     for(let i=falling.length-1;i>=0;i--){const f=falling[i];f.v+=dt*9;f.m.position.y=Math.max(.07,f.m.position.y-f.v*dt);f.m.rotation.x=Math.min(.6,f.m.rotation.x+dt*3);f.m.position.z+=dt*.25;if(f.m.position.y<=.07)falling.splice(i,1)}
     clouds.rotation.y+=dt*.004;
     if(rain.visible){rain.position.set(cam.position.x,0,cam.position.z);
-      const indoors=cam.position.z<-13.9&&Math.abs(cam.position.x)<10.2;rain.material.opacity=indoors?0:.55*(W.rainAmt||0);   // dry under the showroom roofconst a=rainGeo.attributes.position.array;
+      const indoors=cam.position.z<-13.9&&Math.abs(cam.position.x)<10.2;rain.material.opacity=indoors?0:.55*(W.rainAmt||0);   // dry under the showroom roof
+      const a=rainGeo.attributes.position.array;
       for(let i=0;i<RN;i++){let y=a[i*6+1]-dt*19;if(y<0)y+=16;a[i*6+1]=y;a[i*6+4]=y-.55}rainGeo.attributes.position.needsUpdate=true}
     W.flick.forEach((m,i)=>{const v=Math.random()<.035?.25:1;m.material.color.setScalar(v)});
     W.tube.forEach((s,i)=>{s.rotation.z=Math.sin(t*3.4+i*.7)*.3+Math.sin(t*7.1+i)*.06;s.rotation.x=Math.cos(t*2.6+i)*.22});
