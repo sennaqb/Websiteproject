@@ -22,6 +22,7 @@ First-person 3D used-car dealership game ("Bargain Bob's Auto Mart"). You play M
 - Lot flow: customers appear inside the gate (`GATE_IN`), at most crew+1 on the lot; salesperson greets at the car, both walk to the desk and sit (`guestSeat`, `routeSalesToDesk`, `u.sit` pose in animatePerson), T.O.s happen at the desk; after any sale both walk to the car and it drives off (`claimCar`, `startDelivery`, `driveOff`, `G.drives`).
 - People don't overlap: `separate()` with keep-right aisle lanes (IN/OUT x=∓.55), sideways slide, pairs (customer+own salesperson) exempt; `stepNpc` skips a waypoint blocked for 3 s; player bumps into people.
 - Lot: three rows of ten (`ROWS`, `colX` in world.js, wider center aisle), starting cap 12 (+3 per upgrade, max 30). Shift is 480 s with 12–18 customers.
+- Customer dialogue lives in `js/lines.js`: `line(u,kind,vars)` with general (`ANY`) and per-personality (`BY`) banks for intro, far, close, counter, refuse, agree, walk, rapport, numbers, unclear, greet, thanks, release, add-ons; no repeats within a conversation (`T.said`). Mid-deal caller depends on personality (`CALLERS`).
 - Mic: errors explained (`MIC_ERR`), Test mic button on the title screen.
 - Signs auto-fit their text (`fitFont`); the banner is a real vinyl banner texture.
 - Miguel's photo (`js/miguel.js`, data URI): 12 employee-of-the-month posters, plus office, windows, fence and dumpster. Customers recognize him.
@@ -53,6 +54,7 @@ First-person 3D used-car dealership game ("Bargain Bob's Auto Mart"). You play M
 - `index.html`: shell, CSS, script order.
 - `js/data.js`: cars, customers, crew, economy, quota, saves.
 - `js/whisper.js`: in-page Whisper speech-to-text (Brave/Firefox fallback).
+- `js/lines.js`: what customers say (personality line banks).
 - `js/talk.js`: negotiation engine, subtitles, push-to-talk, TTS.
 - `js/ai.js`: Claude layer (sample or API key), prompts and validation.
 - `js/world.js`: 3D world, cars, people, posters, post-processing.

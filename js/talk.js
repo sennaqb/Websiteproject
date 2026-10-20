@@ -32,7 +32,7 @@ function openTalk(uid,opts={}){
      hands:!!SR&&!opts.noMic&&!opts.inWorld,listening:false,over:false,counter:0,lastAsk:0,agreed:0,addons:[],asked:{},declines:0,err:"",summary:"",
      stated:!!opts.intro,buf:[],busy:false,financed:false,interim:"",mute:false,sold:null,lastSaid:"",inWorld:!!opts.inWorld,typing:false,ptt:false,pttBuf:"",
      cried:false,wife:false,wifeDone:false,forceMood:null,crew:opts.crew?Object.assign({until:performance.now()+8000},opts.crew):null,queueNext:!!opts.crew};
-  T.buf.push(opts.intro?`${opts.intro} ${ty.intro}`:`Hi, I'm ${u.name}. ${ty.intro} I'm looking at that ${label(c)}. What's your price?`);
+  T.buf.push(opts.intro?`${opts.intro} ${ty.intro} ${line(u,"intro")}`:`Hi, I'm ${u.name}. ${line(u,"intro")} ${ty.intro} I'm looking at that ${label(c)}. What's your price?`);
   flush();
 }
 // Every conversation Miguel had today, for the end-of-day reviews.
@@ -58,7 +58,9 @@ function flush(){
   const text=T.buf.join(" ").trim();T.buf=[];
   if(!text){renderTalk();return}
   const uid=T.uid;
-  if(!(window.AI&&AI.on())&&!T.over&&Math.random()<.3){const q=pick(persona(S.cust.find(x=>x.id==uid)).quips);if(!text.includes(q))return show(text+" "+q)}
+  if(!(window.AI&&AI.on())&&!T.over&&Math.random()<.3){
+    const said=T.said||(T.said=new Set()),fresh=persona(S.cust.find(x=>x.id==uid)).quips.filter(q=>!said.has(q));
+    if(fresh.length){const q=pick(fresh);said.add(q);return show(text+" "+q)}}
   if(window.AI&&AI.on()&&AI.voiceOn()){
     T.busy=true;renderTalk();
     const u=S.cust.find(x=>x.id==uid);
@@ -183,7 +185,7 @@ function rulesParse(s){
     if(/\b(done|that's all|that is all|finalize|sign|paperwork|close|deal|sold|shake|agreed|ok|okay|yes|sure|fine)\b/.test(t))return{type:"finalize"};
     return{type:"unclear"};
   }
-  if(/looking for|tell me about|what do you need|what brings|family|commute|kids|nice to meet|welcome|congrat|how are you|how's it going/.test(t))return{type:"rapport"};
+  if(/looking for|tell me about|what do you need|what brings|family|commute|kids|nice to meet|welcome|congrat|how are you|how's it going|how you doing|how's your|your day|weather|sunny|hot today|cold today|what do you do|for work|your job|where are you from|where you from|love your|like your|nice (shirt|hat|shoes|jacket|glasses)|you look|weekend|hobby|sports|game last night|your team|pets?|dog|cat|wife|husband|girlfriend|boyfriend|thank you for coming|appreciate you|good to see/.test(t))return{type:"rapport"};
   if(/low mile|few miles|low-mile/.test(t))return{type:"pitch_miles"};
   if(/(great|excellent|good|clean) (shape|condition)|reconditioned|serviced|inspected|new tires|detailed|spotless/.test(t))return{type:"pitch_cond"};
   if(/another buyer|someone else|other customer|last one|going fast|popular|in demand|other offers/.test(t))return{type:"urgency"};
@@ -207,21 +209,21 @@ function runIntent(u,I){
   if(T.agreed){
     if(I.type==="offer")return say(`We agreed on ${$f(T.agreed)}. Let's do the paperwork.`);
     if(I.type==="accept")return finalize(u);
-    return say("So are we all set? Anything else, or shall we sign?");
+    return say(pick(["So are we all set? Anything else, or shall we sign?","Are we signing or what? My parking meter's running.","Is there more? Please say no."]));
   }
   switch(I.type){
     case"rapport":
-      if(T.rapport<3&&bump(u,.015*f,"r"+T.rapport)){T.rapport++;return say(RAPPORT[u.type][T.rapport%2])}
-      return say("Thanks, but let's talk numbers.");
+      if(T.rapport<3&&bump(u,.015*f,"r"+T.rapport)){T.rapport++;return say(Math.random()<.4?RAPPORT[u.type][T.rapport%2]:line(u,"rapport"))}
+      return say(line(u,"numbers"));
     case"pitch_miles":
-      if(c.miles<70000){bump(u,.02*f,"miles");return say("Those are low miles. That's a plus.")}
+      if(c.miles<70000){bump(u,.02*f,"miles");return say(line(u,"milesYes"))}
       if(tire(u,1,"You're stretching the truth. I'm out."))return;
-      return say("That's not low miles to me.");
+      return say(line(u,"milesNo"));
     case"pitch_cond":
-      if(c.cond>=85){bump(u,.025*f,"cond");return say("It does look sharp. I like that.")}
+      if(c.cond>=85){bump(u,.025*f,"cond");return say(line(u,"condYes"))}
       bump(u,-.02,"cond");
       if(tire(u,1,"I don't like being sold. I'm out."))return;
-      return say("I'm not seeing that. Looks rough to me.");
+      return say(line(u,"condNo"));
     case"urgency":
       if(T.used.urg)return say("You already said that.");
       T.used.urg=1;
@@ -236,17 +238,17 @@ function runIntent(u,I){
     case"middle":
       return offerPrice(u,Math.round(((T.counter||u.offer)+(T.lastAsk||c.price))/100)*50);
     case"offer":
-      if(!(I.price>=100))return say("Sorry, what price are you asking?");
+      if(!(I.price>=100))return say(line(u,"unclear"));
       return offerPrice(u,Math.round(I.price));
     case"accept":
       if(T.counter)return agree(u,T.counter);
       return say("Great! What price are you thinking?");
     case"refuse":
-      if(tire(u,1,"We're too far apart. I'll look elsewhere."))return;
-      return say(`${pick(["My offer stands at","I'm still at","Look, I'm at"])} ${$f(T.counter||u.offer)}.`);
-    case"greet":return say("Hi there! So, what's your price on this one?");
-    case"chat":return say(I.reply||"Sorry, what price are you asking?");
-    default:return say("Sorry, what price are you asking?");
+      if(tire(u,1,line(u,"walk")))return;
+      return say(line(u,"refuse",{n:$f(T.counter||u.offer)}));
+    case"greet":return say(line(u,"greet"));
+    case"chat":return say(I.reply||line(u,"unclear"));
+    default:return say(line(u,"unclear"));
   }
 }
 
@@ -265,31 +267,36 @@ function offerPrice(u,price){
   T.lastAsk=price;
   if(price<=u.reserve)return agree(u,price);
   const hopeless=u.reserve<=T.car.cost*1.05;
-  if(price>u.reserve*1.3&&!hopeless)return walk(u,"That's way out of my range. I'm out.");
+  if(price>u.reserve*1.3&&!hopeless)return walk(u,pick(["That's way out of my range.","Way, WAY too much.","Not even close."])+" "+line(u,"walk"));
   T.rounds++;
-  if(tire(u,1,"We're too far apart. I'll look elsewhere."))return;
+  if(tire(u,1,line(u,"walk")))return;
   const step=Math.min(1,T.rounds/Math.max(2,T.maxPat-1));
   T.counter=Math.max(T.counter,Math.round((u.offer+(u.reserve-u.offer)*step)/50)*50);
   const far=price>u.reserve*1.1;
-  say(`${pick(far?["That's steep.","Come on, really?","No way.","That's a lot for this thing."]:["Getting closer.","Hmm. Almost.","We're not far off.","Okay, now we're talking."])} ${pick(["I can do","Best I can do is","I'd go","How about"])} ${$f(T.counter)}.`);
+  say(`${line(u,far?"far":"close")} ${line(u,"counter",{n:$f(T.counter)})}`);
 }
 function agree(u,p){
   T.agreed=p;
   if(u.married&&!T.wifeDone&&!T.gunned&&Math.random()<.5){
+    const C=caller(u);
     T.wife=true;T.wifeDone=true;T.forceMood="worried";
-    return say(`${pick(["Okay,","Alright,"])} ${$f(p)}. Hold on, my phone's ringing. ${pick(["Oh no. It's my wife.","It's my wife. She heard I'm at a car lot."])} She wants to talk to you. ${pick(["Make it good.","Good luck, man.","Be careful, she can smell fear."])}`);
+    return say(`${pick(["Okay,","Alright,"])} ${$f(p)}. Hold on, my phone's ringing. ${pick([`Oh no. It's my ${C.who}.`,`It's my ${C.who}. ${C.She} heard I'm at a car lot.`])} ${C.She} wants to talk to you. ${pick(["Make it good.","Good luck, man.",`Be careful, ${C.she} can smell fear.`])}`);
   }
-  say(`${pick(["Alright,","Okay,","Fine,","You know what,"])} ${$f(p)} works for me. ${pick(["Anything else before we do the paperwork?","What's next?","Let's get this done."])}`);
+  say(line(u,"agree",{p:$f(p)}));
 }
-// The wife is on the phone: charm her or the price drops.
+// Who calls mid-deal, by personality (a grandma's grandson, a dumped customer's ex...).
+const CALLERS={grandma:["grandson","He","he","him"],mom:["dad","He","he","him"],dumped:["ex","She","she","her"],karen:["husband","He","he","him"]};
+function caller(u){const c=CALLERS[u.persona]||["wife","She","she","her"];return {who:c[0],She:c[1],she:c[2],her:c[3]}}
+// The wife (or whoever) is on the phone: charm her or the price drops.
 function wifeTalk(u,I){
+  const C=caller(u);
   if(I.type==="release")return release(u);
-  if(I.type==="finalize"||I.type==="accept"||I.type==="addon")return say("She's still on the phone, man! Talk to her first!");
-  if(I.type==="refuse"||I.type==="offer"){T.wife=false;T.forceMood="angry";if(tire(u,1,"She hung up on you. And now I'm sleeping on the couch. I'm out."))return;return say(`She hung up. She's furious. Fine, ${$f(T.agreed)}, but let's hurry before she calls back.`)}
+  if(I.type==="finalize"||I.type==="accept"||I.type==="addon")return say(`${C.She}'s still on the phone, man! Talk to ${C.her} first!`);
+  if(I.type==="refuse"||I.type==="offer"){T.wife=false;T.forceMood="angry";if(tire(u,1,`${C.She} hung up on you. And now I'm sleeping on the couch. I'm out.`))return;return say(`${C.She} hung up. ${C.She}'s furious. Fine, ${$f(T.agreed)}, but let's hurry before ${C.she} calls back.`)}
   T.wife=false;
-  if(Math.random()<.45+.15*T.rapport+(persona(u).soft?.1:0)){T.forceMood="happy";return say(pick(["...Okay. She says fine. But now you're coming to Thanksgiving.","She likes you! She says you sound like a man with a lot of posters. We're good.","She says yes. She also wants your number. That's weird. Let's sign."]))}
+  if(Math.random()<.45+.15*T.rapport+(persona(u).soft?.1:0)){T.forceMood="happy";return say(pick([`...Okay. ${C.She} says fine. But now you're coming to Thanksgiving.`,`${C.She} likes you! ${C.She} says you sound like a man with a lot of posters. We're good.`,`${C.She} says yes. ${C.She} also wants your number. That's weird. Let's sign.`]))}
   const off=Math.min(400,Math.max(100,Math.round(T.agreed*.06/50)*50));T.agreed-=off;T.forceMood="worried";
-  say(`She's not buying it. She says knock off ${$f(off)} or I'm sleeping in this car tonight. So it's ${$f(T.agreed)}. Sorry, man.`);
+  say(`${C.She}'s not buying it. ${C.She} says knock off ${$f(off)} or I'm sleeping in this car tonight. So it's ${$f(T.agreed)}. Sorry, man.`);
 }
 // Miguel breaks down. Soft-hearted customers melt; hard ones smell weakness. Once per deal.
 function cryDeal(){
@@ -298,7 +305,7 @@ function cryDeal(){
   T.cried=true;T.lines.push({who:"p",text:"*Miguel breaks down sobbing*"});T.lastSaid="(Miguel starts crying)";T.err="";
   if(window.G3&&G3.cry)G3.cry();
   T.buf=[];
-  if(T.wife){T.wife=false;T.forceMood="happy";say("Hold on... she heard you crying. She says pay the man, he's clearly going through something. We're good.")}
+  if(T.wife){const C=caller(u);T.wife=false;T.forceMood="happy";say(`Hold on... ${C.she} heard you crying. ${C.She} says pay the man, he's clearly going through something. We're good.`)}
   else if(persona(u).soft||["fan","budget"].includes(u.type)){
     bump(u,.08);T.rapport=Math.min(3,T.rapport+1);T.forceMood="worried";
     say(pick(["Oh no, buddy, don't cry. Okay, okay, I can go a little higher.","Are you... are you crying? Jeez. Fine. Let's figure this out, man.","Hey, hey, it's okay. I didn't mean it. Let's work something out."]));
@@ -325,9 +332,9 @@ function pitch(u,k){
   T.asked[k]=1;
   let p=TYPES[u.type].addon+T.rapport*.1+(k==="warranty"&&(c.cond<60||c.miles>100000)?.2:0)+(k==="gap"&&T.agreed>3500?.15:0)+(k==="finance"&&["budget","rusher"].includes(u.type)?.25:0);
   p=Math.max(.1,Math.min(.9,p));
-  if(Math.random()<p){T.addons.push(k);if(k==="finance")T.financed=true;return say(`Sure, I'll take the ${a.n}${a.price?` for ${$f(a.price)}`:""}.`)}
+  if(Math.random()<p){T.addons.push(k);if(k==="finance")T.financed=true;return say(line(u,"addonYes",{a:a.n})+(a.price?` ${$f(a.price)}.`:""))}
   T.declines++;
-  say(T.declines>=2?"No thanks. That's enough extras. Just the car.":"I'll pass on that.");
+  say(line(u,T.declines>=2?"enough":"addonNo"));
 }
 function finalize(u){
   const i=S.inv.findIndex(c=>c.id==u.car);if(i<0)return;
@@ -339,7 +346,7 @@ function finalize(u){
   T.over=true;T.sold=p;u.gross=front+back;u.front=front;u.gunned=!!T.gunned;finishSale(u,c,i,p,ad);
   const grade=pct>=95?"🏆 Maxed it":pct>=80?"👍 Strong deal":pct>=50?"Okay deal":"💸 Money left on the table";
   T.summary=`<b>${grade}</b><br>Price ${$f(p)} · front gross ${$f(front)} · back-end ${$f(back)} · <b>total ${$f(front+back)}</b><br>Their limit was ${$f(u.reserve)}. You captured ${pct}% of the room and left ${$f(Math.max(0,u.reserve-p))}.`;
-  say("Thanks! Pleasure doing business.");
+  say(line(u,"thanks"));
   if(window.Sfx)Sfx.cash();
 }
 function release(u){
@@ -348,7 +355,7 @@ function release(u){
   u.polite=true;u.hopeless=hopeless;T.over=true;u.done=true;u.msg="Walked away.";
   T.summary=hopeless?`<b>👍 Good call.</b> They topped out around ${$f(u.reserve)} on a car you paid ${$f(c.cost)} for. No more time wasted.`
     :`<b>🤝 Sent on their way.</b> That one was winnable: their limit was ${$f(u.reserve)}, so you could have grossed ${$f(u.reserve-c.cost)}.`;
-  say(pick(["Alright, thanks anyway. Have a good one.","No problem. Appreciate your time.","Sure, thanks. Maybe I'll come back."]));
+  say(line(u,"release"));
 }
 function walk(u,msg){
   T.over=true;u.done=true;u.msg="Walked away.";S.rep=Math.max(0,S.rep-.5);
