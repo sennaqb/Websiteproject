@@ -107,6 +107,7 @@ K.attach=function(g,url,o){
     const sprung=new Set();try{(vrm.springBoneManager?vrm.springBoneManager.joints:[]).forEach(j=>sprung.add(j.bone))}catch(e){}
     u.bust=[];vrm.scene.traverse(o=>{if(o.isBone&&/bust1$/i.test(o.name)&&!sprung.has(o))u.bust.push({b:o,q:o.quaternion.clone()})});
     u.sway={x:0,v:0,drive:0};
+    try{(vrm.springBoneManager?vrm.springBoneManager.joints:[]).forEach(j=>{if(/bust/i.test(j.bone.name)&&j.settings){j.settings.stiffness*=.5;j.settings.dragForce*=.55}})}catch(e){}
     const stock=!o||!o.dressIf||String(vrm.src||url).includes(o.dressIf);
     if(o&&o.outfit&&stock)try{dress(vrm,o.outfit)}catch(e){console.warn("outfit",e)}
     if(o&&o.adult&&stock)try{adult(vrm,g,o.adult)}catch(e){console.warn("adult",e)}
@@ -136,23 +137,32 @@ const MOODEXP={happy:["happy",.8],angry:["angry",.9],worried:["sad",.7],shocked:
 K.animate=function(g,moving,t,armsUp,talk){
   const u=g.userData,vrm=u.vrm;if(!vrm)return;
   const v0=vrm.meta&&vrm.meta.metaVersion==="0"?-1:1;   // VRM 0.x models are turned around, so x/z bends flip
-  const s=moving?Math.sin(t*9)*.55:0,set=(b,x,y,z)=>{const n=N(vrm,b);if(n)n.rotation.set((x||0)*v0,y||0,(z||0)*v0)};
+  const set=(b,x,y,z)=>{const n=N(vrm,b);if(n)n.rotation.set((x||0)*v0,y||0,(z||0)*v0)};
+  // Walk phase follows the ground actually covered (one half-cycle per ~0.6 m step), so feet don't skate.
+  const p=g.position;if(u.wx===undefined){u.wx=p.x;u.wz=p.z;u.wp=0}
+  const dd=Math.min(.3,Math.hypot(p.x-u.wx,p.z-u.wz));u.wx=p.x;u.wz=p.z;
+  if(moving)u.wp+=dd/(u.stepLen||.6)*Math.PI;else u.wp=0;
+  const ph=u.wp,go=moving&&ph>0?1:0,sn=Math.sin(ph)*go,cs=Math.cos(ph)*go,s=sn*.42;
   if(u.sit&&!moving){
     g.position.y=.52-u.hipY+.06;
     set("leftUpperLeg",-1.45,0,.05);set("rightUpperLeg",-1.45,0,-.05);set("leftLowerLeg",1.45);set("rightLowerLeg",1.45);
   }else{
     g.position.y=0;
-    set("leftUpperLeg",-s);set("rightUpperLeg",s);
-    set("leftLowerLeg",moving?Math.max(0,Math.cos(t*9))*.9:0);set("rightLowerLeg",moving?Math.max(0,-Math.cos(t*9))*.9:0);
+    // legs: thigh swings, the knee folds while that leg swings through (cos>0 for the left), the foot stays flat-ish
+    set("leftUpperLeg",-s,0,.02);set("rightUpperLeg",s,0,-.02);
+    const kl=go*(.08+Math.max(0,cs)*.85),kr=go*(.08+Math.max(0,-cs)*.85);set("leftLowerLeg",kl);set("rightLowerLeg",kr);
+    set("leftFoot",-kl*.35+s*.3);set("rightFoot",-kr*.35-s*.3);
+    // hips drop at each footfall and roll side to side; this bob is what makes hair and bust springs move
+    const hp=N(vrm,"hips");if(hp){if(u.hipsY0===undefined)u.hipsY0=hp.position.y;hp.position.y=u.hipsY0+go*.028*(Math.abs(cs)-1);hp.rotation.set(0,go*.1*sn,go*.045*sn)}
   }
   // arms come down from the T-pose; swing when walking, gesture when talking, up when cheering
-  const sw=moving?s*.6:Math.sin(t*1.5)*.03;
+  const sw=moving?sn*.38:Math.sin(t*1.5)*.03;
   if(u.wave>0&&!moving){const w=u.wavePose||WAVE,f=Math.sin(t*8)*w.amp;set("leftUpperArm",sw,0,-1.25);set("leftLowerArm",0,-.15,0);
     set("rightUpperArm",w.ux,w.uy,w.uz);set("rightLowerArm",w.lx,w.ly,w.lz+f);set("rightHand",w.hx,w.hy,w.hz+f*.4)}
   else if(armsUp){set("leftUpperArm",0,0,1.1+Math.sin(t*10)*.2);set("rightUpperArm",0,0,-1.1-Math.sin(t*10+1)*.2);set("leftLowerArm",0,0,.3);set("rightLowerArm",0,0,-.3)}
   else if(talk&&!moving){set("leftUpperArm",.25+Math.sin(t*3)*.15,0,-1.1);set("rightUpperArm",.35+Math.sin(t*3.7+1)*.2,0,1.1);set("leftLowerArm",0,-1.1+Math.sin(t*3)*.2,0);set("rightLowerArm",0,1.2+Math.sin(t*3.4)*.2,0)}
   else{set("leftUpperArm",sw,0,-1.25);set("rightUpperArm",-sw,0,1.25);set("leftLowerArm",0,-.15,0);set("rightLowerArm",0,.15,0)}
-  set("spine",moving?.04:0,0,moving?0:Math.sin(t*.9)*.025);set("head",0,u.headYaw||0,0);
+  set("spine",moving?.05:0,-go*.12*sn,moving?-go*.03*sn:Math.sin(t*.9)*.025);set("head",0,u.headYaw||0,0);
   if(u.sway)u.sway.drive=moving?Math.sin(t*18)*.09:(talk||u.wave>0)?Math.sin(t*6)*.025:0;
   // face: mood, blinking, lip sync while a line is being spoken
   const em=vrm.expressionManager;if(!em)return;
