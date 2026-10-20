@@ -224,6 +224,17 @@ Rewritten reply:`;
   }));
 };
 
+// Tiffany, the receptionist, rates a flirt from Miguel. Returns {score:-3..3, reply} or throws.
+AI.flirt=function(said){
+  const prompt=`You are Tiffany, the sharp, witty receptionist at Bargain Bob's Auto Mart, a run-down used car lot. The manager, Miguel, is flirting with you.
+Rate his line and answer it in character: one or two short spoken sentences, playful and teasing, PG-13, no stage directions, no quotation marks.
+Car-dealer puns and real compliments land well. Creepy, crude, or "I'm your boss" lines land badly and you shut them down with a roast.
+Reply with JSON only: {"score": an integer from -3 (awful) to 3 (smooth), "reply": "what you say"}.
+Miguel says: ${JSON.stringify(said)}`;
+  return guard(call(prompt,9000).then(t=>{const m=String(t||"").match(/\{[\s\S]*\}/);const j=JSON.parse(m?m[0]:t);
+    const score=Math.max(-3,Math.min(3,Math.round(+j.score)));if(isNaN(score)||!j.reply)throw new Error("bad flirt json");return {score,reply:String(j.reply).slice(0,240)}}));
+};
+
 // End-of-day online reviews of Miguel, one per conversation. Returns [{stars,text}] or throws.
 AI.reviews=function(entries){
   const prompt=`Write funny one-to-two sentence online reviews of a run-down used car lot called Bargain Bob's Auto Mart, written by customers about the manager, Miguel (his face is on every employee-of-the-month poster, even the dumpster). One review per customer below, in that customer's personality, based on what happened. Stars 1 to 5 to match how it went.${unhinged()?" "+UNHINGED:""}

@@ -739,23 +739,55 @@ const FL_LEVELS=[[4,"💘 Tiffany likes you. She'll slip you customers' budgets 
 function tiffAff(d,quiet){const t=TF(),was=t.aff;t.aff=Math.max(0,Math.min(20,t.aff+d));
   FL_LEVELS.forEach(([lv,msg])=>{if(was<lv&&t.aff>=lv){setTimeout(()=>say3(msg,"#ff9ad0"),2600);if(lv===20&&!t.dated)G.datePending=true}});
   if(!quiet&&t.aff!==was)popup(t.aff>was?"💗":"💔",G.recep?G.recep.mesh.position:{x:G.px,z:G.pz},t.aff>was?"#ff7ab8":"#9aa")}
-function flirtOpen(){
-  const t=TF();if(!t.unlocked||!G.recep||G.lotWalk||G.talk)return;
-  if((G.flirts||0)>=3)return recepSay(pick(["Three's my limit, Miguel. Go sell a car.","You're cute, but you have customers.","Save some charm for the buyers."]),true);
-  const tiers=[FL_LINES.filter(l=>l[1]>=3),FL_LINES.filter(l=>l[1]>0&&l[1]<3),FL_LINES.filter(l=>l[1]<0)];
-  G.flirtOpts=tiers.map(pick).sort(()=>Math.random()-.5);
-  showPause(`<h2>💘 Say something to Tiffany</h2>${G.flirtOpts.map((l,i)=>`<button class=b style="display:block;width:100%;text-align:left;margin:8px 0" onclick="Game.flirt(${i})">${i+1}. ${esc(l[0])}</button>`).join("")}<button class=b onclick="Game.flirt(-1)">Never mind</button>`);
+// Hold F at her desk and say your line (a quick tap types it instead). Gemini rates it when it's on; otherwise the
+// built-in judge below does: car puns and real compliments land, creepy or "I'm your boss" lines bomb.
+function rateFlirt(t){
+  t=t.toLowerCase();let sc=0;const known=FL_LINES.find(l=>t.replace(/[^a-z ]/g,"").includes(l[0].toLowerCase().replace(/[^a-z ]/g,"").slice(0,24)));if(known)return known[1];
+  if(/\b(car|engine|drive|driving|tank|apr|financ|warranty|carfax|test drive|horsepower|v ?8|turbo|mileage|miles|trade|lease|showroom|wheel|brakes?|gas|fuel|horn|park|sticker|dealer|lot|ignition|transmission|gear)\b/.test(t))sc+=2;
+  if(/\b(beautiful|gorgeous|pretty|cute|smile|eyes|smart|funny|amazing|stunning|lovely|glasses|laugh|nice|best|brilliant|sweet|kind)\b/.test(t))sc+=2;
+  if(/\b(dinner|lunch|coffee|date|drink|go out|movie|tacos|dance)\b/.test(t))sc+=1;
+  if(/\b(heart|forever|love|falling|crush|swoon|dream|stars?)\b/.test(t))sc+=1;
+  if(/\b(sexy|hot body|body|boobs?|ass|butt|legs|bikini|naked|kiss me|bed|touch|thicc|hot)\b/.test(t))sc-=4;
+  if(/\b(boss|fired|raise|promotion|my office|work for me|i'?m the manager|hr)\b/.test(t))sc-=4;
+  if(/\bmy (mom|mother|wife)\b/.test(t))sc-=2;
+  if(t.split(/\s+/).length<4)sc-=1;
+  return Math.max(-3,Math.min(3,sc));
 }
-function flirt(i){
-  resume();const o=G.flirtOpts&&G.flirtOpts[i];G.flirtOpts=null;if(!o||!G.recep)return;
-  G.flirts=(G.flirts||0)+1;say3(`You: "${o[0]}"`,"#cfe3ff");
-  // the crew sees it and gets competitive
+let flirtRec=null;
+function flirtStart(at){
+  const t=TF();if(!t.unlocked||!G.recep||G.lotWalk||G.talk||flirtRec)return;
+  if((G.flirts||0)>=3)return recepSay(pick(["Three's my limit, Miguel. Go sell a car.","You're cute, but you have customers.","Save some charm for the buyers."]),true);
+  hush();flirtRec={t0:at||performance.now(),text:""};say3("🎙️ Say it to her… (let go of F when you're done)","#ff9ad0");
+  try{
+    if(micMode==="whisper"&&window.Whisper){flirtRec.mode="w";Whisper.load().catch(()=>{});Whisper.start().catch(()=>{flirtRec=null;flirtType()})}
+    else if(SR){const r=new SR();r.lang="en-US";r.continuous=true;r.interimResults=true;r.onresult=e=>{let s="";for(const x of e.results)s+=x[0].transcript+" ";if(flirtRec)flirtRec.text=s.trim()};r.onerror=()=>{};r.start();flirtRec.mode="b";flirtRec.r=r}
+    else{flirtRec=null;flirtType()}
+  }catch(e){flirtRec=null;flirtType()}
+}
+function flirtStop(at){
+  const f=flirtRec;if(!f)return;flirtRec=null;
+  if((at||performance.now())-f.t0<350){if(f.mode==="w")Whisper.cancel();else if(f.r)try{f.r.abort()}catch(e){}return flirtType()}   // a tap: type it instead
+  if(f.mode==="w")Whisper.stop().then(judgeFlirt).catch(()=>judgeFlirt(""));
+  else{try{f.r.stop()}catch(e){}setTimeout(()=>judgeFlirt(f.text),700)}
+}
+function flirtType(){
+  showPause(`<h2>💘 Say something to Tiffany</h2><input id=flirtin type=text style="width:100%;font-size:18px" placeholder="Your best line…" onkeydown="if(event.key==='Enter')Game.flirtSend()">
+    <div style="margin-top:10px"><button class=go onclick="Game.flirtSend()">Say it</button><button class=b onclick="Game.flirtSend(true)">Never mind</button></div>`);
+  setTimeout(()=>{const i=el("flirtin");if(i)i.focus()},50);
+}
+function flirtSend(cancel){const i=el("flirtin"),v=i&&i.value.trim();resume();if(!cancel&&v)judgeFlirt(v)}
+function judgeFlirt(said){
+  said=String(said||"").trim();if(!G.recep)return;
+  if(!said)return recepSay(pick(["Did you say something? You just kind of breathed at me.","Speak up, Miguel. I don't do mime. That's the other guy."]),true);
+  G.flirts=(G.flirts||0)+1;say3(`You: "${said}"`,"#cfe3ff");
   const sp=G.sales.find(s=>s.state==="idle"&&Math.hypot(s.mesh.position.x-G.px,s.mesh.position.z-G.pz)<14);
   if(sp){setTimeout(()=>crewSay(sp,pick(["Hey! The boss is hitting on Tiffany!","Oh, so it's like THAT, Miguel?","I saw that. Everybody saw that.","Not cool, boss. I was gonna ask her to lunch."])),3600);G.sales.forEach(s=>{if(s.state==="idle")s.drift=Math.min(s.drift||99,rnd(4,12))})}
-  setTimeout(()=>{if(!G.recep)return;const u=G.recep.mesh.userData;
-    if(G.owner&&!G.owner.leaving){recepSay("Uh. Bob's right there.",true);setTimeout(()=>{say3("Bob saw that. He's not mad. He's just disappointed. And a little impressed.","#ffd24a");speakLine("Miguel. My office. Actually, I don't have an office. Your office.",77,.62,.9,false,"en","am_onyx")},2500);return}
-    const k=o[1]>=3?"good":o[1]>0?"meh":"bad";u.mood=k==="good"?"happy":k==="meh"?"neutral":"angry";u.moodScale=k==="good"?.8:.45;u.wave=k==="good"?1:0;
-    setTimeout(()=>{u.mood="neutral";u.moodScale=.45},4500);recepSay(pick(FL_REPLY[k]),true);tiffAff(o[1])},1500);
+  if(G.owner&&!G.owner.leaving){recepSay("Uh. Bob's right there.",true);setTimeout(()=>{say3("Bob heard that. He's not mad. He's just disappointed. And a little impressed.","#ffd24a");speakLine("Miguel. My office. Actually, I don't have an office. Your office.",77,.62,.9,false,"en","am_onyx")},2500);return}
+  const answer=(score,reply)=>{if(!G.recep)return;const u=G.recep.mesh.userData,k=score>=3?"good":score>0?"meh":"bad";
+    u.mood=k==="good"?"happy":k==="meh"?"neutral":"angry";u.moodScale=k==="good"?.8:.45;u.wave=k==="good"?1:0;setTimeout(()=>{u.mood="neutral";u.moodScale=.45},4500);
+    recepSay(reply||pick(FL_REPLY[k]),true);tiffAff(score>=3?3:score>0?1:score>=-1?-1:-2)};
+  const own=rateFlirt(said);
+  if(window.AI&&AI.on()&&AI.flirt)AI.flirt(said).then(r=>answer(r.score,r.reply)).catch(()=>answer(own));else setTimeout(()=>answer(own),900);
 }
 function tiffTip(){
   if(TF().aff<4)return null;const c=pick(G.cust.filter(c=>c.mesh&&["browse","greet","working","stuck"].includes(c.state)));
@@ -808,7 +840,7 @@ function sendBack(s,byMiguel){
 }
 function recepChat(){
   const S0=S,list=[],stuck=G.cust.filter(c=>c.state==="stuck"),tf=TF();
-  if(!tf.days.includes(S.day)){tf.days.push(S.day);if(!tf.unlocked&&tf.days.length>=3){tf.unlocked=true;setTimeout(()=>say3("💘 Tiffany smiled at you a little longer than usual. (Psst: press F at her desk.)","#ff9ad0"),5000)}}
+  if(!tf.days.includes(S.day)){tf.days.push(S.day);if(!tf.unlocked&&tf.days.length>=3){tf.unlocked=true;setTimeout(()=>say3("💘 Tiffany smiled at you a little longer than usual. (Psst: hold F at her desk and say something nice.)","#ff9ad0"),5000)}}
   const tip=G.phase==="open"&&Math.random()<.6&&tiffTip();if(tip&&G.recep.toldOutfit){G.recep.mesh.userData.wave=1;return recepSay(tip,true)}
   if(G.phase!=="open")list.push("Lot's not open yet. Buy some cars on the computer, then hit the switch by the door. I believe in you. Kind of.");
   if(stuck.length)list.push(`${stuck.length} ${stuck.length>1?"people are":"person is"} waiting on you, sweetie. ${stuck[0].u.name} is chewing on the pen chain.`);
@@ -827,7 +859,7 @@ function nearest(){
   if(!G.talk&&G.lawyer&&G.lawyer.state==="wait"&&Math.hypot(G.px-G.lawyer.lw.mesh.position.x,G.pz-G.lawyer.lw.mesh.position.z)<2.6)return{label:`[E] Deal with ${G.lawyer.name}'s lawyer`,act:lawyerTalk};
   if(!G.talk){const f=G.sales.find(s=>s.state==="flirt"&&Math.hypot(G.px-s.mesh.position.x,G.pz-s.mesh.position.z)<2.2);
     if(f)return{label:`[E] Back to your desk, ${f.def.name}!`,act:()=>sendBack(f,true)}}
-  if(G.recep&&!G.talk){const p=G.recep.mesh.position;if(Math.hypot(G.px-p.x,G.pz-(p.z-.9))<1.8)return{label:`[E] Talk to ${RECEP_NAME}`+(TF().unlocked?" · [F] Flirt":""),act:recepChat}}
+  if(G.recep&&!G.talk){const p=G.recep.mesh.position;if(Math.hypot(G.px-p.x,G.pz-(p.z-.9))<1.8)return{label:`[E] Talk to ${RECEP_NAME}`+(TF().unlocked?" · hold [F] to flirt":""),act:recepChat}}
   if(G.phase==="prep"){
     if(Math.hypot(G.px-W.pc.x,G.pz-W.pc.z)<1.7)return{label:"[E] Use the computer: prices, crew, upgrades, books",act:()=>{G.usedPC=true;PC.open()}};
     if(Math.hypot(G.px-W.sw.x,G.pz-W.sw.z)<1.7)return{label:S.inv.length?"[E] Open the lot":"[E] Open the lot (buy cars first)",act:startShift};
@@ -1178,12 +1210,12 @@ addEventListener("keydown",e=>{
   if(e.code==="KeyC"&&!T){G.third=!G.third;return}
   if(e.code==="KeyQ"){sendMini();return}
   if(e.code==="KeyL"){sendTiffany();return}
-  if(e.code==="KeyF"&&G.recep&&TF().unlocked&&Math.hypot(G.px-G.recep.mesh.position.x,G.pz-(G.recep.mesh.position.z-.9))<1.8){flirtOpen();return}
+  if(e.code==="KeyF"&&!e.repeat&&G.recep&&TF().unlocked&&Math.hypot(G.px-G.recep.mesh.position.x,G.pz-(G.recep.mesh.position.z-.9))<1.8){flirtStart(e.timeStamp);return}
   if((e.code==="KeyY"||e.code==="KeyN")&&G.offAsk){answerDayOff(e.code==="KeyY");return}
   if(e.code==="KeyK"&&G.tut){tutEnd();say3("Tutorial skipped. Tiffany's at her desk if you need her (E).","#9cf");return}
   if(e.code==="KeyE"){const n=nearest();if(n){Sfx.click();n.act()}}
 });
-addEventListener("keyup",e=>{G.keys[e.code]=false;if((e.code==="KeyV"||e.code==="Space")&&T&&T.inWorld)pttStop(e.timeStamp)});
+addEventListener("keyup",e=>{G.keys[e.code]=false;if(e.code==="KeyF")flirtStop(e.timeStamp);if((e.code==="KeyV"||e.code==="Space")&&T&&T.inWorld)pttStop(e.timeStamp)});
 addEventListener("mousemove",e=>{
   if(!G.on||overlayOpen())return;
   if(document.pointerLockElement===canvas||e.buttons){G.yaw-=e.movementX*.0022;G.pitch=Math.max(-1.3,Math.min(1.3,G.pitch-e.movementY*.0022))}
@@ -1220,7 +1252,7 @@ function boot(){
   showTitle();loop();return true;
 }
 
-window.Game={boot,micTest,wholesaled,lawyer,flirt,start,resume,finish,nextDay,quit,toggleAI,saveKey,clearKey,toast,pcClosed,syncCars,state:G};
+window.Game={boot,micTest,wholesaled,lawyer,flirtSend,start,resume,finish,nextDay,quit,toggleAI,saveKey,clearKey,toast,pcClosed,syncCars,state:G};
 function cry(){G.shake=.4;if(G.talk&&G.talk.c.mesh)G.talk.c.mesh.userData.talkLeft=0}
 function gun(){
   G.gunEnd=performance.now()+3200;G.shake=.25;Sfx.click();if(S.tiff)tiffAff(-1,true);
