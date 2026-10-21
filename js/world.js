@@ -755,7 +755,17 @@ function create(canvas){
     solid(x-.95,x+.95,-21.3,-19.55);
   });
   // manager's office: glass walls, desk, glowing computer
-  box(4.6,3,.05,glassM,-7.7,1.5,-22.4,{noShadow:true});box(.05,3,4.6,glassM,-5.4,1.5,-24.7,{noShadow:true});
+  // front wall in two panes with a framed doorway between x -7.1 and -5.9, and the glass door swung open inside
+  box(2.9,3,.05,glassM,-8.55,1.5,-22.4,{noShadow:true});box(.5,3,.05,glassM,-5.65,1.5,-22.4,{noShadow:true});
+  box(1.2,.7,.05,glassM,-6.5,2.65,-22.4,{noShadow:true});box(.05,3,4.6,glassM,-5.4,1.5,-24.7,{noShadow:true});
+  { const fr=M(0x2c3036);box(.09,3,.12,fr,-7.12,1.5,-22.4);box(.09,3,.12,fr,-5.88,1.5,-22.4);box(1.33,.1,.12,fr,-6.5,2.3,-22.4);
+    box(.09,.06,.14,fr,-10,2.98,-22.4,{noShadow:true});   // top rail along the glass
+    const door=new THREE.Group();door.position.set(-5.95,0,-22.45);door.rotation.y=-1.5;scene.add(door);   // hinged on the right post, swung in
+    const pane=new THREE.Mesh(new THREE.BoxGeometry(1.08,2.18,.04),glassM);pane.position.set(-.56,1.11,0);door.add(pane);
+    [[-.56,2.2,1.12,.06],[-.56,.03,1.12,.06],[-1.09,1.11,.06,2.2],[-.03,1.11,.06,2.2]].forEach(([x,y,w,h])=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,.06),fr);m.position.set(x,y,0);door.add(m)});
+    const hd=new THREE.Mesh(new THREE.BoxGeometry(.04,.32,.08),M(0xc8ccd2,{metalness:.8,roughness:.3}));hd.position.set(-.98,1.05,.06);door.add(hd);
+    box(1.0,.03,.7,M(0x5a2a22),-6.5,.015,-21.8,{noShadow:true});   // doormat: "GO AWAY" energy
+    solid(-6.05,-5.85,-23.6,-22.6); }
   solid(-10,-7.1,-22.55,-22.25);solid(-5.9,-5.25,-22.55,-22.25);solid(-5.55,-5.25,-27,-22.4);
   const md=makeDesk(3,1.1,{seed:3,monitor:false});md.position.set(-7.5,0,-25);md.rotation.y=Math.PI;furn.add(md);solid(-9.1,-5.9,-25.7,-24.3);
   { const F=furnMats();
