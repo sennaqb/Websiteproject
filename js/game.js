@@ -809,6 +809,61 @@ function tiffTip(){
   if(TF().aff<4)return null;const c=pick(G.cust.filter(c=>c.mesh&&["browse","greet","working","stuck"].includes(c.state)));
   return c?`Psst. ${c.u.name} told me their budget's about ${$f(Math.round(c.u.budget*.95/100)*100)}. You didn't hear it from me.`:null;
 }
+// ---------- the date (after closing, the night her meter maxes out) ----------
+// The lot goes dark. Tiffany is on the showroom sofa with vending-machine snacks; Frenchy watches through the window.
+// Walk over and press E: three rounds of dialogue choices, Frenchy interrupts, then she asks "same time tomorrow?"
+const DATE_BEATS=[
+  {q:"So. This is the fanciest thing that's ever happened in this building.",a:[
+    ["To us. And to the vending machine.","To the vending machine. The only thing on this lot that works."],
+    ["You look amazing in vending-machine lighting.","It's a fluorescent bulb, Miguel. Nobody looks amazing in it. ...Thank you, though."],
+    ["Want to see my sales numbers?","Wow. Romance is dead. And so is our quota."]]},
+  {q:"Okay, real question. Why do you work here?",a:[
+    ["For the people. Mostly you.","Smooth. Frenchy's going to cry himself to sleep."],
+    ["Bob owes my mom money.","That explains so much. Honestly. Everything."],
+    ["I lost a bet.","Same. I lost mine to Bob. In 2019. I'm still paying it off."]]},
+  {q:"Is Mr. Wiggle... watching us?",a:[
+    ["He's always watching.","That's horrifying. I kind of love it."],
+    ["He's happy for us.","He's an inflatable tube, Miguel. ...But yeah. He looks happy."],
+    ["Want me to deflate him?","Don't you dare. He's the only one here who's never let me down."]]}];
+function dateStart(){
+  hidePause();G.datePending=false;S.tiff.dated=true;save();
+  G.phase="date";G.date={beat:0,busy:false,frenchy:false,objs:[]};
+  W.setTime(1);W.setOpen(false);G.sales.forEach(s=>s.mesh.visible=false);G.cust.forEach(c=>{if(c.mesh)c.mesh.visible=false});(G.kids||[]).forEach(k=>k.mesh.visible=false);
+  if(G.owner)G.owner.mesh.visible=false;(G.miniBots||[]).forEach(b=>b.mesh.visible=false);
+  const r=G.recep;if(r){const m=r.mesh,u=m.userData;m.position.set(5.78,0,-16.25);m.rotation.y=Math.PI;u.sit=true;u.wave=0;u.mood="happy";u.moodScale=.6;u.headYaw=0}
+  // snacks on the middle cushion: a bag of Funyuns and a warm Fresca
+  const bag=new THREE.Mesh(new THREE.BoxGeometry(.24,.32,.08),new THREE.MeshStandardMaterial({color:0xe8b020,roughness:.4}));bag.position.set(6.42,.66,-16.2);bag.rotation.set(-.3,.4,.15);
+  const can=new THREE.Mesh(new THREE.CylinderGeometry(.04,.04,.14,12),new THREE.MeshStandardMaterial({color:0x7ab848,metalness:.6,roughness:.3}));can.position.set(6.62,.6,-16.1);
+  [bag,can].forEach(o=>{W.scene.add(o);G.date.objs.push(o)});
+  // Frenchy, face against the glass
+  const fl=Object.assign({hairStyle:"short",top:"shirt",shirt:0x3a5a9a,pants:0x2a2a35,skin:1,hair:0x2a1a10,tie:0x202020,badge:true},CREW_LOOKS.Frenchy||{});
+  const fr=W.person(fl);fr.position.set(6.0,0,-13.6);fr.rotation.y=Math.PI;fr.visible=false;W.scene.add(fr);G.date.fr=fr;G.date.objs.push(fr);
+  G.px=6.3;G.pz=-21;G.yaw=0;G.pitch=0;G.yaw=Math.atan2(6.1-G.px,-16.2-G.pz)+Math.PI;
+  titleCard("AFTER CLOSING","Tiffany's waiting on the sofa");Sfx.ambient&&Sfx.ambient(false);lockMouse();
+}
+function dateNearest(){
+  const d=G.date;if(!d||d.busy||d.beat>=DATE_BEATS.length)return null;
+  if(Math.hypot(G.px-6.2,G.pz-(-17.4))>2.4)return{label:"Walk over to the sofa",act:()=>{}};
+  return{label:d.beat?"[E] Keep talking":"[E] Sit with Tiffany",act:dateTalk};
+}
+function dateTalk(){
+  const d=G.date,b=DATE_BEATS[d.beat];d.busy=true;recepSay(b.q,true);
+  setTimeout(()=>showPause(`<h2>💘 ${esc(b.q)}</h2>${b.a.map((o,i)=>`<button class=b style="display:block;width:100%;text-align:left;margin:8px 0" onclick="Game.dateChoice(${i})">${esc(o[0])}</button>`).join("")}`),1600);
+}
+function dateChoice(i){
+  const d=G.date,b=DATE_BEATS[d.beat],o=b.a[i];resume();say3(`You: "${o[0]}"`,"#cfe3ff");
+  const u=G.recep&&G.recep.mesh.userData;setTimeout(()=>{recepSay(o[1],true);if(u){u.mood="happy";u.talkLeft=4}},1200);
+  d.beat++;
+  if(d.beat===2)setTimeout(()=>{d.fr.visible=true;popup("😭",{x:d.fr.position.x,z:d.fr.position.z},"#9cf",true);const l="Tiffany! I could have bought you ze BIG bag of Funyuns! Ze family size!";say3(`Frenchy (through the window): "${l}"`,"#cde");
+    speakLine(l,7*13,.75,.86,true,"en","bm_lewis");setTimeout(()=>recepSay("Go home, Frenchy.",true),4200);setTimeout(()=>{if(G.date)d.fr.visible=false},9000)},5500);
+  if(d.beat>=DATE_BEATS.length)setTimeout(()=>{recepSay("This is the worst date I've ever been on. ...Same time tomorrow?",true);setTimeout(dateEnd,6500)},6000);
+  else setTimeout(()=>{d.busy=false},d.beat===2?11000:4500);
+}
+function dateEnd(){
+  const d=G.date;if(!d)return;d.objs.forEach(o=>W.scene.remove(o));G.date=null;
+  if(G.recep){G.recep.mesh.userData.sit=false;G.recep.mesh.position.set(W.reception.x,0,W.reception.z)}
+  G.phase="prep";G.dateDone=true;titleCard("💘","Same time tomorrow");setTimeout(finish,2600);
+}
 // ---------- head-turner customers ----------
 // About 1 in 10 customers is a head-turner. Frenchy, Mario, Riccardo and Juanny melt and give the car away at or
 // under cost unless you take over the deal (E while they're at the desk). Sam and Andres oversell and scare her off.
@@ -961,6 +1016,7 @@ function recepChat(){
   G.recep.mesh.userData.wave=1.2;recepSay(pick(list.slice(0,2).concat(list.slice(-1))),true);
 }
 function nearest(){
+  if(G.phase==="date")return dateNearest();
   { const k=(G.kids||[]).find(k=>!k.c.kidsCalm&&k.mesh.visible&&Math.hypot(G.px-k.mesh.position.x,G.pz-k.mesh.position.z)<(G.talk&&G.talk.c===k.c?4:2.3));
     if(k)return{label:`[E] Send ${k.c.u.name}'s kids to Tiffany for lollipops`,act:()=>kidsToTiffany(k.c)} }
   if(!G.talk&&G.dale&&G.dale.state!=="leave"&&Math.hypot(G.px-G.dale.mesh.position.x,G.pz-G.dale.mesh.position.z)<2.2)return{label:"[E] Give Dale $5 to go away",act:()=>daleLeave(true)};
@@ -1154,11 +1210,13 @@ function endShift(){
   showReviews();
 }
 function finish(){
+  if(G.datePending&&S.tiff&&!S.tiff.dated)return dateStart();
   const r=closeDay();
   if(r.end)return endGame(r);
   const bits=[`Wages ${$f(r.wages)}`,`lot and overhead ${$f(r.fees-r.wages)}`];
   if(r.rent)bits.push(`rent ${$f(r.rent)}`);
-  let date="";if(G.datePending&&S.tiff&&!S.tiff.dated){G.datePending=false;S.tiff.dated=true;save();
+  let date="";if(G.dateDone){G.dateDone=false;date=`<p style="color:#ff9ad0">💘 Last night: worst date ever. Same time tomorrow.</p>`}
+  if(false){
     date=`<div class=card style="text-align:left;margin:10px 0;border-color:#ff7ab8"><b>💘 After closing…</b><p>The lot's dark. Tiffany fed the vending machine four quarters and it gave you both a bag of Funyuns and a warm Fresca. You split them on the showroom sofa while Mr. Wiggle flailed outside like he was cheering you on.</p><p>"This is the worst date I've ever been on," she says. "Same time tomorrow?"</p><p class=dim>Frenchy saw the whole thing through the window. He's devastated.</p></div>`}
   showPause(`<h2>Next morning</h2>${date}<p>Expenses: ${bits.join(" · ")}.</p>${r.review?`<p><b>${esc(r.review)}</b></p>`:""}
    <p>Bank <b>${$f(S.cash)}</b> of ${$f(GOAL)}</p><p class=dim>Today: ${esc(S.event.name)}. ${esc(S.event.desc)}</p>
@@ -1361,7 +1419,7 @@ function boot(){
   showTitle();loop();return true;
 }
 
-window.Game={boot,micTest,wholesaled,lawyer,flirtSend,start,resume,finish,nextDay,quit,toggleAI,saveKey,clearKey,toast,pcClosed,syncCars,state:G};
+window.Game={boot,micTest,dateChoice,wholesaled,lawyer,flirtSend,start,resume,finish,nextDay,quit,toggleAI,saveKey,clearKey,toast,pcClosed,syncCars,state:G};
 function cry(){G.shake=.4;if(G.talk&&G.talk.c.mesh)G.talk.c.mesh.userData.talkLeft=0}
 function gun(){
   G.gunEnd=performance.now()+3200;G.shake=.25;Sfx.click();if(S.tiff)tiffAff(-1,true);
