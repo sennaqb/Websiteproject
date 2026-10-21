@@ -14,3 +14,6 @@ Outfit rotation: receptionist.vrm on odd days, receptionist-beach.vrm (Beach Day
 Beach Day skin: tiffany-beach-skin.png = her body texture with the 'Golden Summer' bikini (Booth item 4778162 by The Cadenza Store) composited on and the painted underwear removed.
 
 More laundry-day bikinis: tiffany-beach-red/-black/-pink.png = her body texture with a CC BY-SA bikini texture set supplied by the owner (credit the creator if the game is shared publicly). Laundry days cycle through all four by day number.
+
+Head-turner customers: export up to three VRoid women as customer-1.vrm, customer-2.vrm, customer-3.vrm.
+They must clearly be adult women (mature face preset, adult proportions). Until a file is here, they use the cartoon stand-in.

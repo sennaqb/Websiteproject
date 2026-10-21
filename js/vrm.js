@@ -100,6 +100,7 @@ K.attach=function(g,url,o){
   const u=g.userData;u.vrmLoading=true;u.hipY=.8;u.brows=u.brows||[];
   make(url).then(vrm=>{
     if(!g.parent&&!g.userData.keep){}   // still attach: the group may be added to the scene later
+    if(o&&o.replace){g.children.forEach(ch=>ch.visible=false);u.isVRM=true}   /* a stand-in body is swapped for the model */
     g.add(vrm.scene);u.vrm=vrm;u.vrmLoading=false;live.add(g);
     const hips=N(vrm,"hips");vrm.scene.updateMatrixWorld(true);const hp=new THREE.Vector3();hips.getWorldPosition(hp);
     u.hipY=hp.y-g.position.y;u.blinkAt=Math.random()*3;

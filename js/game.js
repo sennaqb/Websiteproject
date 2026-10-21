@@ -234,12 +234,16 @@ const LOOKS={
     :{top:pick(["tee","polo","flannel","jacket","stripes"]),shirt:pick(COLORS),shirt2:pick(COLORS),hairStyle:pick(["short","short","buzz","bald","curly","afro","slick"]),hair:pick(HAIRS),build:pick(["avg","avg","slim","fat","muscle"]),beard:Math.random()<.2,mustache:Math.random()<.15,glasses:Math.random()<.2,hat:Math.random()<.2?"cap":null,hatColor:pick(COLORS)}}
 };
 function makeCustomerMesh(u){
+  if(u&&u.bomb){   // glam fallback; your VRoid model (adult) replaces it when the file is in models/
+    const g=W.person({sex:"f",top:"dress",shirt:pick([0xc0182c,0x111114,0x2a2a6a,0x7a1a52]),hairStyle:pick(["long","ponytail"]),hair:pick([0x1a1a1a,0x5a3a1a,0xd8b878]),lipstick:"#c02040",earrings:true,skin:ri(0,3),height:1.02});
+    u.sex="f";if(window.VRMKit)VRMKit.attach(g,BOMB_MODELS.slice(((u.id||0)%BOMB_MODELS.length)).concat(BOMB_MODELS.slice(0,(u.id||0)%BOMB_MODELS.length)),{replace:true});return g}
   const look=Object.assign({skin:ri(0,3),height:.93+Math.random()*.13,pants:pick([0x30343c,0x4a3a2a,0x20262e,0x44506a])},(LOOKS[u&&u.persona]||LOOKS.normal)());
   if(look.height&&look.sex==="f")look.height*=.95;
   if(u)u.sex=look.sex||"m";
   return W.person(look);
 }
 function spawn(c){
+  if(c.u.bomb===undefined)c.u.bomb=!!(c.u.car&&!c.u.done&&!persona(c.u).imp&&!persona(c.u).silent&&Math.random()<.1);
   c.mesh=makeCustomerMesh(c.u);c.mesh.position.set(rnd(-1.5,1.5),0,GATE_IN);W.scene.add(c.mesh);
   if(c.u.car&&!c.u.done&&!persona(c.u).imp&&Math.random()<(c.u.persona==="mom"?.6:.18))spawnKids(c);
   const slot=c.u.car?carSlot(c.u.car):-1;c.slot=slot;
@@ -381,6 +385,11 @@ function stepTestDrive(c,dt){
 }
 function resolveWork(c){
   const sp=c.sp,u=c.u,mv=motive(sp.def),d=Object.assign({},sp.def,{skill:Math.max(.05,Math.min(.95,sp.def.skill+mv*.2)),cave:Math.max(0,Math.min(.9,sp.def.cave-mv*.1))}),t=tier(c),car=carOf(c),r=Math.random()-(c.tdBonus||0)+(c.kidHit||0);   // a good test drive helps, a disaster hurts
+  if(u.bomb&&!c.bombDone){c.bombDone=true;const n=sp.def.name;
+    if(BOMB_GIVERS.includes(n)){const p=Math.max(100,Math.round(car.cost*rnd(.82,1.02)/50)*50);
+      say3(`🤤 ${n} basically gave the ${car.model} to ${u.name}. ${pick(["He got her number. It's a Domino's.","She winked. That's all it took.","He threw in his own watch.","He's calling it 'relationship pricing'."])}`,"#ff7ab8");spSale(c,p,"cave");return}
+    if(BOMB_UPSELL.includes(n)){if(Math.random()<.45)return customerWalks(c,`💸 ${n} tried to upsell ${u.name} on rustproofing, the warranty and his mixtape. She left.`,.8);
+      say3(`💸 ${n} is upselling ${u.name} so hard she's about to walk. T.O.!`,"#ffb070");stall(c);c.pat=Math.round(c.pat*.6);return}}
   if(d.quirk==="spanish"){stall(c);return}   // Juanny: nobody understands a word, so it always comes to Miguel
   if(t==="easy"){
     if(r<.85){spSale(c,Math.min(Math.round(u.reserve/50)*50,Math.round(car.price*rnd(.94,1)/50)*50),"easy");return}
@@ -420,7 +429,8 @@ function sim(dt){
         if(c.sp&&c.sp.state==="go"&&!c.sp.path.length){c.state="greet";c.sp.state="greet";c.greet=rnd(4,6)}
         if(c.timer>(G.rain?28:40)&&!c.sp)customerWalks(c,`${c.u.name} left. Nobody helped them.`,.5);
         break}
-      case"greet":   // a quick hello at the car, then inside to the desk
+      case"greet":
+        if(c.u.bomb&&!c.drooled&&c.sp){c.drooled=true;popup("🤤",c.sp.mesh.position,"#ff7ab8");crewSay(c.sp,pick(BOMB_DROOL[c.sp.def.name]||["Wow. I mean. Hello. Welcome. To the cars."]))}   // a quick hello at the car, then inside to the desk
         c.greet-=dt;if(c.greet<=0){c.state="todesk";c.speed=1.5;c.path=routeToDesk(c);c.sp.state="todesk";c.sp.speed=1.8;c.sp.path=routeSalesToDesk(c.sp)}break;
       case"todesk":
         if(arrived&&!c.sp.path.length){
@@ -799,6 +809,19 @@ function tiffTip(){
   if(TF().aff<4)return null;const c=pick(G.cust.filter(c=>c.mesh&&["browse","greet","working","stuck"].includes(c.state)));
   return c?`Psst. ${c.u.name} told me their budget's about ${$f(Math.round(c.u.budget*.95/100)*100)}. You didn't hear it from me.`:null;
 }
+// ---------- head-turner customers ----------
+// About 1 in 10 customers is a head-turner. Frenchy, Mario, Riccardo and Juanny melt and give the car away at or
+// under cost unless you take over the deal (E while they're at the desk). Sam and Andres oversell and scare her off.
+// Your own VRoid models go in models/customer-1.vrm, -2, -3 (adult women only).
+const BOMB_MODELS=["models/customer-1.vrm","models/customer-2.vrm","models/customer-3.vrm"];
+const BOMB_GIVERS=["Frenchy","Mario","Riccardo","Juanny"],BOMB_UPSELL=["Sam","Andres"];
+const BOMB_DROOL={Frenchy:["Mademoiselle. Welcome to ze most romantic car lot in America.","Ooh la la. I mean. Bonjour. Cars. We have cars."],
+  Mario:["Mamma mia. I mean, welcome! You look like you need a car. Or a husband. I'm both.","Hi! Hello! I'm Mario! Single! Sells cars!"],
+  Riccardo:["Well, well, well. Riccardo, at your service. Have you ever seen a laminated commission check?","Welcome. Let's find you something as fast as you are good-looking."],
+  Juanny:["¡Dios mío! ¡Bienvenida! ¡Bienvenida!","Hola, hola, hola... ¿quieres un carro? ¿Quieres TODOS los carros?"],
+  Sam:["Hi! Okay! So! You're gonna want the full protection package. Trust me.","Welcome! Let me show you our premium undercoating. And myself."],
+  Andres:["Hey. I'm Andres. I'm taller sitting down.","Welcome. I can get you a great deal. Plus extras. So many extras."]};
+const BOMB_HANDOFF=["Boss, I... she smiled at me and I forgot what numbers are. All yours.","I was about to give her the car. And my car. Take over before I give her my house.","She asked for a discount and I said yes before she finished the word. Help.","I need to go lie down. She's all yours, boss."];
 // ---------- kids running wild ----------
 // Some customers bring their kids. The kids run circles around the parent and cause chaos every so often:
 // the stuck/desk deal loses patience, and in a T.O. the parent gets distracted and closer to walking.
@@ -963,7 +986,7 @@ function takeover(c){
   const sp=c.sp,u=c.u;
   let crew=null;
   if(sp){sp.armsUp=false;if(!sp.mesh.userData.sit)sp.mesh.position.x+=1.1;   // the salesperson steps aside (or stays seated), with a word
-    const n=sp.def.name,v=CREW_VOICES[n]||[1,1];crew={name:n,text:pick(CREW_LINES[n]||["All yours, boss."])};
+    const n=sp.def.name,v=CREW_VOICES[n]||[1,1];crew={name:n,text:u.bomb?pick(sp.def.quirk==="spanish"?["Jefe... es muy bonita. No puedo pensar. ¡Ayúdame!","Jefe, le iba a regalar el carro. Y mi corazón. Toma tú."]:BOMB_HANDOFF):pick(CREW_LINES[n]||["All yours, boss."])};
     speakLine(crew.text,n.length*13+sp.def.id,v[0],v[1],false,sp.def.quirk==="spanish"?"es":"en",CREW_KVOICE[n]||"am_eric")}
   // Openers are small talk, not numbers: the customer warms up (or doesn't) depending on how Miguel plays it.
   const car2=label(car);
@@ -1188,6 +1211,7 @@ function hud(){
   // small chips across the top: who needs a T.O., how long they'll wait, how far away
   el("alerts").innerHTML=G.talk?"":stuck.slice(0,3).map(c=>{const d=Math.round(Math.hypot(c.mesh.position.x-G.px,c.mesh.position.z-G.pz));return `<div class=al>🚨 T.O. ${c.sp?esc(c.sp.def.name)+" · ":""}${esc(c.u.name)} · ${Math.ceil(c.pat)}s · ${d}m</div>`}).join("")+G.sales.filter(s=>s.state==="flirt").map(s=>`<div class="al flirt">😍 ${esc(s.def.name)} is at reception</div>`).join("")
     +(G.lawyer&&G.lawyer.state==="wait"?`<div class=al>⚖️ ${esc(G.lawyer.name)}'s lawyer at your office · ${Math.ceil(G.lawyer.wait)}s</div>`:"")
+    +G.cust.filter(c=>c.u.bomb&&!c.bombDone&&c.state==="working"&&c.sp).map(c=>BOMB_GIVERS.includes(c.sp.def.name)?`<div class="al flirt">🤤 ${esc(c.sp.def.name)} is about to give the car away to ${esc(c.u.name)} · take over!</div>`:BOMB_UPSELL.includes(c.sp.def.name)?`<div class=al>💸 ${esc(c.sp.def.name)} is upselling ${esc(c.u.name)} to death</div>`:"").join("")
     +(G.dale&&G.dale.state!=="leave"?`<div class="al mini">🥫 Dale is bugging customers</div>`:"")
     +(G.lotWalk?`<div class="al flirt">💁 Tiffany is walking the lot</div>`:"")
     +(G.offAsk?`<div class="al mini">🙋 ${esc(G.offAsk.name)} wants tomorrow off · <b>Y</b> approve · <b>N</b> deny</div>`:"")
