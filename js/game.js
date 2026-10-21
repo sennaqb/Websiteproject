@@ -2,7 +2,7 @@
 // First-person 3D lot. You are the manager: prep in your office, open the lot, then save the deals your salespeople can't close.
 (function(){
 const SHIFT_SECONDS=480, OPEN_MIN=540, CLOSE_MIN=1080, LANE_Z=0;
-const G={phase:"title",on:false,t:0,anim:0,yaw:Math.PI,pitch:0,px:0,pz:-17,keys:{},vx:0,vz:0,bob:0,bobAmt:0,sprint:false,fov:72,shake:0,flash:0,box:0,pops:[],cashShown:0,cust:[],sales:[],cars:{},drives:[],minis:0,miniBots:[],stats:null,feed:[],talk:null,ended:false,acc:0,drag:false,lastSky:-1,boardKey:""};
+const G={phase:"title",on:false,t:0,anim:0,yaw:Math.PI,pitch:0,px:0,pz:-17,keys:{},vx:0,vz:0,bob:0,bobAmt:0,sprint:false,fov:72,shake:0,flash:0,box:0,pops:[],cashShown:0,cust:[],kids:[],sales:[],cars:{},drives:[],minis:0,miniBots:[],stats:null,feed:[],talk:null,ended:false,acc:0,drag:false,lastSky:-1,boardKey:""};
 let W,canvas,last=0;
 const P=(x,z)=>({x,z});
 
@@ -123,7 +123,7 @@ function spawnCrew(){
     G.sales.push({def:d,mesh:m,tag,path:[],speed:2.1,state:"idle",cust:null,home,ph:i,deals:0,gross:0});
   });
 }
-function clearCustomers(){G.cust.forEach(c=>{if(c.mesh)W.scene.remove(c.mesh)});G.cust=[]}
+function clearCustomers(){G.cust.forEach(c=>{if(c.mesh)W.scene.remove(c.mesh)});G.cust=[];(G.kids||[]).forEach(k=>W.scene.remove(k.mesh));G.kids=[]}
 function setPlayerStart(){G.px=0;G.pz=-17;G.yaw=Math.PI;G.pitch=0}
 function enterPrep(){
   clearCustomers();spawnCrew();syncCars();
@@ -241,6 +241,7 @@ function makeCustomerMesh(u){
 }
 function spawn(c){
   c.mesh=makeCustomerMesh(c.u);c.mesh.position.set(rnd(-1.5,1.5),0,GATE_IN);W.scene.add(c.mesh);
+  if(c.u.car&&!c.u.done&&!persona(c.u).imp&&Math.random()<(c.u.persona==="mom"?.6:.18))spawnKids(c);
   const slot=c.u.car?carSlot(c.u.car):-1;c.slot=slot;
   if(slot>=0&&!c.u.done){c.path=routeIn(slot,-1);c.state="enter"}
   else{c.path=[P(IN,9),P(OUT,9),P(OUT,GATE_OUT)];c.state="pass"}
@@ -379,7 +380,7 @@ function stepTestDrive(c,dt){
   c.mesh.position.copy(m.position);c.sp.mesh.position.copy(m.position);   // they're in the car
 }
 function resolveWork(c){
-  const sp=c.sp,u=c.u,mv=motive(sp.def),d=Object.assign({},sp.def,{skill:Math.max(.05,Math.min(.95,sp.def.skill+mv*.2)),cave:Math.max(0,Math.min(.9,sp.def.cave-mv*.1))}),t=tier(c),car=carOf(c),r=Math.random()-(c.tdBonus||0);   // a good test drive helps, a disaster hurts
+  const sp=c.sp,u=c.u,mv=motive(sp.def),d=Object.assign({},sp.def,{skill:Math.max(.05,Math.min(.95,sp.def.skill+mv*.2)),cave:Math.max(0,Math.min(.9,sp.def.cave-mv*.1))}),t=tier(c),car=carOf(c),r=Math.random()-(c.tdBonus||0)+(c.kidHit||0);   // a good test drive helps, a disaster hurts
   if(d.quirk==="spanish"){stall(c);return}   // Juanny: nobody understands a word, so it always comes to Miguel
   if(t==="easy"){
     if(r<.85){spSale(c,Math.min(Math.round(u.reserve/50)*50,Math.round(car.price*rnd(.94,1)/50)*50),"easy");return}
@@ -399,7 +400,7 @@ function sim(dt){
   // only as many customers as the crew can greet, plus one, so nobody stands around ignored
   const onLot=G.cust.filter(c=>c.mesh&&!["gone","wait","delivery","leave","pass"].includes(c.state)).length;
   G.cust.forEach(c=>{if(c.state==="wait"&&G.t>=c.arrive){if(onLot>=Math.max(2,G.sales.length+1))c.arrive=G.t+3+Math.random()*4;else spawn(c)}});
-  stepBob(dt);stepWiggle();stepDrives(dt);stepMinis(dt);stepEvents(dt);stepDayOff();
+  stepBob(dt);stepWiggle();stepDrives(dt);stepMinis(dt);stepEvents(dt);stepDayOff();stepKids(dt);
   G.cust.forEach(c=>{
     if(!c.mesh||c.state==="gone"||c.state==="talk")return;
     const arrived=stepNpc(c,dt,["working","stuck","greet"].includes(c.state));
@@ -798,6 +799,69 @@ function tiffTip(){
   if(TF().aff<4)return null;const c=pick(G.cust.filter(c=>c.mesh&&["browse","greet","working","stuck"].includes(c.state)));
   return c?`Psst. ${c.u.name} told me their budget's about ${$f(Math.round(c.u.budget*.95/100)*100)}. You didn't hear it from me.`:null;
 }
+// ---------- kids running wild ----------
+// Some customers bring their kids. The kids run circles around the parent and cause chaos every so often:
+// the stuck/desk deal loses patience, and in a T.O. the parent gets distracted and closer to walking.
+// E near the kids: send them to Tiffany for lollipops, which calms everything down.
+const KID_NAMES=["Tyler","Brayden","Kaylee","Jaxon","Madison","Aiden","Nevaeh","Hunter","Paisley","Kayden"];
+const KID_CHAOS=[(k,c,car)=>`${k} is honking the horn of the ${car}. Nonstop.`,(k,c,car)=>`${k} climbed into the trunk of a Corolla and can't get out.`,
+  (k,c,car)=>`${k} licked the steering wheel. ${c.u.name}: "He does that."`,(k)=>`${k} is spinning in your office chair, screaming.`,
+  (k)=>`${k} found Tiffany's mints. All of them. They're gone.`,(k)=>`${k} is trying to ride Mr. Wiggle.`,
+  (k)=>`${k} asked ${G.sales.length?pick(G.sales).def.name:"the salesman"} if he's a mime.`,(k)=>`${k} pressed every button in the ${pick(["Civic","Explorer","Sentra"])}. The alarm is going off.`,
+  (k)=>`${k} is drawing on the windshield with a marker. A permanent one.`,(k)=>`${k} told ${G.sales.length?pick(G.sales).def.name:"a salesman"} he looks like a potato with a tie.`];
+const KID_PARENT=[k=>`${k.toUpperCase()}! PUT THAT DOWN! ...Sorry. Where were we? Actually, can we speed this up?`,k=>`${k}, if you don't stop, no iPad for a week! ...Okay, honestly, what's your best number? I need to leave.`,
+  k=>`Oh my God. ${k}. ...Look, I don't have all day. These two are about to burn this place down.`,k=>`${k}, we do NOT lick the cars! ...Sorry. This is why I need a minivan.`];
+function spawnKids(c){
+  const n=Math.random()<.5?2:3;c.kids=[];
+  for(let i=0;i<n;i++){const f=Math.random()<.5;
+    const m=W.person({sex:f?"f":"m",top:"tee",shirt:pick(COLORS),pants:pick([0x30343c,0x2a3a5a,0x5a4a8a,0x8a3a3a]),hairStyle:pick(f?["ponytail","bob","curly"]:["short","messy","curly"]),hair:pick(HAIRS),skin:ri(0,3),height:.5,bigHead:1.3,bottom:f&&Math.random()<.5?"skirt":"pants"});
+    const p=c.mesh.position;m.position.set(p.x+rnd(-1,1),0,p.z+rnd(-.5,.5));W.scene.add(m);
+    const k={mesh:m,c,name:pick(KID_NAMES.filter(x=>!c.kids.some(o=>o.name===x))),ang:Math.random()*6.3,spd:rnd(1.6,2.6)*(Math.random()<.5?1:-1),ph:Math.random()*6,state:"follow"};
+    c.kids.push(k);G.kids.push(k)}
+  c.chaosAt=G.t+rnd(10,18);say3(`🧒 ${c.u.name} brought the kids. ${n===2?"Both":"All three"} of them.`,"#ffd6a0");
+}
+function kidCenter(k){
+  const p=k.c.mesh.position;if(inShowroom(p.z))return {x:p.x,z:Math.max(p.z+1.3,-18)};   // the aisle in front of the desks
+  const rz=[-8,8,18].reduce((a,b)=>Math.abs(b-p.z)<Math.abs(a-p.z)?b:a);return {x:p.x,z:p.z+Math.sign(p.z-rz||1)*.7};   // the side away from the parked car
+}
+function stepKids(dt){
+  if(!G.kids||!G.kids.length)return;
+  for(let i=G.kids.length-1;i>=0;i--){const k=G.kids[i],c=k.c,m=k.mesh;
+    if(!c.mesh||!c.mesh.parent||c.state==="gone"){W.scene.remove(m);G.kids.splice(i,1);continue}
+    const hide=c.state==="td_drive";m.visible=!hide;if(hide)continue;
+    let tx,tz;
+    if(k.state==="tiff"&&!["leave","delivery"].includes(c.state)){const r=W.reception;tx=r.x-.8+k.slot*.8;tz=-16.05}
+    else{if(k.state==="tiff")k.state="follow";
+      const cen=kidCenter(k),moving=["enter","leave","delivery","todesk","greet","td_walk"].includes(c.state);k.ang+=dt*k.spd;
+      const rx=moving?.7:1.5,rz=moving?.6:.55;tx=cen.x+Math.cos(k.ang)*rx;tz=cen.z+Math.sin(k.ang)*rz}
+    const dx=tx-m.position.x,dz=tz-m.position.z,d=Math.hypot(dx,dz),st=Math.min(d,3.2*dt);
+    if(d>.03){m.position.x+=dx/d*st;m.position.z+=dz/d*st;m.rotation.y=Math.atan2(dx,dz)}
+    else if(k.state==="tiff")m.rotation.y=Math.atan2(W.reception.x-m.position.x,W.reception.z-m.position.z);
+    W.animatePerson(m,d>.05,G.anim*1.4+k.ph,k.state!=="tiff"&&Math.sin(G.anim*2+k.ph)>.85,false);
+  }
+  // chaos, once per family every 15-25 s, until the kids are handed off
+  G.cust.forEach(c=>{if(!c.kids||c.kidsCalm||!c.mesh||c.state==="gone"||G.t<c.chaosAt)return;
+    if(!["browse","greet","todesk","working","stuck","talk","td_drive"].includes(c.state))return;
+    c.chaosAt=G.t+rnd(15,25);const k=pick(c.kids),car=carOf(c),cn=car?car.model:"car";
+    const near=Math.hypot(G.px-k.mesh.position.x,G.pz-k.mesh.position.z)<16;
+    if(c.state==="td_drive"){say3(`🧒 ${c.kids.map(x=>x.name).join(" and ")} honked the horn the entire test drive.`,"#ffd6a0");if(c.tdBonus!==undefined)c.tdBonus-=.05;return}
+    say3("🧒 "+pick(KID_CHAOS)(k.name,c,cn),"#ffd6a0");if(near){popup("😱",k.mesh.position,"#ffd6a0");Sfx.alert&&Sfx.alert()}
+    c.mesh.userData.mood="angry";
+    if(c.state==="stuck")c.pat=Math.max(2,c.pat-7);
+    if(c.state==="working")c.kidHit=(c.kidHit||0)+.06;
+    if(c.state==="talk"&&typeof T!=="undefined"&&T&&T.uid===c.u.id&&!T.over){const l=pick(KID_PARENT)(k.name);T.lines.push({who:"c",text:l});T.forceMood="angry";
+      if(!tire(c.u,1,`That's it. ${k.name}, in the car. We're LEAVING.`))renderTalk()}
+  });
+}
+function kidsToTiffany(c){
+  if(!G.recep||!G.recep.mesh.userData.vrm)return say3("Tiffany isn't at her desk.","#fd8");
+  if(G.lotWalk)return say3("Tiffany's out walking the lot. The kids are all yours.","#fd8");
+  c.kidsCalm=true;c.kids.forEach((k,i)=>{k.state="tiff";k.slot=i});
+  recepSay(pick(["Okay! Who wants a lollipop? ...Not you, Frenchy.","Kids! Come here. I have lollipops and absolutely no rules.","Sit. Lollipops. Don't touch the bell. I said DON'T touch the bell."]),true);
+  say3(`🍭 ${c.u.name}'s kids are at Tiffany's desk with lollipops. Peace at last.`,"#8dffa8");c.mesh.userData.mood="happy";
+  if(c.state==="stuck")c.pat=Math.min(c.patMax,c.pat+15);
+  if(c.state==="talk"&&typeof T!=="undefined"&&T&&T.uid===c.u.id&&!T.over){T.pat=Math.min(T.maxPat,T.pat+1);T.lines.push({who:"c",text:pick(["Oh thank God. Okay. I can think again. Where were we?","You're a saint. Okay, let's talk numbers. Quietly."])});renderTalk()}
+}
 // ---------- the crew gets distracted by Tiffany ----------
 // An idle salesperson drifts over to the reception desk to flirt. While they're there they don't greet anyone,
 // so customers on the lot go unhelped. Walk over and press E to send them back. Some are worse than others.
@@ -861,6 +925,8 @@ function recepChat(){
   G.recep.mesh.userData.wave=1.2;recepSay(pick(list.slice(0,2).concat(list.slice(-1))),true);
 }
 function nearest(){
+  { const k=(G.kids||[]).find(k=>!k.c.kidsCalm&&k.mesh.visible&&Math.hypot(G.px-k.mesh.position.x,G.pz-k.mesh.position.z)<(G.talk&&G.talk.c===k.c?4:2.3));
+    if(k)return{label:`[E] Send ${k.c.u.name}'s kids to Tiffany for lollipops`,act:()=>kidsToTiffany(k.c)} }
   if(!G.talk&&G.dale&&G.dale.state!=="leave"&&Math.hypot(G.px-G.dale.mesh.position.x,G.pz-G.dale.mesh.position.z)<2.2)return{label:"[E] Give Dale $5 to go away",act:()=>daleLeave(true)};
   if(!G.talk&&G.lawyer&&G.lawyer.state==="wait"&&Math.hypot(G.px-G.lawyer.lw.mesh.position.x,G.pz-G.lawyer.lw.mesh.position.z)<2.6)return{label:`[E] Deal with ${G.lawyer.name}'s lawyer`,act:lawyerTalk};
   if(!G.talk){const f=G.sales.find(s=>s.state==="flirt"&&Math.hypot(G.px-s.mesh.position.x,G.pz-s.mesh.position.z)<2.2);
@@ -1264,5 +1330,5 @@ function gun(){
   G.gunEnd=performance.now()+3200;G.shake=.25;Sfx.click();if(S.tiff)tiffAff(-1,true);
   if(G.talk&&G.talk.c.mesh)G.talk.c.mesh.userData.handsUp=4;
 }
-window.G3={gun,cry,makeCustomerMesh,ev:{startDale,startLawyer,startRain,sendTiffany,daleLeave,lawyerTalk,lawyer,answerDayOff,motive,offToday},speaking:(s,mood)=>{if(G.talk&&G.talk.c.mesh){const u=G.talk.c.mesh.userData;u.talkLeft=s;if(mood)u.mood=mood}},fx,popup,on:()=>G.phase==="open"&&!G.ended,elapse,waiting,talkClosed,step,sim,draw,hud,takeover,endShift,startShift,state:G,world:()=>W,tier,syncCars,enterPrep};
+window.G3={gun,cry,makeCustomerMesh,ev:{startDale,startLawyer,startRain,sendTiffany,daleLeave,lawyerTalk,lawyer,answerDayOff,motive,offToday,stall,kidsToTiffany},speaking:(s,mood)=>{if(G.talk&&G.talk.c.mesh){const u=G.talk.c.mesh.userData;u.talkLeft=s;if(mood)u.mood=mood}},fx,popup,on:()=>G.phase==="open"&&!G.ended,elapse,waiting,talkClosed,step,sim,draw,hud,takeover,endShift,startShift,state:G,world:()=>W,tier,syncCars,enterPrep};
 })();

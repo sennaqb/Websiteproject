@@ -89,7 +89,8 @@ addEventListener("touchend",lookEnd);addEventListener("touchcancel",lookEnd);
 // ---------- show the buttons that make sense right now ----------
 setInterval(()=>{const g=G();if(!g)return;const talk=!!(typeof T!=="undefined"&&T&&T.inWorld),tiff=typeof S!=="undefined"&&S&&S.tiff&&S.tiff.unlocked;
   tc.querySelectorAll(".b[data-only]").forEach(b=>{const o=b.dataset.only;b.classList.toggle("hide",o==="talk"?!talk:o==="flirt"?(!tiff||talk):o==="tut"?!g.tut:false)});
-  tc.querySelectorAll('.btns .b:not([data-only])').forEach(b=>b.classList.toggle("hide",talk&&b.dataset.tap!=="KeyT"));
+  const kidsNear=/kids to Tiffany/.test((document.getElementById("prompt")||{}).textContent||"");
+  tc.querySelectorAll('.btns .b:not([data-only])').forEach(b=>b.classList.toggle("hide",talk&&b.dataset.tap!=="KeyT"&&!(kidsNear&&b.dataset.tap==="KeyE")));
   tc.querySelector(".yn").style.display=g.offAsk&&!talk?"flex":"none";
 },250);
 
