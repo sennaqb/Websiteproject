@@ -289,7 +289,7 @@ function spSale(c,price,why){
   const i=S.inv.indexOf(car),front=price-car.cost,sp=c.sp;
   finishSale(c.u,car,i,price,[]);
   const com=commission(sp,front);
-  G.stats.sp++;G.stats.spGross+=front-com;if(why==="cave")G.stats.cave++;
+  G.stats.sp++;G.stats.spGross+=front-com;recepCheer();if(why==="cave")G.stats.cave++;
   const rec=G.sales.find(s=>s===sp);if(rec){rec.deals++;rec.gross+=front-com}
   say3(`${sp.def.name} ${why==="cave"?"caved and sold":"sold"} the ${label(car)} for ${$f(price)}: ${front<0?"lost ":""}${$f(Math.abs(front))} gross`,front>=300?"#9f9":front>=0?"#fd8":"#f88");
   popup(`${sp.def.name} ${front-com<0?"-":"+"}${$f(Math.abs(front-com))}`,c.mesh.position,front-com>=300?"#8dffa8":front-com>=0?"#ffe08a":"#ff8a8a");
@@ -580,7 +580,7 @@ function recepPick(list){const r=G.recep;let t=pick(list);for(let i=0;i<4&&r.sai
 function stepRecep(dt){
   if(G.recep&&S&&G.recep.day!==S.day&&G.phase==="prep"){W.scene.remove(G.recep.mesh);G.recep=null}   // new day, maybe a new outfit
   if(!G.recep){if(window.VRMKit&&W&&W.reception)makeRecep();return}
-  const r=G.recep,m=r.mesh,u=m.userData,p=m.position;r.cool-=dt;u.wave=(u.wave||0)-dt;if(u.mood==="neutral"||u.mood==="happy")u.mood=u.wave>0?"happy":"neutral";u.talkLeft=(u.talkLeft||0)-dt;
+  const r=G.recep,m=r.mesh,u=m.userData,p=m.position;r.cool-=dt;u.wave=(u.wave||0)-dt;u.jump=Math.max(0,(u.jump||0)-dt);if(u.mood==="neutral"||u.mood==="happy")u.mood=u.wave>0?"happy":"neutral";u.talkLeft=(u.talkLeft||0)-dt;
   // she watches you when you're close, otherwise eyes front
   const d=Math.hypot(G.px-p.x,G.pz-p.z);let want=0;
   if(d<7&&!G.lotWalk){want=Math.atan2(G.px-p.x,G.pz-p.z)-m.rotation.y;want=Math.atan2(Math.sin(want),Math.cos(want));want=Math.max(-1,Math.min(1,want))}
@@ -908,7 +908,20 @@ function sendBack(s,byMiguel){
   if(byMiguel)crewSay(s,BACK[s.def.name]||"Going, boss.");
   else say3(`${RECEP_NAME} sent ${s.def.name} back to his desk. Somebody has to.`,"#ffb6e1");
 }
+// Tiffany jumps for joy on every sale (her hair and the rest of her spring bones react to the hops).
+function recepCheer(mine){
+  if(!G.recep||!G.recep.mesh.userData.vrm||G.lotWalk)return;const u=G.recep.mesh.userData;u.jump=1.3;u.mood="happy";u.moodScale=.9;
+  setTimeout(()=>{if(G.recep){G.recep.mesh.userData.mood="neutral";G.recep.mesh.userData.moodScale=.45}},2200);
+  if(Math.random()<(mine?.7:.35))setTimeout(()=>recepSay(pick(mine?["Yesss! Miguel, you closer!","WOO! Ring the bell! We don't have a bell! WOO!","That's how it's DONE!","Sold! Somebody tell Bob! Actually, I'll tell Bob."]:["Another one! Woo!","SOLD! Ring the imaginary bell!","Yay! Somebody actually bought something!","Woo! Free car wash for everyone! Kidding."]),true),300);
+}
+// Pressing E over and over doesn't cycle her lines: she gets annoyed, then ignores you for a bit.
 function recepChat(){
+  const now=G.anim,r=G.recep;if(r.chatAt&&now-r.chatAt<6){r.pester=(r.pester||0)+1;r.chatAt=now;
+    if(r.pester===1)return recepSay(pick(["Miguel. I'm working.","Yes? ...No? Okay.","Can I help you? Again?"]),true);
+    if(r.pester===2)return recepSay(pick(["If you press my buttons one more time I'm telling HR. I'm HR.","Do you need something or are you just lonely?"]),true);
+    r.mesh.userData.mood="angry";setTimeout(()=>{if(G.recep)G.recep.mesh.userData.mood="neutral"},2500);return say3("💁 Tiffany is ignoring you. Give her a minute.","#bbb")}
+  if(r.chatAt&&now-r.chatAt<20&&r.pester>=3)return say3("💁 Tiffany is still ignoring you.","#bbb");
+  r.chatAt=now;r.pester=0;
   const S0=S,list=[],stuck=G.cust.filter(c=>c.state==="stuck"),tf=TF();
   if(!tf.days.includes(S.day)){tf.days.push(S.day);if(!tf.unlocked&&tf.days.length>=3){tf.unlocked=true;setTimeout(()=>say3("💘 Tiffany smiled at you a little longer than usual. (Psst: hold F at her desk and say something nice.)","#ff9ad0"),5000)}}
   const tip=G.phase==="open"&&Math.random()<.6&&tiffTip();if(tip&&G.recep.toldOutfit){G.recep.mesh.userData.wave=1;return recepSay(tip,true)}
@@ -918,7 +931,7 @@ function recepChat(){
   if(G.phase==="open"&&G.minis>0)list.push(`You've got ${G.minis} Mini Miguel${G.minis>1?"s":""} left today. He keeps asking me out. He's eleven inches tall.`);
   if(G.phase==="open"&&G.minis===0)list.push("Mini Miguel's on his break. He's sitting in the cup holder of the Civic, sulking.");
   try{const wk=weekOf(S0.day),got=S0.profit-S0.weekStart,q=quota(wk);list.push(got>=q?"You hit quota! Bob said 'good job' and then immediately said 'don't get used to it.'":`You need ${$f(q-got)} more this week for quota. No pressure. Except from Bob. And the bank.`)}catch(e){}
-  if(!G.recep.toldOutfit&&G.recep.mesh.userData.vrm){G.recep.toldOutfit=true;   // wait until she's loaded, so the outfit line matches what she's wearingG.recep.mesh.userData.wave=1.2;const v=G.recep.mesh.userData.vrm,stock=v&&String(v.src).includes("VRM1_Constraint");
+  if(!G.recep.toldOutfit&&G.recep.mesh.userData.vrm){G.recep.toldOutfit=true;   /* wait until she's loaded, so the outfit line matches what she's wearing */G.recep.mesh.userData.wave=1.2;const v=G.recep.mesh.userData.vrm,stock=v&&String(v.src).includes("VRM1_Constraint");
     const lk=recepLook();if(lk.lines&&v&&(lk.swim||String(v.src).includes(lk.file)))return recepSay(pick(lk.lines),true);
     return recepSay(stock?recepOutfit().line:pick(["Like the blouse? Bob said I look like I work at a real dealership. Nicest thing anyone's ever said about this place.","New glasses. I can finally read the fine print on our contracts. I wish I couldn't.","The skirt's for the customers. The glasses are so Frenchy thinks I'm busy.","Pencil skirt, glasses, coffee. I'm the only professional thing on this lot."]),true)}
   list.push(recepPick(RECEP_JOKES));
@@ -963,7 +976,7 @@ function talkClosed(){
   const t=G.talk;if(!t)return;G.talk=null;
   const c=t.c,u=c.u,over=u.done;
   if(over&&/^Bought/.test(u.msg)){
-    G.stats.mgr++;G.stats.mgrGross+=u.gross||0;
+    G.stats.mgr++;G.stats.mgrGross+=u.gross||0;recepCheer(true);
     claimCar(c);
     say3(`You closed ${u.name}${t.wasStuck?" (saved the deal)":""}.`,"#9f9");popup("+"+$f(u.gross||0),c.mesh.position,"#ffd24a",true);G.shake=.18;
     bobJudges(u);
@@ -1036,7 +1049,7 @@ function miniResolve(c){
   if(tier(c)!=="hopeless"&&Math.random()<.6){
     const price=Math.min(u.reserve,Math.round((u.offer+(u.reserve-u.offer)*.7)/50)*50);
     claimCar(c);finishSale(u,car,S.inv.indexOf(car),price,[]);
-    G.stats.mgr++;G.stats.mgrGross+=price-car.cost;c.mesh.userData.mood="happy";
+    G.stats.mgr++;G.stats.mgrGross+=price-car.cost;recepCheer(true);c.mesh.userData.mood="happy";
     say3(`Mini Miguel closed ${u.name} for ${$f(price)}!`,"#9f9");popup("Mini Miguel +"+$f(price-car.cost),c.mesh.position,"#ffd24a",true);Sfx.cash();syncCars();startDelivery(c);
   }else{c.mesh.userData.mood="angry";customerWalks(c,`${u.name} walked out on Mini Miguel.`,.5)}
 }

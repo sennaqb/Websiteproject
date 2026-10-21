@@ -155,6 +155,9 @@ K.animate=function(g,moving,t,armsUp,talk){
     // hips drop at each footfall and roll side to side; this bob is what makes hair and bust springs move
     const hp=N(vrm,"hips");if(hp){if(u.hipsY0===undefined)u.hipsY0=hp.position.y;hp.position.y=u.hipsY0+go*.028*(Math.abs(cs)-1);hp.rotation.set(0,go*.1*sn,go*.045*sn)}
   }
+  // jump for joy: two hops; knees bend on landing, arms up. The vertical motion drives the spring bones.
+  if(u.jump>0&&!moving&&!u.sit){const k=1-u.jump/1.3,hop=(k*2)%1,air=Math.sin(Math.min(1,hop/.8)*Math.PI);
+    g.position.y=air*.28;const kn=(1-air)*.7;set("leftUpperLeg",-kn*.6);set("rightUpperLeg",-kn*.6);set("leftLowerLeg",kn);set("rightLowerLeg",kn);armsUp=true}
   // arms come down from the T-pose; swing when walking, gesture when talking, up when cheering
   const sw=moving?sn*.38:Math.sin(t*1.5)*.03;
   if(u.wave>0&&!moving){const w=u.wavePose||WAVE,f=Math.sin(t*8)*w.amp;set("leftUpperArm",sw,0,-1.25);set("leftLowerArm",0,-.15,0);

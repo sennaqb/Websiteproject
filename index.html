@@ -109,6 +109,10 @@ body.talking #tip,body.talking #feed{display:none!important}
 #subs .doubt.red{background:#5a1010ee;border-color:#ff5a4a}#subs .doubt.blue{background:#0f3a5aee;border-color:#6ac8ff}#subs .doubt.purple{background:#4a1a5aee;border-color:#d08aff}
 @keyframes pulse{0%,100%{box-shadow:0 0 0 0 #ffc93a00}50%{box-shadow:0 0 14px 2px #ffc93a55}}
 @media (max-width:900px){#deal{width:240px;font-size:12px}}
+/* while talking, the subtitles stay in the space left of the deal panel so they never collide */
+body.talking #subs{left:16px;right:336px;width:auto;transform:none;margin:0 auto;max-width:1100px}
+#deal{max-height:calc(100vh - 210px);overflow:hidden}
+@media (max-width:900px){body.talking #subs{right:272px}}
 </style>
 </head>
 <body>
@@ -124,19 +128,19 @@ body.talking #tip,body.talking #feed{display:none!important}
 <script src="lib/three.min.js"></script>
 <!-- ES modules (the VRoid/VRM loader) import "three" through a shim that hands them the same THREE as the game -->
 <script type="importmap">{"imports":{"three":"./js/three-shim.js"}}</script>
-<script type="module" src="js/vrm.js?v=20261021-2"></script>
-<script src="js/data.js?v=20261021-2"></script>
-<script src="js/audio.js?v=20261021-2"></script>
-<script src="js/ai.js?v=20261021-2"></script>
-<script src="js/whisper.js?v=20261021-2"></script>
-<script src="js/voices.js?v=20261021-2"></script>
-<script src="js/lines.js?v=20261021-2"></script>
-<script src="js/talk.js?v=20261021-2"></script>
-<script src="js/miguel.js?v=20261021-2"></script>
-<script src="js/world.js?v=20261021-2"></script>
-<script src="js/pc.js?v=20261021-2"></script>
-<script src="js/game.js?v=20261021-2"></script>
-<script src="js/touch.js?v=20261021-2"></script>
+<script type="module" src="js/vrm.js?v=20261021-3"></script>
+<script src="js/data.js?v=20261021-3"></script>
+<script src="js/audio.js?v=20261021-3"></script>
+<script src="js/ai.js?v=20261021-3"></script>
+<script src="js/whisper.js?v=20261021-3"></script>
+<script src="js/voices.js?v=20261021-3"></script>
+<script src="js/lines.js?v=20261021-3"></script>
+<script src="js/talk.js?v=20261021-3"></script>
+<script src="js/miguel.js?v=20261021-3"></script>
+<script src="js/world.js?v=20261021-3"></script>
+<script src="js/pc.js?v=20261021-3"></script>
+<script src="js/game.js?v=20261021-3"></script>
+<script src="js/touch.js?v=20261021-3"></script>
 <script>window.addEventListener("load",function(){Game.boot()});</script>
 </body>
 </html>

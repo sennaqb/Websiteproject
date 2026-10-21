@@ -21,7 +21,7 @@ body.touch.playing #tc{display:block}
 #tc .b{width:50px;height:50px;border-radius:50%;background:#000a;border:2px solid #ffffff40;color:#fff;font:700 13px system-ui;display:flex;align-items:center;justify-content:center;flex-direction:column;line-height:1.05;text-align:center}
 #tc .b span{font-size:18px}
 #tc .b.on{background:#ffb81c;color:#111}
-#tc .b.hide{visibility:hidden}
+#tc .b.hide{display:none}
 #tc .top{position:absolute;top:56px;left:max(10px,env(safe-area-inset-left));display:flex;flex-direction:column;gap:6px;pointer-events:auto}
 #tc .top .b{width:40px;height:40px}#tc .top .b span{font-size:15px}
 #tc .yn{position:absolute;top:96px;left:50%;transform:translateX(-50%);display:none;gap:10px;pointer-events:auto}
@@ -29,7 +29,7 @@ body.touch.playing #tc{display:block}
 #rotate{position:fixed;inset:0;z-index:20;display:none;align-items:center;justify-content:center;background:#0e1217;color:#fff;font:600 20px system-ui;text-align:center;padding:30px}
 @media (orientation:portrait){body.touch.playing #rotate{display:flex}}
 body.touch #cross{display:none}
-body.touch #deal{top:56px;right:auto;left:max(58px,env(safe-area-inset-left));width:220px;font-size:11px;transform:scale(.85);transform-origin:top left}
+body.touch #deal{top:8px;left:auto;right:max(8px,env(safe-area-inset-right));max-height:none;width:220px;font-size:11px;transform:scale(.85);transform-origin:top left}
 body.touch #mini{width:84px;height:84px}
 body.touch #hudTop{font-size:12px;padding:4px 10px;max-width:70vw}
 body.touch #title{overflow-y:auto;align-items:flex-start;touch-action:pan-y}
@@ -39,7 +39,13 @@ body.touch .titlebox .keys{display:none}
 body.touch #tip{display:none!important}
 body.touch #feed{bottom:160px;max-width:46vw;font-size:13px}
 body.touch #subs{bottom:150px;width:min(640px,60vw)}
-body.touch #subs .sub{font-size:clamp(16px,2.6vw,24px)}
+body.touch.talking #subs{left:max(10px,env(safe-area-inset-left));right:250px;bottom:6px;width:auto;transform:none;max-height:60vh;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end}
+body.touch.talking #subs:not(.on){display:none}
+body.touch.talking #tc .stick,body.touch.talking #mini,body.touch.talking #tc .top{display:none}
+body.touch #deal{transform:scale(.62)!important;transform-origin:top right!important;max-height:330px!important;overflow:hidden}
+body.touch #subs .sub{font-size:clamp(14px,2.2vw,19px)}
+body.touch #subs .doubt,body.touch #subs .subhead{display:none}
+body.touch #deal .dp-doubt .w,body.touch #deal .tipline,body.touch #deal .chips,body.touch #deal .dp-sub{display:none}
 body.touch #subs .subkeys{display:none}
 body.touch #prompt{bottom:auto;top:40%;font-size:15px}
 `;document.head.appendChild(css);
