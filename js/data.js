@@ -292,7 +292,7 @@ const netWorth=()=>S.cash; // the bank is your take. The cars belong to Bob.
 
 // Ends the day. Returns what the owner and the bank have to say.
 // Weekly tallies for the Sunday awards (who sold most, who flirted most, how often Miguel cried...).
-function tally(k,name){S.wk=S.wk||{};if(name){S.wk[k]=S.wk[k]||{};S.wk[k][name]=(S.wk[k][name]||0)+1}else S.wk[k]=(S.wk[k]||0)+1}
+function tally(k,name){if(window.achTally)achTally(k);S.wk=S.wk||{};if(name){S.wk[k]=S.wk[k]||{};S.wk[k][name]=(S.wk[k][name]||0)+1}else S.wk[k]=(S.wk[k]||0)+1}
 function weekAwards(){
   const w=S.wk||{},top=o=>{const e=Object.entries(o||{}).sort((a,b)=>b[1]-a[1])[0];return e||null},out=[];
   const s=top(w.sold);out.push(s?`🏆 Salesperson of the Week: <b>${s[0]}</b> (${s[1]} sold)`:`🏆 Salesperson of the Week: nobody. Bob is considering a cardboard cutout.`);
@@ -313,7 +313,7 @@ function closeDay(){
   let review="";
   if(weekEnd){
     const wk=weekOf(S.day),got=S.profit-S.weekStart,q=quota(wk);
-    if(got>=q){S.strikes=0;review=`Week ${wk}: you grossed ${$f(got)} against Bob's ${$f(q)}. Bob is pleased.`}
+    if(got>=q){S.strikes=0;review=`Week ${wk}: you grossed ${$f(got)} against Bob's ${$f(q)}. Bob is pleased.`;window.ach&&ach("quota")}
     else{S.strikes++;review=`Week ${wk}: you grossed ${$f(got)}. Bob wanted ${$f(q)}. Strike ${S.strikes} of 2.`}
     S.weekStart=S.profit;S.awards=weekAwards();
   }
@@ -321,9 +321,11 @@ function closeDay(){
   const pool=[];EVENTS.forEach(e=>{for(let i=0;i<e.w;i++)pool.push(e)});S.event=pick(pool);
   S.review=review;
   let end=null;
+  if(S.day>=22&&S.strikes<2&&window.ach)ach("week4");
   if(S.strikes>=2)end="fired";
   else if(netWorth()>=GOAL)end="win";
   else if(S.cash<-1500)end="broke";
+  if(end==="win"&&window.ach)ach("win");
   save();
   return {fees,rent,wages,review,end,weekEnd,awards:weekEnd?S.awards:null};
 }

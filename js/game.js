@@ -29,7 +29,7 @@ function showTitle(){
     <div class=kicker>Used cars. All sales final.</div>
     <h1>Bargain Bob's Auto Mart</h1>
     <p>You're Miguel: manager of the worst lot in town, and employee of the month every month. His trucks keep the lot full of junk. Your salespeople cave on price, stall, or lose the customer. Some deals close themselves. Some are a waste of your time. The rest need you.</p>
-    <div class=btnrow>${hasSave()?`<button class=go onclick="Game.start(false)">Continue</button>`:""}<button class="${hasSave()?"b":"go"}" onclick="Game.start(true)">New game</button></div>
+    <div class=btnrow>${hasSave()?`<button class=go onclick="Game.start(false)">Continue</button>`:""}<button class="${hasSave()?"b":"go"}" onclick="Game.start(true)">New game</button><button class=b onclick="achShow()">🏆 Achievements ${window.achCount?achCount():""}</button></div>
     <div class=aibox>${aiRow}<div class=dim id=ainote>${esc(ai.note||"")}</div>
       <div class=dim style="margin-top:6px">${!window.claude&&navigator.mediaDevices?"🎙️ Voice is ready: walk up to a customer and hold <b>V</b> to talk. <button class=b onclick=\"Game.micTest()\">Test mic</button> <span id=micres></span>":"🎙️ This page can't use your microphone, so you'll type (press <b>T</b>). For voice, play the hosted version in Chrome or Edge."}</div></div>
       <div class=dim style="margin-top:6px" id=ldstat></div>
@@ -150,7 +150,7 @@ function start(newGame){
 }
 function startShift(){
   if(G.phase!=="prep")return;
-  G.minis=2;G.walks=2;G.evAt=null;G.rainedToday=false;if(/rain/i.test(S.event.name))setTimeout(()=>{if(G.phase==="open")startRain(true)},4000);G.flirts=0;G.covered=false;G.coffeeT=0;G.coffee=false;
+  G.minis=2;G.walks=2;G.evAt=null;if(laundryDay(S.day)&&window.ach)setTimeout(()=>ach("laundry"),6000);G.rainedToday=false;if(/rain/i.test(S.event.name))setTimeout(()=>{if(G.phase==="open")startRain(true)},4000);G.flirts=0;G.covered=false;G.coffeeT=0;G.coffee=false;
   if(S.tiff&&S.tiff.aff>=8){G.coffee=true;G.coffeeT=60;setTimeout(()=>say3("☕ Tiffany left you a coffee. You walk faster for a minute, and your next T.O. starts with more patience.","#ffd6a0"),3000)}
   if(S.tiff&&S.tiff.aff>=18&&G.recep){G.recep.mesh.userData.wave=2.5;setTimeout(()=>say3("💘 Tiffany waved at you first this morning.","#ff9ad0"),1500)}
   G.offAsk=null;G.offAt=S.day>1&&G.sales.length>1&&Math.random()<.4?rnd(60,300):null;(G.miniBots||[]).forEach(b=>W.scene.remove(b.mesh));G.miniBots=[];
@@ -655,7 +655,7 @@ function stepDale(dt){
 }
 function daleLeave(paid){const d=G.dale;if(!d||d.state==="leave")return;d.state="leave";d.speed=1.5;const q=d.mesh.position;
   d.path=(inShowroom(q.z)?[P(q.x,-17.6),P(0,-13.5),P(OUT,-11)].concat(toAisle(OUT,-11,OUT)):toAisle(q.x,q.z,OUT)).concat([P(OUT,24),P(0,GATE_OUT)]);
-  if(paid){S.cash-=5;const l=pick(["Bless you, Miguel. Don't buy the Buick.","Five bucks! I'm gonna buy a Buick.","You're a good man. Your posters don't do you justice."]);say3(`🥫 Dale: "${l}"`,"#d8c8a0");speakLine(l,31,.7,.92,false,"en","am_echo")}
+  if(paid){S.cash-=5;window.ach&&ach("dale");const l=pick(["Bless you, Miguel. Don't buy the Buick.","Five bucks! I'm gonna buy a Buick.","You're a good man. Your posters don't do you justice."]);say3(`🥫 Dale: "${l}"`,"#d8c8a0");speakLine(l,31,.7,.92,false,"en","am_echo")}
   else say3("🥫 Dale wandered off.","#bbb")}
 // The lawsuit: a past customer and their lawyer wait by your office. E: settle or fight. Ignore them and the court decides.
 function startLawyer(){
@@ -685,7 +685,7 @@ function lawyer(choice){
   const L=G.lawyer;resume();if(!L)return;
   if(choice==="stall"){L.wait=Math.max(L.wait,20);say3(`⚖️ You told them you'd "be right with them". The clock's ticking.`,"#ffb070");return}
   if(choice==="settle"){S.cash-=L.amt;say3(`⚖️ Settled with ${L.name} for ${$f(L.amt)}. Their lawyer smirked the whole time.`,"#ffb070");Sfx.lose()}
-  else if(Math.random()<.5){say3(`⚖️ You fought it and WON. The lawyer is calling you a "loose cannon" in the parking lot.`,"#8dffa8");Sfx.win&&Sfx.win()}
+  else if(Math.random()<.5){window.ach&&ach("lawyer");say3(`⚖️ You fought it and WON. The lawyer is calling you a "loose cannon" in the parking lot.`,"#8dffa8");Sfx.win&&Sfx.win()}
   else{const pay=L.amt*2;S.cash-=pay;say3(`⚖️ You fought it and lost. ${$f(pay)}. Tiffany is pretending she didn't see.`,"#f66");Sfx.lose()}
   lawyerLeave();
 }
@@ -863,7 +863,7 @@ function dateChoice(i){
 function dateEnd(){
   const d=G.date;if(!d)return;d.objs.forEach(o=>W.scene.remove(o));G.date=null;
   if(G.recep){G.recep.mesh.userData.sit=false;G.recep.mesh.position.set(W.reception.x,0,W.reception.z)}
-  G.phase="prep";G.dateDone=true;titleCard("💘","Same time tomorrow");setTimeout(finish,2600);
+  G.phase="prep";G.dateDone=true;window.ach&&ach("date");titleCard("💘","Same time tomorrow");setTimeout(finish,2600);
 }
 // ---------- head-turner customers ----------
 // About 1 in 10 customers is a head-turner. Frenchy, Mario, Riccardo and Juanny melt and give the car away at or
@@ -1083,7 +1083,7 @@ function pcClosed(){
 // ---------- Tiffany roasts you for dumping cars at wholesale ----------
 function wholesaled(c,p){G.whPend=(G.whPend||0)+1;G.whToday=(G.whToday||0)+1;G.whLost=(G.whLost||0)+Math.max(0,(c.price||p)-p)}
 function recepRoast(){
-  const n=G.whPend,tot=G.whToday,lost=G.whLost||0,empty=!S.inv.length;G.whPend=0;if(!n)return;
+  const n=G.whPend,tot=G.whToday,lost=G.whLost||0,empty=!S.inv.length;G.whPend=0;if(!n)return;window.ach&&ach("wh");
   const L=empty?[`You wholesaled the ENTIRE lot. Miguel. What are the salesmen supposed to sell? Air? Frenchy is trying to sell the vending machine.`,
       `The lot is empty. Completely empty. Bob just drove by and asked if we got robbed. I said "kind of."`,
       `Congratulations, you're the first manager to turn a car dealership into a parking lot. ${$f(lost)} left on the table. I did the math. Out loud. To Bob.`]

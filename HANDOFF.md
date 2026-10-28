@@ -107,3 +107,10 @@ First-person 3D used-car dealership game ("Bargain Bob's Auto Mart"). You play M
 - Head-turner customers (u.bomb, ~10%): BOMB_GIVERS (Frenchy, Mario, Riccardo, Juanny) give the car away at 82-102% of cost when the desk deal resolves; BOMB_UPSELL (Sam, Andres) scare her off (45% walk) or stall with 60% patience. Alert chips while at the desk; drool line at greet; special handoff lines. Models: models/customer-1..3.vrm replace the glam stand-in via VRMKit.attach {replace:true} (adult models only).
 - Date scene (dateStart/dateTalk/dateChoice/dateEnd, phase 'date'): runs from finish() the night the meter maxes; dusk, everyone hidden, Tiffany seated on the sofa with Funyuns + Fresca, 3 dialogue beats with 3 choices each, Frenchy at the window after beat 2, then 'same time tomorrow' and the normal next morning.
 - Bust physics fix: VRoid bust springs are stiff on short bones, and an extra pitch layer (underdamped spring on chest vertical velocity, ±0.45 rad, around the body's left-right axis in parent space) is applied AFTER vrm.update with updateMatrix/updateMatrixWorld (the spring system writes matrices itself, so earlier rotations never showed).
+
+## Polish pass (Oct 28)
+- Weekly awards card at week end (`tally()` / `weekAwards()` in data.js).
+- Title screen preloads the Tiffany + head-turner models and shows a loading line.
+- Rain at most once a day; the "Rainy day" event rains all shift.
+- Sound: showroom radio (synth lounge loop, indoors only) and a rain bed, both in audio.js (`Sfx.loops`, called from `draw()`).
+- Achievements (js/ach.js): 16 Steam-style achievements stored in localStorage `bobsAch` across saves; toast on unlock; list from the title screen. Hooks: `achTally` (via tally), plus `ach(id)` in closeDay, recepRoast, dateEnd, lawyer win, Dale, laundry-day start.
