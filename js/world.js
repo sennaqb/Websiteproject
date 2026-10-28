@@ -809,7 +809,14 @@ function create(canvas){
     const pane=new THREE.Mesh(new THREE.BoxGeometry(1.08,2.18,.04),glassM);pane.position.set(-.56,1.11,0);door.add(pane);
     [[-.56,2.2,1.12,.06],[-.56,.03,1.12,.06],[-1.09,1.11,.06,2.2],[-.03,1.11,.06,2.2]].forEach(([x,y,w,h])=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,.06),fr);m.position.set(x,y,0);door.add(m)});
     const hd=new THREE.Mesh(new THREE.BoxGeometry(.04,.32,.08),M(0xc8ccd2,{metalness:.8,roughness:.3}));hd.position.set(-.98,1.05,.06);door.add(hd);
-    box(1.0,.03,.7,M(0x5a2a22),-6.5,.015,-21.8,{noShadow:true});   // doormat: "GO AWAY" energy
+    {const mt=tex(256,176,(g,w,h)=>{   // doormat: coir bristles, a dark woven border, "GO AWAY"
+      g.fillStyle="#8a5a2c";g.fillRect(0,0,w,h);
+      for(let i=0;i<4000;i++){const v=Math.random();g.fillStyle=v<.5?"rgba(60,34,14,.35)":"rgba(190,140,80,.3)";g.fillRect(Math.random()*w,Math.random()*h,1+Math.random()*2,1)}
+      g.strokeStyle="#3a2010";g.lineWidth=14;g.strokeRect(7,7,w-14,h-14);
+      g.fillStyle="#2a160a";g.font="bold 46px Impact, 'Arial Black', sans-serif";g.textAlign="center";g.textBaseline="middle";g.fillText("GO AWAY",w/2,h/2+2)});
+      mt.colorSpace=THREE.SRGBColorSpace;
+      const mat=new THREE.Mesh(new THREE.PlaneGeometry(.95,.65),new THREE.MeshStandardMaterial({map:mt,roughness:1,polygonOffset:true,polygonOffsetFactor:-2}));
+      mat.rotation.x=-Math.PI/2;mat.position.set(-6.5,.034,-21.75);mat.receiveShadow=true;scene.add(mat)}
     solid(-6.05,-5.85,-23.6,-22.6); }
   solid(-10,-7.1,-22.55,-22.25);solid(-5.9,-5.25,-22.55,-22.25);solid(-5.55,-5.25,-27,-22.4);
   const md=makeDesk(3,1.1,{seed:3,monitor:false});md.position.set(-7.5,0,-25);md.rotation.y=Math.PI;furn.add(md);solid(-9.1,-5.9,-25.7,-24.3);
