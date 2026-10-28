@@ -1340,6 +1340,7 @@ function draw(){
   G.gunT=Math.max(0,(G.gunEnd||0)-performance.now())/1000;
   if(W.gun){const e=3.2-G.gunT,up=G.gunT<=0?0:Math.min(1,e*5,G.gunT/.4);W.gun.visible=up>0;W.gun.position.y=-.5+.3*up;W.gun.rotation.x=up*.05}
   W.post.flash=G.flash;
+  if(Sfx.loops&&(G.sndT=(G.sndT||0)+1)%15===0)Sfx.loops(G.phase!=="title"&&inShowroom(G.pz)&&Math.abs(G.px)<10.2,G.rain?G.rain.a:0,!!G.talk);   /* radio indoors, rain bed */
   W.render();
 }
 function loop(){
