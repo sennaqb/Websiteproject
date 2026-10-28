@@ -106,7 +106,9 @@ K.attach=function(g,url,o){
     u.hipY=hp.y-g.position.y;u.blinkAt=Math.random()*3;
     // VRoid bust bones: if the export has no spring bones on them, they get a soft procedural sway instead
     const sprung=new Set();try{(vrm.springBoneManager?vrm.springBoneManager.joints:[]).forEach(j=>sprung.add(j.bone))}catch(e){}
-    u.bust=[];vrm.scene.traverse(o=>{if(o.isBone&&/bust1$/i.test(o.name)&&!sprung.has(o))u.bust.push({b:o,q:o.quaternion.clone()})});
+    // every bust bone gets an extra bouncy layer driven by how fast the body moves up and down (steps, hops);
+    // VRoid's own bust springs are stiff and the bones are short, so on their own the motion is invisible
+    u.bust=[];vrm.scene.traverse(o=>{if(o.isBone&&/bust1$/i.test(o.name))u.bust.push({b:o,q:o.quaternion.clone(),sprung:sprung.has(o)})});
     u.sway={x:0,v:0,drive:0};
     try{(vrm.springBoneManager?vrm.springBoneManager.joints:[]).forEach(j=>{if(/bust/i.test(j.bone.name)&&j.settings){j.settings.stiffness*=.5;j.settings.dragForce*=.55}})}catch(e){}
     const stock=!o||!o.dressIf||String(vrm.src||url).includes(o.dressIf);
@@ -178,9 +180,18 @@ K.animate=function(g,moving,t,armsUp,talk){
 };
 // Spring bones (hair, skirts, ribbons) and expressions need a per-frame update.
 const E=new THREE.Euler(),Q=new THREE.Quaternion();
+const HP=new THREE.Vector3(),AX=new THREE.Vector3(),GQ=new THREE.Quaternion(),PQ=new THREE.Quaternion(),QW=new THREE.Quaternion(),QL=new THREE.Quaternion();
 K.update=function(dt){dt=Math.min(dt,.05);live.forEach(g=>{if(!g.parent){live.delete(g);return}const u=g.userData,v=u.vrm;if(!v)return;
-  if(u.bust&&u.bust.length){const w=u.sway;w.v+=((w.drive-w.x)*160-w.v*9)*dt;w.x+=w.v*dt;   // damped spring chasing the step rhythm
-    u.bust.forEach(k=>{k.b.quaternion.copy(k.q).multiply(Q.setFromEuler(E.set(w.x,0,0)))})}
-  v.update(dt)})};
+  v.update(dt);
+  if(u.bust&&u.bust.length&&dt>0){const w=u.sway,h=v.humanoid.getRawBoneNode("chest")||v.humanoid.getRawBoneNode("hips");h.getWorldPosition(HP);
+    const vy=w.py===undefined?0:(HP.y-w.py)/dt;w.py=HP.y;
+    // underdamped spring: lags behind the body's vertical motion, then overshoots and settles (bounce)
+    const tgt=Math.max(-.45,Math.min(.45,-vy*.32))+w.drive*.5;w.v+=((tgt-w.x)*210-w.v*6.5)*dt;w.x+=w.v*dt;
+    // pitch around the character's own left-right axis (VRoid bone frames vary), expressed in each bone's parent space
+    g.getWorldQuaternion(GQ);AX.set(1,0,0).applyQuaternion(GQ);QW.setFromAxisAngle(AX,w.x);
+    u.bust.forEach(k=>{k.b.parent.getWorldQuaternion(PQ);QL.copy(PQ).invert().multiply(QW).multiply(PQ);
+      if(k.sprung)k.b.quaternion.premultiply(QL);else k.b.quaternion.copy(k.q).premultiply(QL);
+      k.b.updateMatrix();k.b.updateMatrixWorld(true)})}   /* the spring system writes matrices itself, so refresh them after the extra bounce */
+  })};
 window.VRMKit=K;
 window.dispatchEvent(new Event("vrmkit-ready"));
