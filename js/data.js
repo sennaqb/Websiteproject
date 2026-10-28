@@ -82,6 +82,16 @@ const PERSONAS=[
    quips:["Do you guys have a vending machine? Asking for me.","Does the cup holder fit a sixty-four ounce soda?"]},
   {id:"flirt",tag:"the flirt",who:"a glamorous woman who flirts shamelessly with Miguel to get a better price",soft:false,voice:[1.3,.98],
    quips:["Miguel, you're even cuter than your posters.","Is it hot in here, or is it this Buick?"]},
+  {id:"secret",tag:"Bob's secret shopper",who:"Bob's secret shopper, pretending to be a normal buyer but taking notes on everything Miguel says and does, badly hiding a clipboard",soft:false,voice:[1.05,.95],wk:2,
+   quips:["Just browsing. *writes something down*","Interesting. Very interesting. *scribbles*"]},
+  {id:"guru",tag:"negotiation guru",who:"a YouTube negotiation guru filming footage for his online course 'Never Pay Sticker', narrating his own tactics out loud",soft:false,voice:[.95,1.15],wk:2,
+   quips:["And THIS, students, is where he'll try the four-square.","Silence is a weapon, Miguel. ...... See?"]},
+  {id:"spy",tag:"rival lot spy",who:"a salesman from the rival lot across the street, pretending to be a customer, actually trying to poach Miguel's crew and learn his prices",soft:false,voice:[.9,1.1],wk:3,
+   quips:["So... how much does Bob pay you guys? Hypothetically.","Nice lot. Shame if your tube man went missing."]},
+  {id:"trustfund",tag:"trust-fund guy",who:"a 24-year-old trust-fund guy paying with his dad's black card who has never heard the word no and calls everyone bro",soft:true,voice:[1,1.18],wk:3,rich:true,
+   quips:["Bro, just put it on Dad's card.","Is there a version of this car that's, like, more?"]},
+  {id:"tourist",tag:"stranded tourist",who:"a lost tourist from a broken-down tour bus, reading everything out of a phrasebook and taking photos of the tube man",soft:true,voice:[1.1,1.05],bus:true,
+   quips:["*reading phrasebook* Where. Is. The. Bus.","*takes a photo of Mr. Wiggle* Very famous!"]},
   {id:"normal",tag:"regular person",who:"a regular person who is weirded out by this lot",soft:true,voice:[1,1],
    quips:["Why is there a tube man staring at me?","Is this place always like this?"]}
 ];
@@ -261,10 +271,26 @@ function openDay(){
   const pool=["haggler","haggler","researcher","fan","budget","rusher","rusher","tirekicker","tirekicker"].concat(ev.bias||[]);
   for(let i=0;i<n;i++){
     S.cust.push({id:i,name:pick(NAMES),body:pick(["any","any","any","sedan","suv","truck","coupe"]),
-      budget:Math.round(rnd(1500,9000)*ev.bud/100)*100,type:pick(pool),need:pick(NEEDS),persona:pick(PERSONAS).id,hot:pick(Object.keys(HOT)),married:Math.random()<.5,done:false,msg:""});
+      budget:Math.round(rnd(1500,9000)*ev.bud/100)*100,type:pick(pool),need:pick(NEEDS),persona:pickPersona(),hot:pick(Object.keys(HOT)),married:Math.random()<.5,done:false,msg:""});
   }
+  const wk=weekOf(S.day);
+  if(S.day===1){   // opening day: the best of the lot shows up early, in order
+    const imp=pick(PERSONAS.filter(p=>p.imp&&!p.silent)).id;
+    [["grandma"],[imp],["influencer"],["normal",{bomb:true,budget:8500,body:"any"}],["mom",{kids:true,budget:7000,body:"any"}],["hungry"]].forEach(([p,x],i)=>{if(S.cust[i])Object.assign(S.cust[i],{persona:p},x||{})});
+  }
+  if(wk>=2&&S.cust.length>3)S.cust[ri(2,S.cust.length-2)].persona="secret";
+  if(wk>=3&&Math.random()<.5&&S.cust.length>5)S.cust[ri(3,S.cust.length-2)].persona="spy";
+  S.cust.forEach(richer);
   matchCustomers();
 }
+// New kinds of customer show up as the weeks go on (wk), tour-bus tourists only come by bus.
+function pickPersona(){const wk=weekOf(S.day);return pick(PERSONAS.filter(p=>!p.bus&&p.id!=="secret"&&(!p.wk||p.wk<=wk))).id}
+function richer(u){const p=persona(u);if(p.rich&&!u.richDone){u.richDone=true;u.budget=Math.round(u.budget*2.5/100)*100;u.body="any"}if(p.id==="guru")u.type="haggler"}
+// Walk-ins in the middle of the day (the tour bus). Returns the new customers.
+function addWalkIns(n,per){const ev=S.event||EVENTS[0],out=[];
+  for(let i=0;i<n;i++){const u={id:S.cust.length,name:pick(NAMES),body:"any",budget:Math.round(rnd(2500,9000)*ev.bud/100)*100,type:pick(["fan","budget","rusher","tirekicker"]),
+    need:pick(NEEDS),persona:per||pickPersona(),hot:pick(Object.keys(HOT)),married:Math.random()<.5,done:false,msg:""};richer(u);S.cust.push(u);out.push(u)}
+  matchCustomers();return out}
 function matchCustomers(){
   S.cust.forEach(u=>{
     if(u.done)return;

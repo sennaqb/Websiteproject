@@ -17,7 +17,8 @@ const LIST=[
   ["laundry","👙","Laundry Day","Show up on a laundry day."],
   ["date","💘","Same Time Tomorrow","Finish the date with Tiffany."],
   ["lawyer","⚖️","Loose Cannon","Fight the lawsuit and win."],
-  ["dale","🥫","Don't Buy the Buick","Give Dale five bucks."]];
+  ["dale","🥫","Don't Buy the Buick","Give Dale five bucks."],
+  ["inspect","📋","Teacher's Pet","Get an A on Bob's surprise inspection."]];
 let D={u:{},n:{}};
 try{D=Object.assign(D,JSON.parse(localStorage.getItem("bobsAch")||"{}"))}catch(e){}
 const save=()=>{try{localStorage.setItem("bobsAch",JSON.stringify(D))}catch(e){}};

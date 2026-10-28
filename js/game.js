@@ -154,10 +154,13 @@ function startShift(){
   if(S.tiff&&S.tiff.aff>=8){G.coffee=true;G.coffeeT=60;setTimeout(()=>say3("☕ Tiffany left you a coffee. You walk faster for a minute, and your next T.O. starts with more patience.","#ffd6a0"),3000)}
   if(S.tiff&&S.tiff.aff>=18&&G.recep){G.recep.mesh.userData.wave=2.5;setTimeout(()=>say3("💘 Tiffany waved at you first this morning.","#ff9ad0"),1500)}
   G.offAsk=null;G.offAt=S.day>1&&G.sales.length>1&&Math.random()<.4?rnd(60,300):null;(G.miniBots||[]).forEach(b=>W.scene.remove(b.mesh));G.miniBots=[];
-  TALK_LOG.length=0;G.ownerSeen=Math.random()>.4;(G.drives||[]).forEach(d=>W.scene.remove(d.m));G.drives=[];G.wiggleAt=rnd(120,400);if(G.owner){W.scene.remove(G.owner.mesh);G.owner=null}
+  TALK_LOG.length=0;G.ownerSeen=Math.random()>[0,.4,.55,.7][Math.min(3,weekOf(S.day))];G.bobAt=null;G.inspected=false;G.hailed=false;G.bussed=false;G.lawyered=false;G.forceEv=null;(G.drives||[]).forEach(d=>W.scene.remove(d.m));G.drives=[];G.wiggleAt=rnd(120,400);if(G.owner){W.scene.remove(G.owner.mesh);G.owner=null}
   if(!S.inv.length)restock();
   openDay();
   G.phase="open";G.t=0;G.ended=false;
+  // Opening day is scripted so a new player sees the good stuff early; day 2 brings laundry day and the lawyer.
+  if(S.day===1){G.wiggleAt=rnd(110,150);G.evAt=170;G.forceEv="dale";G.ownerSeen=false;G.bobAt=250}
+  if(S.day===2){G.evAt=rnd(70,95);G.forceEv="lawyer"}
   G.stats={p0:S.profit,front0:S.front,back0:S.back,sp:0,spGross:0,mgr:0,mgrGross:0,lost:0,comm:0,cave:0,timeouts:0,released:0,wasted:0};
   G.sales.forEach(s=>{s.deals=0;s.gross=0;s.drift=driftTime(s)*rnd(.9,1.6)});
   const n=S.cust.length;
@@ -246,7 +249,7 @@ function makeCustomerMesh(u){
 function spawn(c){
   if(c.u.bomb===undefined)c.u.bomb=!!(c.u.car&&!c.u.done&&!persona(c.u).imp&&!persona(c.u).silent&&Math.random()<.1);
   c.mesh=makeCustomerMesh(c.u);c.mesh.position.set(rnd(-1.5,1.5),0,GATE_IN);W.scene.add(c.mesh);
-  if(c.u.car&&!c.u.done&&!persona(c.u).imp&&Math.random()<(c.u.persona==="mom"?.6:.18))spawnKids(c);
+  if(c.u.car&&!c.u.done&&!persona(c.u).imp&&(c.u.kids||Math.random()<(c.u.persona==="mom"?.6:.18)))spawnKids(c);
   const slot=c.u.car?carSlot(c.u.car):-1;c.slot=slot;
   if(slot>=0&&!c.u.done){c.path=routeIn(slot,-1);c.state="enter"}
   else{c.path=[P(IN,9),P(OUT,9),P(OUT,GATE_OUT)];c.state="pass"}
@@ -409,7 +412,7 @@ function sim(dt){
   // a few customers at a time, not a crowd
   // only as many customers as the crew can greet, plus one, so nobody stands around ignored
   const onLot=G.cust.filter(c=>c.mesh&&!["gone","wait","delivery","leave","pass"].includes(c.state)).length;
-  G.cust.forEach(c=>{if(c.state==="wait"&&G.t>=c.arrive){if(onLot>=Math.max(2,G.sales.length+1))c.arrive=G.t+3+Math.random()*4;else spawn(c)}});
+  G.cust.forEach(c=>{if(c.state==="wait"&&G.t>=c.arrive){if(!c.bus&&onLot>=Math.max(2,G.sales.length+1))c.arrive=G.t+3+Math.random()*4;else spawn(c)}});
   stepBob(dt);stepWiggle();stepDrives(dt);stepMinis(dt);stepEvents(dt);stepDayOff();stepKids(dt);
   G.cust.forEach(c=>{
     if(!c.mesh||c.state==="gone"||c.state==="talk")return;
@@ -557,7 +560,7 @@ const RECEP_LOOKS=[{file:"receptionist"},
     "Yes, it's a bikini. Yes, my clothes are in the wash. No, Mario, I don't need your jacket. It smells like meatballs.",
     "The washer flooded my apartment, so this is what I've got. Bob's calling it 'Summer Savings Event'. It's November.",
     "Different bikini, same broken washer. Don't say anything, Miguel.","I own four bikinis and zero working washing machines. Make of that what you will."]}];
-const laundryDay=d=>{if(d<2)return false;let h=Math.imul(d^0x5bd1e995,374761393);h=Math.imul(h^h>>>13,1274126177);h^=h>>>16;return (h>>>0)/4294967296<.3};
+const laundryDay=d=>{if(d<2)return false;if(d===2)return true;let h=Math.imul(d^0x5bd1e995,374761393);h=Math.imul(h^h>>>13,1274126177);h^=h>>>16;return (h>>>0)/4294967296<.3};
 // Laundry days rotate through her bikinis.
 const SWIMS=["models/tiffany-beach-skin.png","models/tiffany-beach-red.png","models/tiffany-beach-black.png","models/tiffany-beach-pink.png"];
 const recepLook=()=>{const d=S?S.day:1;if(!laundryDay(d))return RECEP_LOOKS[0];const lk=Object.assign({},RECEP_LOOKS[1]);let n=0;for(let i=2;i<=d;i++)if(laundryDay(i))n++;lk.swim={texture:SWIMS[(n-1)%SWIMS.length]};/* nth laundry day → next bikini in line */return lk};
@@ -629,9 +632,12 @@ const DALE_LINES=["Hey. Hey buddy. You got a dollar? I'll tell you which car has
 const LAWYER_LINES=[c=>`My client purchased a "reliable" car from this establishment. It is now, legally speaking, a planter.`,c=>`My client was promised "like new." The car is, and I quote my mechanic, "older than the concept of new."`,c=>`My client found a raccoon in the glovebox. The raccoon has also retained counsel.`,c=>`Mr. Wiggle assaulted my client. We have photographs. They're blurry, but he is clearly flailing.`];
 function stepEvents(dt){
   if(G.evAt==null)G.evAt=rnd(60,100);
-  if(G.t>=G.evAt&&!G.talk){G.evAt=G.t+rnd(70,120);
-    const opts=[];if(!G.dale)opts.push("dale");if(!G.lawyer&&G.t<SHIFT_SECONDS-90)opts.push("lawyer");if(!G.rain&&!G.rainedToday&&Math.random()<.35)opts.push("rain");
-    if(!opts.length)return;const e=pick(opts);if(e==="dale")startDale();if(e==="lawyer")startLawyer();if(e==="rain")startRain()}
+  if(G.t>=G.evAt&&!G.talk){const wk=weekOf(S.day);G.evAt=G.t+rnd(70,120)/(1+.18*Math.min(4,wk-1));
+    const opts=[];if(!G.dale)opts.push("dale");if(!G.lawyer&&!G.lawyered&&S.day>1&&G.t<SHIFT_SECONDS-90)opts.push("lawyer");if(!G.rain&&!G.rainedToday&&Math.random()<.35)opts.push("rain");
+    if(wk>=2){if(!G.owner&&!G.inspected&&G.t<SHIFT_SECONDS-70)opts.push("inspect","inspect");if(!G.hailed&&!G.rain&&Math.random()<.3)opts.push("hail")}
+    if(wk>=3&&!G.bussed&&G.t<SHIFT_SECONDS-120)opts.push("bus");
+    const e=G.forceEv&&opts.includes(G.forceEv)?G.forceEv:opts.length?pick(opts):null;G.forceEv=null;if(!e)return;
+    if(e==="dale")startDale();if(e==="lawyer")startLawyer();if(e==="rain")startRain();if(e==="inspect")startInspection();if(e==="hail")startHail();if(e==="bus")startBus()}
   stepDale(dt);stepLawyer(dt);stepRain(dt);stepLotWalk(dt);
 }
 // Dale: wanders up to customers and asks for change; they get less patient and less willing. E: give him $5 to go away.
@@ -659,6 +665,7 @@ function daleLeave(paid){const d=G.dale;if(!d||d.state==="leave")return;d.state=
   else say3("🥫 Dale wandered off.","#bbb")}
 // The lawsuit: a past customer and their lawyer wait by your office. E: settle or fight. Ignore them and the court decides.
 function startLawyer(){
+  G.lawyered=true;
   const done=S.cust.filter(u=>u.done&&/^Bought/.test(u.msg||"")),name=done.length?pick(done).name:pick(NAMES),amt=Math.round(rnd(300,900)/50)*50;
   const cl=W.person({top:"hoodie",shirt:pick([0x4a6a8a,0x6a4a4a,0x4a7a5a]),skin:ri(0,3),hairStyle:pick(["short","bob","curly"]),build:pick(["avg","fat"])});
   const lw=W.person({top:"suit",shirt:0x22252c,shirt2:0xf2f2f2,tie:0x7a1020,pants:0x22252c,hairStyle:"slick",hair:0x1a1a1a,glasses:true,skin:ri(0,3),height:1.02});
@@ -1138,21 +1145,66 @@ function miniResolve(c){
 // Once a shift he may pull up and walk the lot. Sell under cost in front of him: strike. Use the gun: he's proud.
 function stepBob(dt){
   if(!G.owner){
-    if(!G.ownerSeen&&G.t>35&&G.t<SHIFT_SECONDS-60&&Math.random()<dt/180){
-      const m=W.person({build:"fat",top:"hawaii",shirt:0xd84a2a,shirt2:0xffe0a0,pants:0x34363c,skin:0,hair:0x9a9a9a,hat:"cap",hatColor:0xb01010,beard:true,height:1.08,glasses:"sun",chain:true,age:true});
-      const tag=W.sprite("BOB (owner)","#fff","rgba(150,0,0,.75)");tag.position.y=2.25;m.add(tag);
-      m.position.set(0,0,GATE_IN);W.scene.add(m);
-      G.owner={mesh:m,path:[P(0,13),P(0,LANE_Z)],speed:1.3,ph:0,until:G.t+75};G.ownerSeen=true;
-      say3("Bob just pulled up. Don't give anything away while he's watching.","#f99");
-      if(!G.talk)speakLine(pick(["Miguel! Why is your face on my dumpster?","Miguel! Numbers! I want numbers!","Don't mind me. I'm just watching. Always watching."]),77,.62,.9,false,"en","am_onyx");
+    if(!G.ownerSeen&&G.t>35&&G.t<SHIFT_SECONDS-60&&(G.bobAt!=null?G.t>=G.bobAt:Math.random()<dt/180)){
+      spawnBob(75);say3("Bob just pulled up. Don't give anything away while he's watching.","#f99");
+      if(!G.talk)speakLine(pick(BOB_HI[Math.min(3,weekOf(S.day))]),77,.62,.9,false,"en","am_onyx");
     }
     return;
   }
+  stepInspection(dt);
   const b=G.owner;
   if(stepNpc(b,dt,false)){
-    if(G.t>b.until){if(b.leaving){W.scene.remove(b.mesh);G.owner=null;say3("Bob left. You can breathe.","#9cf");return}b.leaving=true;b.path=[P(b.mesh.position.x,LANE_Z),P(0,LANE_Z),P(0,24),P(0,GATE_OUT)];b.speed=1.6}
-    else b.path=[P(rnd(-12,12),LANE_Z+rnd(-2,2))];
+    if(G.t>b.until&&!b.insp){if(b.leaving){W.scene.remove(b.mesh);G.owner=null;say3("Bob left. You can breathe.","#9cf");return}b.leaving=true;b.path=[P(b.mesh.position.x,LANE_Z),P(0,LANE_Z),P(0,24),P(0,GATE_OUT)];b.speed=1.6}
+    else b.path=b.insp?[P(rnd(-9,9),rnd(-10,LANE_Z+3))]:[P(rnd(-12,12),LANE_Z+rnd(-2,2))];
   }
+}
+const BOB_HI=[0,["Miguel! Why is your face on my dumpster?","Miguel! Numbers! I want numbers!","Don't mind me. I'm just watching. Always watching."],
+  ["Miguel! I drove past three times. Sell something!","Who's that flailing? Oh, the tube man. Still more productive than you.","Week two, Miguel. The honeymoon is over."],
+  ["MIGUEL. My cousin could do this job. My cousin is a ferret.","I'm not mad. I'm disappointed. And mad.","Every car on this lot is costing me money. Including you."]];
+BOB_HI[3]=BOB_HI[2];
+function spawnBob(stay){
+  const m=W.person({build:"fat",top:"hawaii",shirt:0xd84a2a,shirt2:0xffe0a0,pants:0x34363c,skin:0,hair:0x9a9a9a,hat:"cap",hatColor:0xb01010,beard:true,height:1.08,glasses:"sun",chain:true,age:true});
+  const tag=W.sprite("BOB (owner)","#fff","rgba(150,0,0,.75)");tag.position.y=2.25;m.add(tag);
+  m.position.set(0,0,GATE_IN);W.scene.add(m);
+  G.owner={mesh:m,path:[P(0,13),P(0,LANE_Z)],speed:1.3,ph:0,until:G.t+stay};G.ownerSeen=true;
+}
+// Surprise inspection (week 2+): Bob grades the lot for 45 seconds. Crew at Tiffany's desk, T.O.s left waiting,
+// Dale or a lawyer on the lot all count against you; deals closed while he watches count for you.
+function startInspection(){
+  G.inspected=true;spawnBob(60);G.owner.insp={t:0,left:45,marks:[],seen:{},deals:0,sold0:S.sold};
+  say3("📋 SURPRISE INSPECTION! Bob's grading the lot for 45 seconds. Keep the crew off Tiffany's desk and clear every T.O.","#ff6060");Sfx.alert();G.shake=.15;
+  titleCard("📋 INSPECTION","Bob has a clipboard");
+  if(!G.talk)speakLine(pick(["Surprise inspection! Nobody move! Actually, everybody move. Sell things.","Clipboard's out, Miguel. You know what that means.","I'm grading everything. Even the tube man."]),77,.62,.9,false,"en","am_onyx");
+}
+function stepInspection(dt){
+  const b=G.owner,I=b&&b.insp;if(!I||I.done)return;I.t+=dt;I.left-=dt;
+  const mark=(k,txt)=>{if(I.seen[k])return;I.seen[k]=1;I.marks.push(txt);say3(`📋 Bob wrote something down: ${txt}`,"#f99")};
+  G.sales.forEach(s=>{if(s.state==="flirt")mark("f"+s.def.name,`${s.def.name} was hanging around Tiffany's desk`)});
+  G.cust.forEach(c=>{if(c.state==="stuck"){c.inspT=(c.inspT||0)+dt;if(c.inspT>12)mark("to"+c.u.id,`${c.u.name} was left waiting on a T.O.`)}});
+  if(G.dale)mark("dale","a homeless man was working the customers");
+  if(G.lawyer&&G.lawyer.state==="wait")mark("law","there was a lawyer in the manager's office");
+  if(I.left>0)return;
+  I.done=true;const deals=S.sold-I.sold0,score=deals*1.5-I.marks.length,grade=score>=2?"A":score>=.5?"B":score>=-.5?"C":score>=-2?"D":"F";
+  const cash={A:400,B:150,C:0,D:-200,F:-400}[grade];S.cash+=cash;
+  const said={A:"An A! I'm framing this. Not your picture. The clipboard.",B:"B. Solid. Don't let it go to your head.",C:"C. Average. Like your mustache.",D:"D, Miguel. D. I'm docking you.",F:"F! F for 'Fired, almost.' Fix this."}[grade];
+  say3(`📋 Inspection grade: ${grade}${deals?` · ${deals} deal${deals>1?"s":""} while he watched`:""}${I.marks.length?` · ${I.marks.length} write-up${I.marks.length>1?"s":""}`:""} · ${cash>=0?"bonus":"docked"} ${$f(Math.abs(cash))}`,grade<"C"?"#8dffa8":grade==="C"?"#fd8":"#f66");
+  if(cash>0)Sfx.cash();else if(cash<0)Sfx.lose();if(grade==="A"&&window.ach)ach("inspect");
+  if(!G.talk)speakLine(said,77,.62,.9,false,"en","am_onyx");
+  b.insp=null;b.until=G.t+4;
+}
+// Hail (week 2+): a short storm that dings a couple of cars on the lot.
+function startHail(){
+  G.hailed=true;if(!G.rain)G.rain={t:0,dur:rnd(25,35),a:0};G.shake=.35;Sfx.lose();
+  const hit=S.inv.slice().sort(()=>Math.random()-.5).slice(0,ri(2,3));hit.forEach(c=>{c.cond=Math.max(10,c.cond-ri(8,15))});
+  say3(`🧊 HAILSTORM! It dinged the ${hit.map(label).join(", the ")}. Condition's down; check your prices.`,"#bde");
+  if(G.recep)setTimeout(()=>recepSay(pick(["HAIL? In this economy?","Bob's going to call those dents 'character'.","Juanny is trying to catch hail in his mouth. I'm not stopping him."]),true),2200);
+}
+// Tour bus (week 3+): it breaks down out front and a crowd of tourists wanders onto the lot all at once.
+function startBus(){
+  G.bussed=true;const us=addWalkIns(ri(4,6),"tourist");
+  us.forEach((u,i)=>G.cust.push({u,mesh:null,path:[],speed:1.5,state:"wait",arrive:G.t+1+i*2.2,pat:0,patMax:45,sp:null,ph:Math.random()*6,bus:true}));
+  say3(`🚌 A tour bus broke down out front. ${us.length} confused tourists are heading onto the lot. Sell them something.`,"#ffd24a");Sfx.alert();
+  if(G.recep)setTimeout(()=>recepSay("There's a tour bus. Why is there a tour bus. Someone get the brochures. We don't have brochures.",true),2000);
 }
 function bobJudges(u){
   if(!G.owner||G.owner.leaving)return;
@@ -1199,7 +1251,9 @@ function endShift(){
   W.setTime(1);
   const rows=G.sales.map(s=>`<tr><td>${esc(s.def.name)}</td><td>${s.deals}</td><td>${$f(s.gross)}</td></tr>`).join("");
   const deals=st.sp+st.mgr;
-  showPause(`<h2>Close of business</h2>
+  let spy="";S.cust.filter(u=>u.persona==="secret").forEach(u=>{const ok=/^Bought/.test(u.msg||""),amt=ok?300:250;S.cash+=ok?amt:-amt;
+    spy+=`<p style="color:${ok?"#8dffa8":"#ff8a8a"}">🕵️ Bob's secret shopper (${esc(u.name)}) ${ok?`bought a car and gave you five stars. Bonus ${$f(amt)}.`:u.done?`walked out and filed a report. Bob docked you ${$f(amt)}.`:`never got helped. Bob docked you ${$f(amt)}.`}</p>`});
+  showPause(`<h2>Close of business</h2>${spy}
    <p>Deals: <b>${deals}</b> (you ${st.mgr}, crew ${st.sp}${st.cave?`, ${st.cave} caved`:""}) · winnable deals lost: <b>${st.lost}</b></p>
    <p>Time-wasters sent home politely: <b>${st.released}</b> · drifted off on their own: ${st.wasted}</p>
    <table class=sum><tr><th>Crew</th><th>Deals</th><th>Net gross</th></tr>${rows}<tr><td>You</td><td>${st.mgr}</td><td>${$f(st.mgrGross)}</td></tr></table>
@@ -1220,10 +1274,16 @@ function finish(){
   if(false){
     date=`<div class=card style="text-align:left;margin:10px 0;border-color:#ff7ab8"><b>💘 After closing…</b><p>The lot's dark. Tiffany fed the vending machine four quarters and it gave you both a bag of Funyuns and a warm Fresca. You split them on the showroom sofa while Mr. Wiggle flailed outside like he was cheering you on.</p><p>"This is the worst date I've ever been on," she says. "Same time tomorrow?"</p><p class=dim>Frenchy saw the whole thing through the window. He's devastated.</p></div>`}
   const aw=r.awards&&r.awards.length?`<div class=card style="text-align:left;margin:10px 0;border-color:#ffb81c"><b>📋 End of week awards</b>${r.awards.map(a=>`<div style="margin-top:6px">${a}</div>`).join("")}</div>`:"";
-  showPause(`<h2>Next morning</h2>${date}${aw}<p>Expenses: ${bits.join(" · ")}.</p>${r.review?`<p><b>${esc(r.review)}</b></p>`:""}
+  const wk=weekOf(S.day),news=(S.day-1)%7===0&&WEEK_NEWS[Math.min(wk,4)];
+  const nw=news?`<div class=card style="text-align:left;margin:10px 0;border-color:#ff6060"><b>📣 Week ${wk}: things are heating up</b>${news.map(n=>`<div style="margin-top:6px">${n}</div>`).join("")}</div>`:"";
+  showPause(`<h2>Next morning</h2>${date}${aw}${nw}<p>Expenses: ${bits.join(" · ")}.</p>${r.review?`<p><b>${esc(r.review)}</b></p>`:""}
    <p>Bank <b>${$f(S.cash)}</b> of ${$f(GOAL)}</p><p class=dim>Today: ${esc(S.event.name)}. ${esc(S.event.desc)}</p>
    <button class=go onclick="Game.nextDay()">Start day ${S.day} ▸</button>`);
 }
+const WEEK_NEWS=[0,0,
+  ["📋 Bob does <b>surprise inspections</b> now. Keep the crew off Tiffany's desk and clear your T.O.s while he's got the clipboard.","🕵️ One customer a day is <b>Bob's secret shopper</b>. Sell them a car.","🎓 <b>Negotiation gurus</b> are filming their courses on your lot.","🧊 Hail season. Storms ding your cars.","📈 Bob's coming by more often."],
+  ["🚌 <b>Tour buses</b> keep breaking down out front. Expect crowds.","🕶️ The rival lot is sending <b>spies</b> dressed as customers.","💳 <b>Trust-fund guys</b> with Dad's card: big budgets, no idea what anything costs.","😤 Bob's visits are getting angrier. Things happen more often."],
+  ["🔥 From here on it only gets busier. Bob is at his worst. Good luck, Miguel."]];
 function nextDay(){enterPrep();resume()}
 function endGame(r){
   const msg={win:["🏆 You made it","You got the bank past "+$f(GOAL)+". Bob is giving you a real office and a nicer chair. Maybe."],
@@ -1273,6 +1333,7 @@ function hud(){
     +(G.lawyer&&G.lawyer.state==="wait"?`<div class=al>⚖️ ${esc(G.lawyer.name)}'s lawyer at your office · ${Math.ceil(G.lawyer.wait)}s</div>`:"")
     +G.cust.filter(c=>c.u.bomb&&!c.bombDone&&c.state==="working"&&c.sp).map(c=>BOMB_GIVERS.includes(c.sp.def.name)?`<div class="al flirt">🤤 ${esc(c.sp.def.name)} is about to give the car away to ${esc(c.u.name)} · take over!</div>`:BOMB_UPSELL.includes(c.sp.def.name)?`<div class=al>💸 ${esc(c.sp.def.name)} is upselling ${esc(c.u.name)} to death</div>`:"").join("")
     +(G.dale&&G.dale.state!=="leave"?`<div class="al mini">🥫 Dale is bugging customers</div>`:"")
+    +(G.owner&&G.owner.insp&&!G.owner.insp.done?`<div class=al>📋 Bob's inspection · ${Math.ceil(G.owner.insp.left)}s · ${G.owner.insp.marks.length} write-ups</div>`:"")
     +(G.lotWalk?`<div class="al flirt">💁 Tiffany is walking the lot</div>`:"")
     +(G.offAsk?`<div class="al mini">🙋 ${esc(G.offAsk.name)} wants tomorrow off · <b>Y</b> approve · <b>N</b> deny</div>`:"")
     +(stuck.length>3?`<div class=al>+${stuck.length-3} more</div>`:"")

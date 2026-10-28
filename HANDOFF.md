@@ -114,3 +114,8 @@ First-person 3D used-car dealership game ("Bargain Bob's Auto Mart"). You play M
 - Rain at most once a day; the "Rainy day" event rains all shift.
 - Sound: showroom radio (synth lounge loop, indoors only) and a rain bed, both in audio.js (`Sfx.loops`, called from `draw()`).
 - Achievements (js/ach.js): 16 Steam-style achievements stored in localStorage `bobsAch` across saves; toast on unlock; list from the title screen. Hooks: `achTally` (via tally), plus `ach(id)` in closeDay, recepRoast, dateEnd, lawyer win, Dale, laundry-day start.
+- Scripted opening day: Day 1 customers 0–5 are grandma, an impersonator, influencer, a head-turner, mom+kids, the hungry guy (`openDay` in data.js); Wiggle ~2 min, Dale ~3 min, Bob ~4 min (`G.bobAt`, `G.forceEv` in startShift). Day 2 is always laundry day and brings the lawyer. Lawsuits: once a day, never day 1.
+- Escalation by week (`weekOf(S.day)`): events come faster; Bob visits more and his lines get angrier (`BOB_HI`).
+  Week 2: surprise inspections (`startInspection`/`stepInspection`, grade A–F, bonus/dock), hail (`startHail`, dings 2–3 cars), secret shopper (one a day, settled at close of business), negotiation gurus.
+  Week 3: tour bus (`startBus` → `addWalkIns` in data.js, tourists skip the lot-full throttle), rival-lot spies, trust-fund guys (2.5× budget).
+  New personas carry `wk` (week unlocked) or `bus`. A "things are heating up" card (`WEEK_NEWS`) shows on the first morning of each week. Achievement "Teacher's Pet" for an A inspection.
