@@ -185,7 +185,7 @@ function gunDeal(){
   if(!T||T.over||T.busy)return;
   if(!(S.guns>0)){T.err="You're out of guaranteed deals. Back to haggling.";renderTalk();return}
   const u=S.cust.find(x=>x.id==T.uid);if(!u)return;
-  S.guns--;T.gunned=true;T.addons=[];T.wife=false;
+  S.guns--;T.gunned=true;tally("gun");T.addons=[];T.wife=false;
   T.lines.push({who:"p",text:"I have a gun."});T.lastSaid="I have a gun.";T.err="";
   if(window.G3&&G3.gun)G3.gun();
   T.buf=[];T.agreed=T.car.price;
@@ -384,7 +384,7 @@ function wifeTalk(u,I){
 function cryDeal(){
   if(!T||T.over||T.busy||T.cried)return;
   const u=S.cust.find(x=>x.id==T.uid);if(!u)return;
-  T.cried=true;T.lines.push({who:"p",text:"*Miguel breaks down sobbing*"});T.lastSaid="(Miguel starts crying)";T.err="";
+  T.cried=true;tally("cry");T.lines.push({who:"p",text:"*Miguel breaks down sobbing*"});T.lastSaid="(Miguel starts crying)";T.err="";
   if(window.G3&&G3.cry)G3.cry();
   T.buf=[];
   if(T.wife){const C=caller(u);T.wife=false;T.forceMood="happy";say(`Hold on... ${C.she} heard you crying. ${C.She} says pay the man, he's clearly going through something. We're good.`)}

@@ -32,6 +32,7 @@ function showTitle(){
     <div class=btnrow>${hasSave()?`<button class=go onclick="Game.start(false)">Continue</button>`:""}<button class="${hasSave()?"b":"go"}" onclick="Game.start(true)">New game</button></div>
     <div class=aibox>${aiRow}<div class=dim id=ainote>${esc(ai.note||"")}</div>
       <div class=dim style="margin-top:6px">${!window.claude&&navigator.mediaDevices?"🎙️ Voice is ready: walk up to a customer and hold <b>V</b> to talk. <button class=b onclick=\"Game.micTest()\">Test mic</button> <span id=micres></span>":"🎙️ This page can't use your microphone, so you'll type (press <b>T</b>). For voice, play the hosted version in Chrome or Edge."}</div></div>
+      <div class=dim style="margin-top:6px" id=ldstat></div>
       <div class=dim style="margin-top:6px"><label><input type=checkbox ${window.Voices&&Voices.on?"checked":""} onchange="Voices.setOn(this.checked)"> 🗣️ <b>Natural voices</b></label> <span id=vstat>${window.Voices?esc(Voices.status()):""}</span> <button class=b id=vretry style="display:none" onclick="Voices.retry()">Retry</button></div>
     <div class=keys><b>WASD</b> move · <b>Shift</b> sprint · <b>Mouse</b> look (click and drag if it won't lock) · <b>←/→</b> turn · <b>E</b> use / take over · <b>Q</b> send Mini Miguel to a T.O. (2 a day) · <b>L</b> Tiffany walks the lot (2 a day) · <b>C</b> see yourself · <b>M</b> mute · <b>Esc</b> pause</div>
   </div>`;
@@ -149,7 +150,7 @@ function start(newGame){
 }
 function startShift(){
   if(G.phase!=="prep")return;
-  G.minis=2;G.walks=2;G.evAt=null;G.flirts=0;G.covered=false;G.coffeeT=0;G.coffee=false;
+  G.minis=2;G.walks=2;G.evAt=null;G.rainedToday=false;if(/rain/i.test(S.event.name))setTimeout(()=>{if(G.phase==="open")startRain(true)},4000);G.flirts=0;G.covered=false;G.coffeeT=0;G.coffee=false;
   if(S.tiff&&S.tiff.aff>=8){G.coffee=true;G.coffeeT=60;setTimeout(()=>say3("☕ Tiffany left you a coffee. You walk faster for a minute, and your next T.O. starts with more patience.","#ffd6a0"),3000)}
   if(S.tiff&&S.tiff.aff>=18&&G.recep){G.recep.mesh.userData.wave=2.5;setTimeout(()=>say3("💘 Tiffany waved at you first this morning.","#ff9ad0"),1500)}
   G.offAsk=null;G.offAt=S.day>1&&G.sales.length>1&&Math.random()<.4?rnd(60,300):null;(G.miniBots||[]).forEach(b=>W.scene.remove(b.mesh));G.miniBots=[];
@@ -294,7 +295,7 @@ function spSale(c,price,why){
   finishSale(c.u,car,i,price,[]);
   const com=commission(sp,front);
   G.stats.sp++;G.stats.spGross+=front-com;recepCheer();if(why==="cave")G.stats.cave++;
-  const rec=G.sales.find(s=>s===sp);if(rec){rec.deals++;rec.gross+=front-com}
+  const rec=G.sales.find(s=>s===sp);if(rec){rec.deals++;rec.gross+=front-com}if(sp)tally("sold",sp.def.name);
   say3(`${sp.def.name} ${why==="cave"?"caved and sold":"sold"} the ${label(car)} for ${$f(price)}: ${front<0?"lost ":""}${$f(Math.abs(front))} gross`,front>=300?"#9f9":front>=0?"#fd8":"#f88");
   popup(`${sp.def.name} ${front-com<0?"-":"+"}${$f(Math.abs(front-com))}`,c.mesh.position,front-com>=300?"#8dffa8":front-com>=0?"#ffe08a":"#ff8a8a");
   Sfx.cash();syncCars();startDelivery(c);
@@ -387,7 +388,7 @@ function resolveWork(c){
   const sp=c.sp,u=c.u,mv=motive(sp.def),d=Object.assign({},sp.def,{skill:Math.max(.05,Math.min(.95,sp.def.skill+mv*.2)),cave:Math.max(0,Math.min(.9,sp.def.cave-mv*.1))}),t=tier(c),car=carOf(c),r=Math.random()-(c.tdBonus||0)+(c.kidHit||0);   // a good test drive helps, a disaster hurts
   if(u.bomb&&!c.bombDone){c.bombDone=true;const n=sp.def.name;
     if(BOMB_GIVERS.includes(n)){const p=Math.max(100,Math.round(car.cost*rnd(.82,1.02)/50)*50);
-      say3(`🤤 ${n} basically gave the ${car.model} to ${u.name}. ${pick(["He got her number. It's a Domino's.","She winked. That's all it took.","He threw in his own watch.","He's calling it 'relationship pricing'."])}`,"#ff7ab8");spSale(c,p,"cave");return}
+      tally("give",n);say3(`🤤 ${n} basically gave the ${car.model} to ${u.name}. ${pick(["He got her number. It's a Domino's.","She winked. That's all it took.","He threw in his own watch.","He's calling it 'relationship pricing'."])}`,"#ff7ab8");spSale(c,p,"cave");return}
     if(BOMB_UPSELL.includes(n)){if(Math.random()<.45)return customerWalks(c,`💸 ${n} tried to upsell ${u.name} on rustproofing, the warranty and his mixtape. She left.`,.8);
       say3(`💸 ${n} is upselling ${u.name} so hard she's about to walk. T.O.!`,"#ffb070");stall(c);c.pat=Math.round(c.pat*.6);return}}
   if(d.quirk==="spanish"){stall(c);return}   // Juanny: nobody understands a word, so it always comes to Miguel
@@ -629,8 +630,8 @@ const LAWYER_LINES=[c=>`My client purchased a "reliable" car from this establish
 function stepEvents(dt){
   if(G.evAt==null)G.evAt=rnd(60,100);
   if(G.t>=G.evAt&&!G.talk){G.evAt=G.t+rnd(70,120);
-    const opts=[];if(!G.dale)opts.push("dale");if(!G.lawyer&&G.t<SHIFT_SECONDS-90)opts.push("lawyer");if(!G.rain)opts.push("rain");
-    const e=pick(opts);if(e==="dale")startDale();if(e==="lawyer")startLawyer();if(e==="rain")startRain()}
+    const opts=[];if(!G.dale)opts.push("dale");if(!G.lawyer&&G.t<SHIFT_SECONDS-90)opts.push("lawyer");if(!G.rain&&!G.rainedToday&&Math.random()<.35)opts.push("rain");
+    if(!opts.length)return;const e=pick(opts);if(e==="dale")startDale();if(e==="lawyer")startLawyer();if(e==="rain")startRain()}
   stepDale(dt);stepLawyer(dt);stepRain(dt);stepLotWalk(dt);
 }
 // Dale: wanders up to customers and asks for change; they get less patient and less willing. E: give him $5 to go away.
@@ -689,7 +690,7 @@ function lawyer(choice){
   lawyerLeave();
 }
 // Rain: grey sky, streaks of rain; customers have less patience while it lasts.
-function startRain(){G.rain={t:0,dur:rnd(60,95),a:0};say3("🌧️ It's starting to rain. Customers are getting impatient.","#9cf");
+function startRain(long){G.rainedToday=true;G.rain={t:0,dur:long?SHIFT_SECONDS:rnd(60,95),a:0};say3("🌧️ It's starting to rain. Customers are getting impatient.","#9cf");
   if(G.recep&&Math.random()<.7)setTimeout(()=>recepSay(pick(["Great. Rain. Bob's going to say the cars are 'getting a free wash'.","It's raining. Juanny is outside dancing in it. Nobody knows why.","Rain! Perfect. Sam's goatee is going to frizz."]),true),2500)}
 function stepRain(dt){const r=G.rain;if(!r)return;r.t+=dt;const tgt=r.t<r.dur?1:0;r.a+=(tgt-r.a)*Math.min(1,dt*.4);W.setRain(r.a);if(r.t>r.dur&&r.a<.03){W.setRain(0);G.rain=null;say3("🌤️ The rain stopped.","#9cf")}}
 // Tiffany walks the lot (L, twice a day): male customers she passes warm up, female customers cool off.
@@ -934,7 +935,7 @@ function stepKids(dt){
 function kidsToTiffany(c){
   if(!G.recep||!G.recep.mesh.userData.vrm)return say3("Tiffany isn't at her desk.","#fd8");
   if(G.lotWalk)return say3("Tiffany's out walking the lot. The kids are all yours.","#fd8");
-  c.kidsCalm=true;c.kids.forEach((k,i)=>{k.state="tiff";k.slot=i});
+  c.kidsCalm=true;tally("kids");c.kids.forEach((k,i)=>{k.state="tiff";k.slot=i});
   recepSay(pick(["Okay! Who wants a lollipop? ...Not you, Frenchy.","Kids! Come here. I have lollipops and absolutely no rules.","Sit. Lollipops. Don't touch the bell. I said DON'T touch the bell."]),true);
   say3(`🍭 ${c.u.name}'s kids are at Tiffany's desk with lollipops. Peace at last.`,"#8dffa8");c.mesh.userData.mood="happy";
   if(c.state==="stuck")c.pat=Math.min(c.patMax,c.pat+15);
@@ -967,7 +968,7 @@ function stepFlirt(s,dt,arrived){
     if(s.drift<=0&&!G.lotWalk&&!G.sales.some(o=>o.state==="flirt"&&o.flirt>40)){   // one at a time hangs around for long
       const spot=[-8.2,-7.5,-6.8].find(x=>!G.sales.some(o=>o.state==="flirt"&&o.spot===x));
       if(spot===undefined||G.sales.filter(o=>o.state==="flirt").length>=2){s.drift=rnd(15,30);return}   // never more than two at her desk
-      s.state="flirt";s.spot=spot;s.flirt=0;s.said=0;s.lineAt=ri(0,5);s.speed=1.6;s.path=[P(s.mesh.position.x,-16.4),P(spot,-15.85)];
+      tally("flirt",s.def.name);s.state="flirt";s.spot=spot;s.flirt=0;s.said=0;s.lineAt=ri(0,5);s.speed=1.6;s.path=[P(s.mesh.position.x,-16.4),P(spot,-15.85)];
       say3(`😍 ${s.def.name} wandered over to ${RECEP_NAME}'s desk instead of working.`,"#ffb6e1");
       if(G.tut&&!G.tutFlirt&&!G.talk){G.tutFlirt=true;setTimeout(()=>tutSay(`Ugh. ${s.def.name}'s hanging around my desk again. While they're here, nobody's helping customers. Walk over and press E to send them back. Please.`),3500)}}
     return}
@@ -1055,7 +1056,7 @@ function talkClosed(){
   const t=G.talk;if(!t)return;G.talk=null;
   const c=t.c,u=c.u,over=u.done;
   if(over&&/^Bought/.test(u.msg)){
-    G.stats.mgr++;G.stats.mgrGross+=u.gross||0;recepCheer(true);
+    G.stats.mgr++;G.stats.mgrGross+=u.gross||0;recepCheer(true);tally("sold","Miguel (you)");
     claimCar(c);
     say3(`You closed ${u.name}${t.wasStuck?" (saved the deal)":""}.`,"#9f9");popup("+"+$f(u.gross||0),c.mesh.position,"#ffd24a",true);G.shake=.18;
     bobJudges(u);
@@ -1128,7 +1129,7 @@ function miniResolve(c){
   if(tier(c)!=="hopeless"&&Math.random()<.6){
     const price=Math.min(u.reserve,Math.round((u.offer+(u.reserve-u.offer)*.7)/50)*50);
     claimCar(c);finishSale(u,car,S.inv.indexOf(car),price,[]);
-    G.stats.mgr++;G.stats.mgrGross+=price-car.cost;recepCheer(true);c.mesh.userData.mood="happy";
+    G.stats.mgr++;G.stats.mgrGross+=price-car.cost;recepCheer(true);tally("sold","Miguel (you)");c.mesh.userData.mood="happy";
     say3(`Mini Miguel closed ${u.name} for ${$f(price)}!`,"#9f9");popup("Mini Miguel +"+$f(price-car.cost),c.mesh.position,"#ffd24a",true);Sfx.cash();syncCars();startDelivery(c);
   }else{c.mesh.userData.mood="angry";customerWalks(c,`${u.name} walked out on Mini Miguel.`,.5)}
 }
@@ -1218,7 +1219,8 @@ function finish(){
   let date="";if(G.dateDone){G.dateDone=false;date=`<p style="color:#ff9ad0">💘 Last night: worst date ever. Same time tomorrow.</p>`}
   if(false){
     date=`<div class=card style="text-align:left;margin:10px 0;border-color:#ff7ab8"><b>💘 After closing…</b><p>The lot's dark. Tiffany fed the vending machine four quarters and it gave you both a bag of Funyuns and a warm Fresca. You split them on the showroom sofa while Mr. Wiggle flailed outside like he was cheering you on.</p><p>"This is the worst date I've ever been on," she says. "Same time tomorrow?"</p><p class=dim>Frenchy saw the whole thing through the window. He's devastated.</p></div>`}
-  showPause(`<h2>Next morning</h2>${date}<p>Expenses: ${bits.join(" · ")}.</p>${r.review?`<p><b>${esc(r.review)}</b></p>`:""}
+  const aw=r.awards&&r.awards.length?`<div class=card style="text-align:left;margin:10px 0;border-color:#ffb81c"><b>📋 End of week awards</b>${r.awards.map(a=>`<div style="margin-top:6px">${a}</div>`).join("")}</div>`:"";
+  showPause(`<h2>Next morning</h2>${date}${aw}<p>Expenses: ${bits.join(" · ")}.</p>${r.review?`<p><b>${esc(r.review)}</b></p>`:""}
    <p>Bank <b>${$f(S.cash)}</b> of ${$f(GOAL)}</p><p class=dim>Today: ${esc(S.event.name)}. ${esc(S.event.desc)}</p>
    <button class=go onclick="Game.nextDay()">Start day ${S.day} ▸</button>`);
 }
@@ -1404,6 +1406,7 @@ function quit(){hidePause();save();Sfx.ambient(false);showTitle()}
 // ---------- boot ----------
 function boot(){
   canvas=el("gl");
+  { const go=()=>VRMKit.prefetch([RECEP_MODELS.slice(0,2)].concat(BOMB_MODELS));if(window.VRMKit)go();else addEventListener("vrmkit-ready",go,{once:true}); }
   try{W=World.create(canvas)}catch(e){
     el("title").innerHTML=`<div class=titlebox><h1>Bargain Bob's Auto Mart</h1><p>This game needs WebGL, and your browser couldn't start it. Try Chrome, Edge or Firefox with hardware acceleration on.</p></div>`;
     el("title").style.display="flex";return false;
@@ -1415,7 +1418,8 @@ function boot(){
   AI.init().then(()=>{if(G.phase==="title")showTitle()});
   // natural voices: start the one-time download now; keep the title screen's status line current
   if(window.Voices){Voices.onSlow=()=>say3("Natural voices are too slow on this computer, so the game switched to standard voices.","#fd8");
-    if(Voices.on)Voices.load();setInterval(()=>{const v=el("vstat");if(v)v.textContent=Voices.status();const r=el("vretry");if(r)r.style.display=Voices.on&&(Voices.failed||Voices.slow)?"":"none"},700)}
+    if(Voices.on)Voices.load();setInterval(()=>{const l=el("ldstat"),pr=window.VRMKit&&VRMKit.progress&&VRMKit.progress();if(l)l.textContent=!pr?"":pr.done?"👩 Characters loaded. ":`👩 Loading characters… ${Math.round(pr.mb)} of ${Math.round(pr.total)} MB. `;
+    const v=el("vstat");if(v)v.textContent=Voices.status();const r=el("vretry");if(r)r.style.display=Voices.on&&(Voices.failed||Voices.slow)?"":"none"},700)}
   showTitle();loop();return true;
 }
 

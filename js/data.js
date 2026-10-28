@@ -212,7 +212,7 @@ function wholesale(id){
   const p=Math.round(marketValue(c)*.8/50)*50;
   S.cash+=p-c.cost;S.profit+=p-c.cost;S.inv.splice(i,1);
   // Tiffany hears about every wholesale (game.js roasts you when you close the computer)
-  if(window.Game&&Game.wholesaled)Game.wholesaled(c,p);
+  if(window.Game&&Game.wholesaled)Game.wholesaled(c,p);tally("wh");
   logMsg(`Wholesaled ${label(c)} for ${$f(p)} (${$f(p-c.cost)} profit).`);save();
 }
 const UPG=[
@@ -291,6 +291,19 @@ function finishSale(u,c,i,p,ad=[]){
 const netWorth=()=>S.cash; // the bank is your take. The cars belong to Bob.
 
 // Ends the day. Returns what the owner and the bank have to say.
+// Weekly tallies for the Sunday awards (who sold most, who flirted most, how often Miguel cried...).
+function tally(k,name){S.wk=S.wk||{};if(name){S.wk[k]=S.wk[k]||{};S.wk[k][name]=(S.wk[k][name]||0)+1}else S.wk[k]=(S.wk[k]||0)+1}
+function weekAwards(){
+  const w=S.wk||{},top=o=>{const e=Object.entries(o||{}).sort((a,b)=>b[1]-a[1])[0];return e||null},out=[];
+  const s=top(w.sold);out.push(s?`🏆 Salesperson of the Week: <b>${s[0]}</b> (${s[1]} sold)`:`🏆 Salesperson of the Week: nobody. Bob is considering a cardboard cutout.`);
+  const f=top(w.flirt);if(f)out.push(`😍 Most Distracted by Tiffany: <b>${f[0]}</b> (${f[1]} trips to her desk)`);
+  const g=top(w.give);if(g)out.push(`🎁 Most Generous (to head-turners): <b>${g[0]}</b>`);
+  if(w.cry)out.push(`😭 Times Miguel cried in front of a customer: <b>${w.cry}</b>`);
+  if(w.gun)out.push(`🔫 Deals closed at gunpoint: <b>${w.gun}</b>. HR has questions.`);
+  if(w.wh)out.push(`🗑️ Cars thrown away at wholesale: <b>${w.wh}</b>. Tiffany has notes.`);
+  if(w.kids)out.push(`🍭 Lollipops handed out by Tiffany: <b>${w.kids*2}</b>`);
+  S.wk={};return out;
+}
 function closeDay(){
   const wages=S.crew.reduce((s,c)=>s+wageOf(c),0);
   const fees=S.inv.length*6+40+S.ad*30+wages;
@@ -302,7 +315,7 @@ function closeDay(){
     const wk=weekOf(S.day),got=S.profit-S.weekStart,q=quota(wk);
     if(got>=q){S.strikes=0;review=`Week ${wk}: you grossed ${$f(got)} against Bob's ${$f(q)}. Bob is pleased.`}
     else{S.strikes++;review=`Week ${wk}: you grossed ${$f(got)}. Bob wanted ${$f(q)}. Strike ${S.strikes} of 2.`}
-    S.weekStart=S.profit;
+    S.weekStart=S.profit;S.awards=weekAwards();
   }
   S.day++;S.phase="prep";S.cust=[];restock();genCands();
   const pool=[];EVENTS.forEach(e=>{for(let i=0;i<e.w;i++)pool.push(e)});S.event=pick(pool);
@@ -312,5 +325,5 @@ function closeDay(){
   else if(netWorth()>=GOAL)end="win";
   else if(S.cash<-1500)end="broke";
   save();
-  return {fees,rent,wages,review,end,weekEnd};
+  return {fees,rent,wages,review,end,weekEnd,awards:weekEnd?S.awards:null};
 }

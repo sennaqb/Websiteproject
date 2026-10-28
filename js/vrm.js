@@ -9,9 +9,15 @@ const files={},live=new Set();
 const K={ready:true,models:[]};
 
 // Fetch a model file once; every character made from it is parsed from the cached bytes.
-function bytes(url){return files[url]||(files[url]=/\.b64\.txt$/.test(url)?packed(url):fetch(url).then(r=>{if(!r.ok)throw new Error(url+" "+r.status);return r.arrayBuffer()}))}
+function bytes(url){return files[url]||(files[url]=/\.b64\.txt$/.test(url)?packed(url):fetch(url).then(r=>{if(!r.ok)throw new Error(url+" "+r.status);return readAll(r,url)}))}
+// Download with progress, so the title screen can say how much of the characters is loaded.
+K.dl={};K.progress=()=>{let a=0,b=0;for(const k in K.dl){a+=K.dl[k][0];b+=K.dl[k][1]}return b?{mb:a/1048576,total:b/1048576,done:a>=b}:null};
+async function readAll(r,url){const total=+r.headers.get("content-length")||0;if(!r.body||!total)return r.arrayBuffer();
+  const rd=r.body.getReader(),parts=[];let got=0;K.dl[url]=[0,total];
+  for(;;){const {done,value}=await rd.read();if(done)break;parts.push(value);got+=value.length;K.dl[url]=[got,total]}
+  const out=new Uint8Array(got);let o=0;for(const p of parts){out.set(p,o);o+=p.length}K.dl[url]=[total,total];return out.buffer}
 // A .vrm packed as gzipped base64 text (the artifact host only serves web file types): fetch, decode, gunzip.
-async function packed(url){const r=await fetch(url);if(!r.ok)throw new Error(url+" "+r.status);const s=atob((await r.text()).trim()),n=s.length,a=new Uint8Array(n);for(let i=0;i<n;i++)a[i]=s.charCodeAt(i);
+async function packed(url){const r=await fetch(url);if(!r.ok)throw new Error(url+" "+r.status);const txt=new TextDecoder().decode(await readAll(r,url)),s=atob(txt.trim()),n=s.length,a=new Uint8Array(n);for(let i=0;i<n;i++)a[i]=s.charCodeAt(i);
   return new Response(new Blob([a]).stream().pipeThrough(new DecompressionStream("gzip"))).arrayBuffer()}
 // url may be a list: the first file that loads wins (your own export first, the sample as a fallback).
 async function make(url){
@@ -193,5 +199,7 @@ K.update=function(dt){dt=Math.min(dt,.05);live.forEach(g=>{if(!g.parent){live.de
       if(k.sprung)k.b.quaternion.premultiply(QL);else k.b.quaternion.copy(k.q).premultiply(QL);
       k.b.updateMatrix();k.b.updateMatrixWorld(true)})}   /* the spring system writes matrices itself, so refresh them after the extra bounce */
   })};
+// Start downloading models early (from the title screen); each entry is a list of fallbacks, first that loads wins.
+K.prefetch=list=>list.forEach(async alts=>{for(const u of [].concat(alts)){try{await bytes(u);return}catch(e){delete files[u];delete K.dl[u]}}});
 window.VRMKit=K;
 window.dispatchEvent(new Event("vrmkit-ready"));
