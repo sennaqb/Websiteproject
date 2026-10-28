@@ -117,11 +117,11 @@ function spawnCrew(){
     if(offToday(d))return;   // approved day off: their desk sits empty
     const home=P(W.desks[i],-18.6);
     const look=Object.assign({hairStyle:["short","short","curly","bald"][i%4],glasses:i===2,beard:i===3,height:[1,.97,1.04,.99][i%4],top:"shirt"},CREW_LOOKS[d.name]);
-    const m=W.person(Object.assign({shirt:d.shirt,pants:0x2a2a35,skin:d.skin,hair:0x2a1a10,cap:0x333333,tie:0x202020,badge:true},look));m.userData.tagged=true;
+    const m=W.person(Object.assign({shirt:d.shirt,pants:0x2a2a35,skin:d.skin,hair:0x2a1a10,cap:0x333333,tie:0x202020,badge:true,hd:true,name:d.name},look));m.userData.tagged=true;
     m.position.set(home.x,0,home.z);m.rotation.y=Math.PI;
     const mv=motive(d),tag=W.sprite(d.name+(mv>0?" 🔥":mv<0?" 😒":""),"#fff",mv>0?"rgba(20,90,30,.7)":mv<0?"rgba(90,30,20,.7)":"rgba(0,0,0,.55)");tag.position.y=2.15;m.add(tag);
     W.scene.add(m);
-    G.sales.push({def:d,mesh:m,tag,path:[],speed:2.1,state:"idle",cust:null,home,ph:i,deals:0,gross:0});
+    G.sales.push({def:d,mesh:m,tag,path:[],speed:2.1,state:"idle",cust:null,home,ph:i,deals:0,gross:0});sitAtDesk(G.sales[G.sales.length-1]);
   });
 }
 function clearCustomers(){G.cust.forEach(c=>{if(c.mesh)W.scene.remove(c.mesh)});G.cust=[];(G.kids||[]).forEach(k=>W.scene.remove(k.mesh));G.kids=[]}
@@ -194,9 +194,13 @@ function guestSeat(dx){return P(dx>6?dx+.58:dx-.58,-19.1)}
 function routeToDesk(c){const p=c.mesh.position,s=guestSeat(c.sp.home.x);return toShowroom(p.x,p.z).concat([P(s.x,-17.6),s])}
 function routeSalesToDesk(sp){const p=sp.mesh.position,x=sp.home.x;return toShowroom(p.x,p.z).concat([P(x+1.25,-17.8),P(x+1.25,-21.15),P(x+.1,-20.95)])}
 function routeSalesOut(slot,side){return [P(0,-13.5),P(.55,-11)].concat(toSlot(slot,side,.55))}
+// Home is their desk chair: idle crew sit at their desks (deskChair) and get up the same way they came (getUp).
+const deskChair=home=>P(home.x+.1,-20.95);
+const getUp=home=>[P(home.x+1.25,-21.15),P(home.x+1.25,-18.2)];
 function routeSalesHome(x,z,home){
-  if(z<-20.4)return [P(home.x+1.25,-21.15),P(home.x+1.25,-18.6),P(home.x,home.z)];   // getting up from behind the desk
-  const pts=toShowroom(x,z);pts.push(P(home.x,-16),P(home.x,home.z));return pts}
+  if(z<-20.4)return [deskChair(home)];   // already behind the desk
+  return toShowroom(x,z).concat([P(home.x+1.25,-17.8),P(home.x+1.25,-21.15),deskChair(home)])}
+function sitAtDesk(s){const m=s.mesh,c=deskChair(s.home);m.position.set(c.x,0,c.z);m.rotation.y=0;m.userData.sit=true;m.userData.deskIdle=true;s.seated=true}
 function stepNpc(n,dt,talk){
   let moving=false;
   if(n.path.length){
@@ -465,8 +469,10 @@ function sim(dt){
     }
   });
   G.sales.forEach(s=>{
+    if(s.seated&&s.state!=="idle"){s.seated=false;s.mesh.userData.sit=false;s.mesh.userData.deskIdle=false;   // leaving the desk: step out from behind it first
+      if(s.path.length&&!(s.state==="todesk"&&s.mesh.position.z<-20.4))s.path=getUp(s.home).concat(s.path)}
     const arrived=stepNpc(s,dt,s.state==="work");
-    if(s.state==="back"&&arrived){s.state="idle";s.mesh.rotation.y=Math.PI}
+    if(s.state==="back"&&arrived){s.state="idle";sitAtDesk(s)}
     if((s.state==="work"||s.state==="stuck"||s.state==="greet")&&s.cust&&s.cust.mesh){const c=s.cust;s.mesh.rotation.y=Math.atan2(c.mesh.position.x-s.mesh.position.x,c.mesh.position.z-s.mesh.position.z)}
     if(s.state==="work")s.armsUp=false;
     stepFlirt(s,dt,arrived);

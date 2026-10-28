@@ -178,7 +178,19 @@ function person(o){
   const W=B.w*(sex==="f"?.92:1),dress=top==="dress",skirt=dress||o.bottom==="skirt",shorts=o.bottom==="shorts";
   const legMat=skirt||shorts?skin:pants;
   // legs: hip -> knee -> shoe
-  const leg=x=>{
+  const HD=!!o.hd,cyl=(r0,r1,l,n)=>new THREE.CylinderGeometry(r0,r1,l,n||16);
+  // hd (the crew): tapered limbs, shaped shoes, real hands, a bigger caricature head
+  const hdShoe=par=>{const sole=SM(0x0c0a09,{roughness:.8});
+    add(par,sph(.058,16,12),shoe,0,-.435,.055,[1,.62,1.55]);add(par,rbox(.105,.13,.075,.03),shoe,0,-.43,-.03,null).rotation.x=-Math.PI/2;
+    add(par,BX(.11,.022,.27),sole,0,-.475,.03,null,false)};
+  const leg=HD?x=>{
+    const hip=new THREE.Group();hip.position.set(x,.93,0);g.add(hip);
+    add(hip,cyl(.088*Math.min(W,1.2),.068,.42),pants,0,-.2,0);
+    const knee=new THREE.Group();knee.position.y=-.42;hip.add(knee);
+    add(knee,sph(.066,12,10),pants,0,0,0);add(knee,cyl(.066,.056,.4),pants,0,-.2,0);
+    add(knee,cyl(.058,.062,.05),pants,0,-.39,0,null,false);   // hem over the shoe
+    hdShoe(knee);hip.userData.knee=knee;return hip;
+  }:x=>{
     const hip=new THREE.Group();hip.position.set(x,.93,0);g.add(hip);
     add(hip,cap(.085*Math.min(W,1.2),.3),shorts?pants:legMat,0,-.2,0);
     if(shorts)add(hip,cap(.07,.14),skin,0,-.33,0);
@@ -207,17 +219,43 @@ function person(o){
   if(top==="suit"||top==="jacket"||top==="cardigan"){const jm=SM(o.shirt2||0x22252c,{roughness:.8});
     [-1,1].forEach(s=>{const l=add(g,BX(.075,.3,.012),jm,s*.068,1.32,fz+.006,null,false);l.rotation.z=s*.32});
     add(g,BX(.05,.2,.01),white,0,1.36,fz,null,false)}
-  if(top==="shirt"||top==="polo"||top==="suit")[-1,1].forEach(s=>add(g,BX(.05,.03,.012),top==="suit"?white:shirt,s*.03,1.48,.05,null,false).rotation.z=s*.5);
-  if(o.tie){const tie=SM(o.tie,{roughness:.5});add(g,new THREE.ConeGeometry(.032,.3,4),tie,0,1.25,fz,[1,1,.3],false);add(g,sph(.022,8,6),tie,0,1.405,fz-.01,[1,.8,.6],false)}
+  if(HD&&(top==="shirt"||top==="polo"||top==="suit")){const cm=top==="suit"?white:shirt;add(g,cyl(.064,.07,.05,20,),cm,0,1.49,0,null,false);
+    [-1,1].forEach(s=>{const f=add(g,BX(.05,.06,.008),cm,s*.03,1.47,.075,null,false);f.rotation.set(-.35,s*.35,s*.75)})}
+  else if(top==="shirt"||top==="polo"||top==="suit")[-1,1].forEach(s=>{const c=add(g,HD?new THREE.ConeGeometry(.04,.075,3):BX(.05,.03,.012),top==="suit"?white:shirt,s*(HD?.042:.03),HD?1.475:1.48,HD?.06:.05,HD?[1,1,.35]:null,false);c.rotation.z=HD?s*2.4:s*.5;if(HD)c.rotation.x=-.25});
+  if(o.tie){const tie=SM(o.tie,{roughness:.5});if(HD){add(g,new THREE.ConeGeometry(.036,.33,4),tie,0,1.275,fz+.006,[1,1,.3],false);add(g,new THREE.ConeGeometry(.036,.04,4),tie,0,1.09,fz+.006,[1,1,.3],false).rotation.z=Math.PI;add(g,rbox(.032,.03,.02,.008),tie,0,1.46,.085,null,false)}
+    else{add(g,new THREE.ConeGeometry(.032,.3,4),tie,0,1.25,fz,[1,1,.3],false);add(g,sph(.022,8,6),tie,0,1.405,fz-.01,[1,.8,.6],false)}}
   if(o.bowtie){const bt=SM(o.bowtie,{roughness:.5});[-1,1].forEach(s=>add(g,new THREE.ConeGeometry(.03,.05,4),bt,s*.025,1.46,.1,null,false).rotation.z=s*Math.PI/2)}
   if(o.chain)add(g,new THREE.TorusGeometry(.07,.006,6,20,Math.PI),SM(0xd8b040,{metalness:1,roughness:.25}),0,1.45,.07,[1,1.2,1],false).rotation.set(Math.PI*.55,0,Math.PI);
   if(top==="hoodie")add(g,new THREE.TorusGeometry(.085,.035,8,16,Math.PI*1.2),shirt,0,1.5,-.06,null).rotation.set(-.3,0,Math.PI*.9);
   add(g,new THREE.TorusGeometry(.06,.016,8,18),shirt,0,1.5,0,null,false).rotation.x=Math.PI/2;
-  if(o.badge)add(g,BX(.07,.04,.01),white,.1,1.36,fz,null,false);
-  [-1,1].forEach(s=>add(g,sph(.062),sleeve,s*.19*W,1.43,0,[1,.85,.9]));
+  if(o.badge&&!(HD&&o.name))add(g,BX(.07,.04,.01),white,.1,1.36,fz,null,false);
+  if(HD){
+    const dk=SM(new THREE.Color(topC).multiplyScalar(.72),{roughness:.85}),btn=SM(0xeeeae0,{roughness:.3});
+    if(!o.tie&&(top==="shirt"||top==="polo")){add(g,BX(.022,top==="polo"?.14:.4,.008),dk,0,top==="polo"?1.41:1.27,fz+.003,null,false);
+      for(let i=0;i<(top==="polo"?2:5);i++)add(g,sph(.007,8,6),btn,0,1.45-i*.075,fz+.009,[1,1,.5],false)}
+    if(top==="shirt"){add(g,BX(.065,.07,.006),dk,-.09,1.35,fz+.002,null,false);
+      add(g,cyl(.006,.006,.07,8),SM(0x2050c0,{roughness:.3}),-.075,1.39,fz+.008,null,false)}   // pocket and a pen
+    if(o.name){const tag=tex(128,48,(c,w2,h2)=>{c.fillStyle="#f6f4ee";c.fillRect(0,0,w2,h2);c.fillStyle="#c01818";c.fillRect(0,0,w2,13);
+        c.fillStyle="#fff";c.font="bold 10px sans-serif";c.textAlign="center";c.fillText("HELLO MY NAME IS",w2/2,10);
+        c.fillStyle="#111";c.font=`bold ${o.name.length>7?20:24}px sans-serif`;c.fillText(o.name,w2/2,39)});tag.colorSpace=THREE.SRGBColorSpace;
+      add(g,new THREE.PlaneGeometry(.12,.045),new THREE.MeshStandardMaterial({map:tag,roughness:.5}),.095,1.37,fz+.012,null,false)}
+    add(g,BX(.05,.035,.012),SM(0xc8a040,{metalness:.9,roughness:.3}),0,.95,(B.belly?.2:.12)*W+.008,null,false);   // belt buckle
+  }
+  [-1,1].forEach(s=>add(g,sph(HD?.054:.062),sleeve,s*(HD?.182:.19)*W,HD?1.415:1.43,0,HD?[1.05,.7,.95]:[1,.85,.9]));
   // arms: shoulder -> elbow -> hand
   const shortSleeve=["tee","polo","hawaii","dress"].includes(top),ar=B.arm*(sex==="f"?.85:1);
-  const arm=s=>{
+  const arm=HD?s=>{
+    const sh=new THREE.Group();sh.position.set(s*.215*W,1.43,0);sh.rotation.z=s*(B.belly?.16:.07);g.add(sh);
+    add(sh,cyl(.054*ar,.046*ar,.29),sleeve,0,-.145,0);
+    const fa=new THREE.Group();fa.position.y=-.29;sh.add(fa);
+    add(fa,sph(.046*ar,12,10),sleeve,0,0,0);add(fa,cyl(.045*ar,.037*ar,.25),shortSleeve?skin:sleeve,0,-.125,0);
+    if(!shortSleeve)add(fa,cyl(.04*ar,.04*ar,.035),top==="suit"||top==="shirt"?white:sleeve,0,-.24,0,null,false);   // cuff
+    const hn=new THREE.Group();hn.position.y=-.27;fa.add(hn);const hm=o.glove&&s>0?white:skin;
+    add(hn,rbox(.062,.07,.03,.012),hm,0,-.03,0).rotation.y=s*Math.PI/2;                 // palm
+    add(hn,rbox(.058,.05,.026,.011),hm,s*-.004,-.075,.008,null).rotation.set(.35,s*Math.PI/2,0);   // fingers, a little curled
+    add(hn,cyl(.011,.01,.045,8),hm,s*-.002,-.03,.03,null,false).rotation.x=.6;          // thumb
+    sh.userData.fa=fa;return sh;
+  }:s=>{
     const sh=new THREE.Group();sh.position.set(s*.215*W,1.43,0);sh.rotation.z=s*(B.belly?.16:.07);g.add(sh);
     add(sh,cap(.053*ar,.2),shortSleeve?sleeve:sleeve,0,-.14,0);
     const fa=new THREE.Group();fa.position.y=-.29;sh.add(fa);
@@ -230,7 +268,7 @@ function person(o){
   if(B.belly)add(g,sph(.07),skin,0,1.52,.03,[1.3,.7,1]);   // double chin
   // head
   const hd=new THREE.Group();hd.position.y=1.665;g.add(hd);u.head=hd;
-  hd.scale.setScalar(o.bigHead||1);
+  hd.scale.setScalar((o.bigHead||1)*(o.hd?1.28:1));if(o.hd)hd.position.y=1.695;
   const HS=[.94*(B.belly?1.06:1),1.12,1.02],style=o.hairStyle==="cap"?"short":(o.hairStyle||"short"),hat=o.hat||(o.hairStyle==="cap"?"cap":null);
   // Faces split at the mouth so the top of the head can flap open when they talk (South Park Canadian style).
   const CUT=-.035,cutT=Math.acos(CUT/1.12/.11),hinge=!o.face;
@@ -320,6 +358,13 @@ function animatePerson(g,moving,t,armsUp,talk){
     u.armL.rotation.x=moving?-s*.7:Math.sin(t*1.5)*.04;u.armR.rotation.x=moving?s*.7:-Math.sin(t*1.5)*.04;
     u.armL.userData.fa.rotation.x=moving?-.35:-.15;u.armR.userData.fa.rotation.x=moving?-.35:-.15;
   }
+  if(u.armL.userData.z0===undefined)u.armL.userData.z0=u.armL.rotation.z;
+  const z0=u.armL.userData.z0;
+  if(u.sit&&u.deskIdle&&!moving&&!armsUp){   // idle at the desk: hands on the keyboard, typing (or pretending to)
+    const k=Math.sin(t*14),j=Math.sin(t*11+2);
+    u.armL.rotation.x=-.75+k*.03;u.armR.rotation.x=-.75+j*.03;u.armL.rotation.z=.18;u.armR.rotation.z=-.18;
+    u.armL.userData.fa.rotation.x=-.85;u.armR.userData.fa.rotation.x=-.85;
+  }else{u.armL.rotation.z=z0;u.armR.rotation.z=-z0}
   // talking: when the game says so (a line being spoken), or taking turns in a conversation we watch from afar
   const tk=u.talkLeft>0||(talk&&!u.talkLeft&&Math.sin(t*1.6)>.1);
   const flap=tk&&u.top;

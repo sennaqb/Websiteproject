@@ -119,3 +119,5 @@ First-person 3D used-car dealership game ("Bargain Bob's Auto Mart"). You play M
   Week 2: surprise inspections (`startInspection`/`stepInspection`, grade A–F, bonus/dock), hail (`startHail`, dings 2–3 cars), secret shopper (one a day, settled at close of business), negotiation gurus.
   Week 3: tour bus (`startBus` → `addWalkIns` in data.js, tourists skip the lot-full throttle), rival-lot spies, trust-fund guys (2.5× budget).
   New personas carry `wk` (week unlocked) or `bus`. A "things are heating up" card (`WEEK_NEWS`) shows on the first morning of each week. Achievement "Teacher's Pet" for an A inspection.
+- Crew look upgrade: `W.person({hd:true,name})` (world.js) gives tapered limbs, hands with thumbs, shaped shoes, collar band + flaps, real tie with knot, button placket, pocket + pen, cuffs, belt buckle, a "HELLO MY NAME IS" tag and a 1.28× caricature head. Only the crew use it (spawnCrew).
+- Idle crew sit at their desk chair (`deskChair`, `sitAtDesk`, `getUp` in game.js) and type (`u.deskIdle` in animatePerson); they step out from behind the desk before going anywhere.
