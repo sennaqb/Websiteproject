@@ -1280,7 +1280,7 @@ function hud(){
     +G.miniBots.map(b=>`<div class="al mini">🧒 Mini Miguel → ${esc(b.c.u.name)}</div>`).join("");
   el("feed").innerHTML=G.feed.filter(f=>G.anim-f.t<14).map(f=>`<div style="color:${f.col}">${esc(f.msg)}</div>`).join("");
   const n=nearest(),free=document.pointerLockElement!==canvas&&!overlayOpen()&&!G.mouseDown;
-  el("prompt").textContent=n?n.label:free&&!G.talk?"Click to look around":"";
+  el("prompt").textContent=n?n.label:free&&!G.talk&&!G.looked&&!document.body.classList.contains("touch")?(G.drag?"Hold the mouse button and drag to look around":"Click to look around"):"";
   const tp=tip();el("tip").textContent=tp;el("tip").style.display=tp?"block":"none";
   boardUpdate(false);
   // minimap
@@ -1388,7 +1388,7 @@ addEventListener("keydown",e=>{
 addEventListener("keyup",e=>{G.keys[e.code]=false;if(e.code==="KeyF")flirtStop(e.timeStamp);if((e.code==="KeyV"||e.code==="Space")&&T&&T.inWorld)pttStop(e.timeStamp)});
 addEventListener("mousemove",e=>{
   if(!G.on||overlayOpen())return;
-  if(document.pointerLockElement===canvas||e.buttons){G.yaw-=e.movementX*.0022;G.pitch=Math.max(-1.3,Math.min(1.3,G.pitch-e.movementY*.0022))}
+  if(document.pointerLockElement===canvas||e.buttons){if(Math.abs(e.movementX)+Math.abs(e.movementY)>2)G.looked=true;G.yaw-=e.movementX*.0022;G.pitch=Math.max(-1.3,Math.min(1.3,G.pitch-e.movementY*.0022))}
 });
 document.addEventListener("pointerlockchange",()=>{
   if(!G.on||overlayOpen())return;
