@@ -868,7 +868,7 @@ function dateEnd(){
 // About 1 in 10 customers is a head-turner. Frenchy, Mario, Riccardo and Juanny melt and give the car away at or
 // under cost unless you take over the deal (E while they're at the desk). Sam and Andres oversell and scare her off.
 // Your own VRoid models go in models/customer-1.vrm, -2, -3 (adult women only).
-const BOMB_MODELS=["models/customer-1.vrm","models/customer-2.vrm","models/customer-3.vrm"];
+const BOMB_MODELS=[1,2,3].map(n=>[`models/customer-${n}.vrm`,`models/customer-${n}.b64.txt`]);   // .vrm on GitHub Pages, packed .b64.txt on the artifact host
 const BOMB_GIVERS=["Frenchy","Mario","Riccardo","Juanny"],BOMB_UPSELL=["Sam","Andres"];
 const BOMB_DROOL={Frenchy:["Mademoiselle. Welcome to ze most romantic car lot in America.","Ooh la la. I mean. Bonjour. Cars. We have cars."],
   Mario:["Mamma mia. I mean, welcome! You look like you need a car. Or a husband. I'm both.","Hi! Hello! I'm Mario! Single! Sells cars!"],

@@ -17,3 +17,5 @@ More laundry-day bikinis: tiffany-beach-red/-black/-pink.png = her body texture 
 
 Head-turner customers: export up to three VRoid women as customer-1.vrm, customer-2.vrm, customer-3.vrm.
 They must clearly be adult women (mature face preset, adult proportions). Until a file is here, they use the cartoon stand-in.
+
+Current customers: customer-1.vrm (long dark hair, red fitted dress), customer-2.vrm (blonde, crop top and jeans, sunglasses on her head), customer-3.vrm (curly brown hair, little black dress, gold hoops). All VRM 1.0 with hair and bust spring bones. Customer 3's hoops were placed in the exported file, so re-exporting her from VRoid brings back the old hoop position.
