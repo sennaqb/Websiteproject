@@ -141,6 +141,7 @@ function enterPrep(){
 // ---------- start / shift ----------
 function start(newGame){
   if(!W)return;
+  if(newGame){try{localStorage.removeItem("bobsTut")}catch(e){}}   /* every new game opens with Tiffany's tutorial (K skips it) */
   Sfx.init();
   if(newGame||!load())fresh();
   el("title").style.display="none";document.body.classList.add("playing");
