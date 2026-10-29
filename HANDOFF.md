@@ -1,0 +1,123 @@
+# Handoff — 2026-10-19
+
+## Goal
+First-person 3D used-car dealership game ("Bargain Bob's Auto Mart"). You play Miguel, the manager. Salespeople stall or cave; you walk over and close deals by voice with Claude playing the customers. AAA feel within browser and three.js limits.
+
+## Done
+- Modular three.js game on branch `dealership-sim`, draft PR #2 (sennaqb/Websiteproject). No build step.
+- Prep phase in the showroom (office computer: prices, crew, upgrades, books) → OPEN switch → 270 s shift → end-of-day report → next morning.
+- The lot restocks itself (consignment). The user explicitly does not want an auction or buying.
+- First-person conversations: press E at a stalled pair, hold V to talk (Web Speech API), T to type, 1–4/F add-ons and sign, walk away to leave. The lot keeps running live. Subtitles in `#subs`.
+- Negotiation engine owns all numbers (walk-away price, patience, rapport, add-ons). Deal tiers: easy, winnable, hopeless.
+- Gemini customers are "unhinged" (user asked): swearing, roasting Miguel, loosest safety settings (`GEM_SAFETY`, `UNHINGED` in `js/ai.js`); no slurs or sexual content. Gemini works too: any pasted key not starting with sk-ant- routes to Gemini (new Google keys start with AQ.) (`callGemini`, tries gemini-3.5-flash-lite then fallbacks on 404). GitHub Pages is live at https://sennaqb.github.io/Websiteproject/.
+- Claude customers (`js/ai.js`, Haiku 5.5): classifies intents and voices replies; validated against jailbreaks. Sources: the claude.ai artifact `sample` capability, or the user's API key pasted on the title screen.
+- Feel pass: bloom, grading, vignette, grain, head bob, sprint FOV, shake, T.O. ring and flash, gross pop-ups, title cards.
+- Office furniture modeled in `js/world.js` (`makeDesk`, `makeOfficeChair`, `makeGuestChair`), merged per material by `bakeStatic`.
+- People rebuilt (`person()` in `js/world.js`): rounded bodies, faces, knees and elbows, merged per part. Customers' heads flap open South Park Canadian style when they talk (always on; the user said never turn it off). Eyebrows show mood (`BROWS`), set from `mood()` in `js/talk.js`.
+- Miguel walks around as a model with his photo face and a big head: C toggles third person; he waves on the title screen.
+- Sales team: Juanny (Spanish only, never closes alone: every deal becomes a T.O.; `FIXED_CREW`), Andres, Sam start; Riccardo, Mario, Frenchy are hireable (`TEAM` in `js/data.js`), six desks. Old saves are renamed by `renameTeam()`.
+- "I have a gun" (G in a deal): guaranteed close at asking price, 3 per career (`S.guns`), pistol shown in view (`W.gun`).
+- Fun pack: customer personalities (`PERSONAS` in data.js: quips, voice pitch/rate, soft-to-crying), crew hand-off one-liners (`CREW_LINES`/`CREW_VOICES` in game.js), wife phone call after a price is agreed (`wifeTalk`), X to cry (`cryDeal`), poster running gag by day (`posterGag`), Bob the owner walks the lot once a shift (`stepBob`/`bobJudges`: under-cost sale in front of him = strike, gun = +$500; state is `G.owner` because `G.bob` is the head-bob phase), Mr. Wiggle flies onto customers (`W.launchTube`, `stepWiggle`), bumpers fall off (`W.dropBumper`), end-of-day online reviews (`TALK_LOG`, `AI.reviews`, `cannedReview`).
+- Voice input has two recognizers (`micMode` in talk.js): the browser's SpeechRecognition, or Whisper in the page (`js/whisper.js`, transformers.js 3.8.1 + Xenova/whisper-tiny.en, ~40 MB cached, MediaRecorder capture). Brave (the user's browser) and Firefox default to Whisper; a 'network' error switches any browser to it. Tested headless with jfk.wav as the fake mic.
+- Lot flow: customers appear inside the gate (`GATE_IN`), at most crew+1 on the lot; salesperson greets at the car, both walk to the desk and sit (`guestSeat`, `routeSalesToDesk`, `u.sit` pose in animatePerson), T.O.s happen at the desk; after any sale both walk to the car and it drives off (`claimCar`, `startDelivery`, `driveOff`, `G.drives`).
+- People don't overlap: `separate()` with keep-right aisle lanes (IN/OUT x=∓.55), sideways slide, pairs (customer+own salesperson) exempt; `stepNpc` skips a waypoint blocked for 3 s; player bumps into people.
+- Lot: three rows of ten (`ROWS`, `colX` in world.js, wider center aisle), starting cap 12 (+3 per upgrade, max 30). Shift is 480 s with 12–18 customers.
+- Characters (`person()` in world.js): painted canvas faces wrapped on the head (`faceTex`, `headUV` keeps both flap halves on one texture), body types (slim/avg/fat/muscle), men and women, many hairstyles, hats (cap, fedora, tinfoil, beanie, boonie, beret), outfits with painted patterns (`clothTex`: plaid, camo, stripes, Hawaiian, Pokéball tee, Thriller jacket, hoodie), glasses, beards, chains, one white glove. Cloth and face textures are SRGB. Looks per personality in `LOOKS` (game.js); crew in `CREW_LOOKS`; the MJ impersonator moonwalks (`moonwalk`).
+- Personalities: 20 (`PERSONAS`; walken, borat, mrt, sparrow, mime added; the mime is `silent`: `mimeify` turns lines into gestures, no TTS), incl. impersonators (`imp:true`: mj, elvis, arnold — catchphrases, more frequent quips), hungry, flirt. Declined: a sexual impersonation of a real adult performer.
+- Sizzle: cars have `feats` (`FEATS`, `giveFeats` in data.js); pitching real ones builds `T.value` and can stretch budget to 1.35x; fake ones are lies; a high price with no value gets `justify`.
+- Selling psychology: customers open with small talk; a price before warm-up gets a cold brush-off once (-3%); asking needs reveals the hidden hot button (`HOT`, `u.hot`: safety, mpg, looks, reliable, space, deal); pitching it is +6% and rapport. Subtitle header shows cold/warming/warmed up and the hot button once known.
+- Deal panel (`#deal`, `renderDeal`, `doubt()` in talk.js): mood face, doubt alert with reason and tip (driven by `T.event`), patience/trust/value bars, ask vs offer, feature chips, next-move tip.
+- Customer dialogue lives in `js/lines.js`: `line(u,kind,vars)` with general (`ANY`) and per-personality (`BY`) banks for intro, far, close, counter, refuse, agree, walk, rapport, numbers, unclear, greet, thanks, release, add-ons; no repeats within a conversation (`T.said`). Mid-deal caller depends on personality (`CALLERS`).
+- Natural voices: `js/voices.js` runs Kokoro (kokoro-js 1.2.1, onnx-community/Kokoro-82M-v1.0-ONNX, ~90 MB cached) in the page; WebGPU if an adapter is available, else WASM q8. `speakLine(...,kv)` routes to it when ready; voices per persona (`KVOICE`), crew (`CREW_KVOICE`), Bob am_onyx; Spanish (Juanny) stays on browser voices. Falls back automatically if generation is >2.2x slower than real time (`K.slow`). Title-screen toggle + status.
+- Mini Miguel (Q): twice a day, a small photo-faced Miguel walks from the office to a stuck customer and closes ~60% (`sendMini`, `stepMinis`, `miniResolve`). T.O. alerts are small chips at top center (`#alerts`); the stall screen flash is gone.
+- Cars rebuilt (`buildCar`): curved beveled profiles, cabin + glass, clear-coat MeshPhysical paint with a PMREM sky env (`W0.carEnv`), spoked wheels, lights, grille, bumpers, trim, contact shadow, visible features (sunroof, rims, hitch, roof rails).
+- Mic: errors explained (`MIC_ERR`), Test mic button on the title screen.
+- Signs auto-fit their text (`fitFont`); the banner is a real vinyl banner texture.
+- Miguel's photo (`js/miguel.js`, data URI): 12 employee-of-the-month posters, plus office, windows, fence and dumpster. Customers recognize him.
+- Verified headless (Playwright + swiftshader): full day loop, saves, no console errors. Career sims: active manager wins ~day 20–24; passive fired about half the time. AI path tested with a mocked model only.
+
+## State now
+- Private claude.ai artifact, up to date: https://claude.ai/artifact/R4VrKN72LSnJ1Rz9P6iR7B (no mic there; typing works; built-in Claude via `sample`).
+- Voice plus AI needs a normal web page. The repo is private, so GitHub Pages needs the user to (a) make the repo public and (b) set Pages to branch `dealership-sim` / root. URL would be https://sennaqb.github.io/Websiteproject/. As of the last check it was 404 (not enabled).
+- Not verified: real microphone, real Claude API calls, real mouse and keyboard feel.
+- The user asked about "Voicestudio" (a desktop app) for voices. It's unknown whether it has a live API; waiting on the app's name, website or a screenshot.
+
+## Next steps
+1. Ask whether Pages is live; `curl -s -o /dev/null -w "%{http_code}" https://sennaqb.github.io/Websiteproject/`.
+2. Get the user's playtest feedback (voice, Claude replies, pacing, difficulty) and fix the top issues.
+3. If Voicestudio has a live TTS API (cloud or localhost), add it as an optional voice backend in `speak()` in `js/talk.js`, keeping browser voices as the fallback.
+4. Possible: merge AI classify and voice into one call to cut reply latency (`js/ai.js`).
+5. After code changes: bump `?v=` on the script tags in index.html (cache-busting for Pages), `node --check js/*.js`, headless run, commit and push, republish the artifact (publish copy = index.html head from `<title>` + body contents; send changed `js/*` in `files`).
+
+## Watch out
+- This session's GitHub integration cannot change repo settings or create repos (403). The user must do the Pages and visibility clicks themselves.
+- Desktop Commander in this setup runs in the cloud container, not on the user's PC.
+- claude.ai artifacts block the microphone; don't promise voice there.
+- Miguel's photo goes public if the repo goes public; the user was warned.
+- `page.screenshot` hangs with the rAF loop; capture via `canvas.toDataURL()` right after `G3.draw()`.
+- The user dislikes management friction (no auction). Focus on selling and negotiating.
+- Commit attribution: Co-Authored-By Claude Opus 5.5 plus the Claude-Session line.
+
+## Key files
+- `index.html`: shell, CSS, script order.
+- `js/data.js`: cars, customers, crew, economy, quota, saves.
+- `js/voices.js`: in-page Kokoro natural voices.
+- `js/whisper.js`: in-page Whisper speech-to-text (Brave/Firefox fallback).
+- `js/lines.js`: what customers say (personality line banks).
+- `js/talk.js`: negotiation engine, subtitles, push-to-talk, TTS.
+- `js/ai.js`: Claude layer (sample or API key), prompts and validation.
+- `js/world.js`: 3D world, cars, people, posters, post-processing.
+- `js/game.js`: first-person control, NPCs, shifts, HUD, takeover.
+- `js/pc.js`: office computer UI.
+- `js/audio.js`: synthesized sound.
+- `js/miguel.js`: Miguel's photo.
+- `NOTES.md`: dev notes and testing approach.
+
+## Tiffany (receptionist, VRoid)
+- js/vrm.js (ES module via importmap + js/three-shim.js) loads VRM with @pixiv/three-vrm 3.4.5: spring bones, expressions, blink, lip sync, wave, head turn, procedural bust sway when the export has no bust spring bones.
+- Reception counter in world.js (`makeReception`, `W.reception`). game.js: `makeRecep`, `stepRecep`, `recepChat` (E), greets customers walking in.
+- Models: models/receptionist.vrm, optional models/receptionist-day1..3.vrm (daily outfits), sample fallback. See models/README.md.
+- Crew distraction: idle salespeople drift to reception (`stepFlirt`, FLIRT_RATE per person), skip customers while there; E sends them back (`sendBack`); Tiffany shoos them after 75 s. Pink chip + pink minimap dot.
+- Outfits: vrm.js `dress(vrm,outfit)` recolors Tops/Shoes and adds a skinned pleated skirt (waist on hips, hem on thighs). RECEP_OUTFITS in game.js (office, red, plaid, pink, black), one per day; only applied to the sample model (dressIf), own exports keep their outfits.
+- VRM 0.x models: normalized-bone x/z rotations flipped in VRMKit.animate.
+- Voices: status shows the real load error and MB downloaded; Retry button on the title screen; first (warm-up) line no longer counts toward "too slow".
+- Day-one tutorial (game.js TUT / stepTut): Tiffany talks you through walking, the computer, opening, the first T.O., Mini Miguel and the gun; goal shows in the tip line; K skips; runs once per browser (localStorage bobsTut).
+- Tiffany reads as a grown woman: vrm.js `adult()` (head .86, neck 1.25, legs 1.1, overall 1.07, feet re-grounded, relaxed eyes, lipstick, darker liner). Default face neutral; soft smile only while waving. Pencil skirts (flare<.15) sit over the blouse.
+- Tiffany is now the user's own VRoid Studio model (models/receptionist.vrm, source in models/source/). Generated outfits/adult tweaks only apply to the sample fallback.
+- New Tiffany (white blouse, pencil mini, glasses) replaces the suit model. Artifact copy loads models/receptionist.b64.txt (gzipped base64, decoded in vrm.js) since the artifact can't serve .vrm; clothes dimmed x.82 so white doesn't blow out.
+- Outfit rotation: RECEP_LOOKS in game.js (receptionist / receptionist-beach 'Beach Day' with its own lines), alternating by day; missing files fall back to the main model.
+- Beach Day (even days): vrm.js swim() hides the outfit and recolors the painted-on underwear into a red bikini (dilated, white trim). A real receptionist-beach.vrm overrides it. Crew drifts to reception twice as often that day.
+- Beach Day now uses models/tiffany-beach-skin.png (Golden Summer bikini, Booth 4778162, composited on her body texture with the old underwear inpainted away); swim({texture}) swaps the body map.
+- Beach Day replaced by random Laundry Days (~30% of days, never day 1, hashed from the day number so reloads match): bikini + laundry excuses; crew still twice as distractible.
+- Laundry days: FLIRT_BIKINI lines per salesman (3 tries each, optional last word L[2]), linger up to 100 s, 😍🔥 pops.
+- Rules brain: new intents testdrive/trade/history/budget; unrecognized lines and questions get echo() replies that quote the player's topic instead of 'say a number'. Voices: first spoken chunk cut short (comma/conjunction) so replies start sooner.
+- Gemini: thinkingConfig minimal→low→budget 0→none per model (steps down on a 400 about thinking), model/auth/thinking choice saved in localStorage bobsGem; key test waits 25 s; in-game calls 8-15 s; timeout message names the right provider.
+- Subtitles/feed scale with the screen (clamp, ~2x on 1080p). Tiffany roasts wholesaling when the computer closes (Game.wholesaled from data.js wholesale; tiers: one car, 3+ in a day with retail lost, whole lot emptied).
+- Test drives (game.js startTestDrive/beginDrive/stepTestDrive): ~45% of desk deals, salesperson + customer ride a lap (lane → fence → front by the gate → back), one event (smooth/bumper/donuts/wiggle/joyride) sets c.tdBonus which shifts resolveWork's roll; cars re-parked every morning; bail-out if the car gets sold mid-drive.
+- Random events (stepEvents, every 70-120 s): Dale the homeless guy pesters customers (E: $5 to leave), a past customer returns with a lawyer to your office (E: settle / fight coin flip / stall; ignore = 1.5x judgment), rain (W.setRain, grey sky, less patience; dry indoors). L: Tiffany walks the lot twice a day, men she passes warm up (reserve +5%), women cool off (-4%).
+- Days off (stepDayOff/answerDayOff, S.mot): from day 2, 40%/day a salesperson asks for tomorrow off (Y/N chip, 60 s, silence = no). Approve: off tomorrow (spawnCrew skips), 🔥 day after (skill +.2, cave -.1). Deny: 😒 two days (skill -.2, cave +.1).
+- SECRET flirting (S.tiff): E-chat Tiffany on 3 different days unlocks F at her desk. 3 lines offered (smooth +3 / cheesy +1 / cringe -2..-3), 3 a day. Meter 0-20: 4 budget tips in chat, 8 morning coffee (faster walk 60 s, next T.O. +25% patience), 13 covers one Bob strike a day, 18 waves first, 20 vending-machine date in the next-morning screen. Wholesale roasts and the gun cost 1. Nearby idle crew get jealous and drift to her sooner; Bob on the lot catches you.
+- Flirting is now voiced: hold F at her desk and talk (Whisper or browser speech, same as customers); tap F to type. AI.flirt (Gemini/Claude) rates -3..3 and answers in character; offline rateFlirt scores car puns/compliments/romance up, creepy or boss lines down.
+- Balance after the 20-day test: Mr. Wiggle ~1/day (420-700 s), Bob on ~40% of days at a random time, test drives 36% of desk deals (smooth ride bonus .2), quota +2,500/wk for weeks 1-2 then +1,500 (10k, 12.5k, 14k, 15.5k, 17k).
+- Laundry days cycle four bikinis (SWIMS: golden, red, black, pink) by laundry-day count; red/black/pink from a CC BY-SA set the owner supplied (credit needed if shared).
+- Touch controls (js/touch.js, only on coarse-pointer devices): joystick (push all the way to run), drag to look, buttons that send the desktop keys (use, mini, lot, type, hold-talk, hold-flirt, gun, cry, finance, leave, pause, camera, mute, Y/N, skip). Phone mode turns off the bloom pass and caps pixel ratio at 1.25; rotate-your-phone notice in portrait.
+- VRM walk: phase driven by distance covered (0.6 m per step), knee folds on the swing leg, feet flatten, hips bob 2.8 cm per footfall and roll, spine counter-twists, arms counter-swing; bust spring stiffness x0.5, drag x0.55 so the bob shows.
+- Kids (spawnKids/stepKids/kidsToTiffany): ~18% of customers (60% of moms) bring 2-3 small kids who orbit the parent (aisle side at desks, lane side on the lot). Chaos every 15-25 s: stuck -7 s patience, desk deal -6% close per hit, T.O. -1 patience with a parent outburst, test drive -.05. E near them (4 m in a T.O.) sends them to Tiffany for lollipops: calm for the rest of the visit, +15 s / +1 patience.
+- Tiffany: recepChat cooldown (6 s window: annoyed lines, then ignores for 20 s); recepCheer on every sale (crew, T.O., Mini Miguel) = two hops via u.jump in VRMKit.animate. Deal panel: while talking subtitles keep left of it (right:336px), panel max-height; phone puts it top-right at 62% with extras hidden. Fixed a comment-swallowed line that broke her first chat of the day.
+- Head-turner customers (u.bomb, ~10%): BOMB_GIVERS (Frenchy, Mario, Riccardo, Juanny) give the car away at 82-102% of cost when the desk deal resolves; BOMB_UPSELL (Sam, Andres) scare her off (45% walk) or stall with 60% patience. Alert chips while at the desk; drool line at greet; special handoff lines. Models: models/customer-1..3.vrm replace the glam stand-in via VRMKit.attach {replace:true} (adult models only).
+- Date scene (dateStart/dateTalk/dateChoice/dateEnd, phase 'date'): runs from finish() the night the meter maxes; dusk, everyone hidden, Tiffany seated on the sofa with Funyuns + Fresca, 3 dialogue beats with 3 choices each, Frenchy at the window after beat 2, then 'same time tomorrow' and the normal next morning.
+- Bust physics fix: VRoid bust springs are stiff on short bones, and an extra pitch layer (underdamped spring on chest vertical velocity, ±0.45 rad, around the body's left-right axis in parent space) is applied AFTER vrm.update with updateMatrix/updateMatrixWorld (the spring system writes matrices itself, so earlier rotations never showed).
+
+## Polish pass (Oct 28)
+- Weekly awards card at week end (`tally()` / `weekAwards()` in data.js).
+- Title screen preloads the Tiffany + head-turner models and shows a loading line.
+- Rain at most once a day; the "Rainy day" event rains all shift.
+- Sound: showroom radio (synth lounge loop, indoors only) and a rain bed, both in audio.js (`Sfx.loops`, called from `draw()`).
+- Achievements (js/ach.js): 16 Steam-style achievements stored in localStorage `bobsAch` across saves; toast on unlock; list from the title screen. Hooks: `achTally` (via tally), plus `ach(id)` in closeDay, recepRoast, dateEnd, lawyer win, Dale, laundry-day start.
+- Scripted opening day: Day 1 customers 0–5 are grandma, an impersonator, influencer, a head-turner, mom+kids, the hungry guy (`openDay` in data.js); Wiggle ~2 min, Dale ~3 min, Bob ~4 min (`G.bobAt`, `G.forceEv` in startShift). Day 2 is always laundry day and brings the lawyer. Lawsuits: once a day, never day 1.
+- Escalation by week (`weekOf(S.day)`): events come faster; Bob visits more and his lines get angrier (`BOB_HI`).
+  Week 2: surprise inspections (`startInspection`/`stepInspection`, grade A–F, bonus/dock), hail (`startHail`, dings 2–3 cars), secret shopper (one a day, settled at close of business), negotiation gurus.
+  Week 3: tour bus (`startBus` → `addWalkIns` in data.js, tourists skip the lot-full throttle), rival-lot spies, trust-fund guys (2.5× budget).
+  New personas carry `wk` (week unlocked) or `bus`. A "things are heating up" card (`WEEK_NEWS`) shows on the first morning of each week. Achievement "Teacher's Pet" for an A inspection.
+- Crew look upgrade: `W.person({hd:true,name})` (world.js) gives tapered limbs, hands with thumbs, shaped shoes, collar band + flaps, real tie with knot, button placket, pocket + pen, cuffs, belt buckle, a "HELLO MY NAME IS" tag and a 1.28× caricature head. Only the crew use it (spawnCrew).
+- Idle crew sit at their desk chair (`deskChair`, `sitAtDesk`, `getUp` in game.js) and type (`u.deskIdle` in animatePerson); they step out from behind the desk before going anywhere.
