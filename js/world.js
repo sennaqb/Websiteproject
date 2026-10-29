@@ -854,8 +854,20 @@ function create(canvas){
   const openSign=new THREE.Mesh(new THREE.PlaneGeometry(1.4,.52),new THREE.MeshBasicMaterial({map:openTex}));openSign.position.set(0,2.75,Z1-.3);openSign.rotation.y=Math.PI;scene.add(openSign);
   W.setOpen=function(open){
     const g=openTex.userData.g;g.fillStyle="#120505";g.fillRect(0,0,256,96);g.fillStyle=open?"#40ff70":"#ff4040";fitFont(g,open?"OPEN":"CLOSED","bold 54px sans-serif",230);g.textAlign="center";g.textBaseline="middle";g.fillText(open?"OPEN":"CLOSED",128,48);openTex.needsUpdate=true;
+    if(W.swLever){W.swLever.lever.rotation.x=open?Math.PI*.22:Math.PI*.78;W.swLever.lm.color.set(open?0x20b040:0xd02020)}
   };
-  box(.18,.3,.06,M(0x333333),W.sw.x,1.3,Z1+.18);
+  // the lot switch: a metal plate, a label, and a chunky lever that flips up (green) when the lot opens
+  {const sw=new THREE.Group();sw.position.set(W.sw.x,1.3,Z1-.1);sw.rotation.y=Math.PI;scene.add(sw);   /* on the inside of the front wall, facing in */
+    const pm=new THREE.Mesh(rbox(.17,.36,.025,.02),new THREE.MeshStandardMaterial({color:0xc4c8cc,metalness:.7,roughness:.35}));sw.add(pm);
+    const lt=textTex("LOT","#111","#f4d03a",128,40,"bold 30px sans-serif");
+    const lab=new THREE.Mesh(new THREE.PlaneGeometry(.15,.047),new THREE.MeshBasicMaterial({map:lt}));lab.position.set(0,.135,.014);sw.add(lab);
+    const slot=new THREE.Mesh(BX(.035,.12,.01),new THREE.MeshStandardMaterial({color:0x111111}));slot.position.set(0,-.05,.014);sw.add(slot);
+    const lever=new THREE.Group();lever.position.set(0,-.05,.018);sw.add(lever);
+    const lm=new THREE.MeshStandardMaterial({color:0xd02020,roughness:.4});
+    const arm=new THREE.Mesh(BX(.026,.1,.026),lm);arm.position.y=.05;lever.add(arm);
+    const knob=new THREE.Mesh(new THREE.SphereGeometry(.024,14,10),lm);knob.position.y=.1;lever.add(knob);
+    lever.rotation.x=Math.PI*.78;   // down = closed
+    W.swLever={lever,lm}}
   // floor markers for the two spots you walk up to
   const ringM=new THREE.MeshBasicMaterial({color:0xffd24a,transparent:true,opacity:.55,side:THREE.DoubleSide});
   W.rings=[W.pc,W.sw].map(p=>{const r=new THREE.Mesh(new THREE.RingGeometry(.55,.7,24),ringM);r.rotation.x=-Math.PI/2;r.position.set(p.x,.06,p.z);scene.add(r);return r});
